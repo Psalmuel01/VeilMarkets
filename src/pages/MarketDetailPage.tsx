@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { 
-  Clock, 
-  Users, 
-  ArrowLeft, 
+import {
+  Clock,
+  Users,
+  ArrowLeft,
   Shield,
   ExternalLink,
   Calendar,
@@ -58,7 +58,7 @@ export default function MarketDetailPage() {
     <MainLayout>
       <div className="max-w-4xl mx-auto">
         {/* Back Navigation */}
-        <Link 
+        <Link
           to="/markets"
           className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-6"
         >
@@ -73,14 +73,14 @@ export default function MarketDetailPage() {
           className="mb-8"
         >
           <div className="flex items-center gap-2 mb-4">
-            <Badge 
-              variant="outline" 
+            <Badge
+              variant="outline"
               className={cn("text-xs uppercase tracking-wider", categoryColors[market.category as keyof typeof categoryColors])}
             >
               {market.category}
             </Badge>
-            <Badge 
-              variant="outline" 
+            <Badge
+              variant="outline"
               className={cn("text-xs uppercase tracking-wider", statusColors[market.status])}
             >
               {market.status}
@@ -88,7 +88,7 @@ export default function MarketDetailPage() {
           </div>
 
           <h1 className="text-3xl md:text-4xl font-bold mb-4">{market.title}</h1>
-          
+
           <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-1.5">
               <Clock className="w-4 h-4" />
@@ -148,7 +148,7 @@ export default function MarketDetailPage() {
                   disabled={market.status !== "Open"}
                 />
               </div>
-              
+
               {market.status !== "Open" && (
                 <p className="text-sm text-muted-foreground mt-4 text-center">
                   This market is no longer accepting bets
@@ -159,7 +159,7 @@ export default function MarketDetailPage() {
             {/* Activity (Abstract) */}
             <div className="p-6 rounded-xl bg-card border border-border/50">
               <h2 className="text-lg font-semibold mb-4">Market Activity</h2>
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="flex justify-between items-center py-3 border-b border-border/50">
                   <span className="text-muted-foreground">Total Bets</span>
                   <span className="font-medium">{market.betsPlaced}</span>
@@ -210,7 +210,7 @@ export default function MarketDetailPage() {
                   <p className="text-sm text-muted-foreground mb-4">
                     You haven't placed a bet on this market yet
                   </p>
-                  <Button 
+                  <Button
                     onClick={() => setShowBetModal(true)}
                     disabled={market.status !== "Open"}
                     className="w-full btn-glow-primary"
@@ -246,8 +246,8 @@ export default function MarketDetailPage() {
             {/* External Links */}
             <div className="p-6 rounded-xl bg-card border border-border/50">
               <h3 className="text-sm font-semibold mb-3">Verification</h3>
-              <a 
-                href="#" 
+              <a
+                href="#"
                 className="flex items-center justify-between text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 <span>View on Aleo Explorer</span>

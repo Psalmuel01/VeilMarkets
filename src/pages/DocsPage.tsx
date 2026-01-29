@@ -1,9 +1,9 @@
 import { motion } from "framer-motion";
-import { 
-  Shield, 
-  Lock, 
-  Eye, 
-  CheckCircle2, 
+import {
+  Shield,
+  Lock,
+  Eye,
+  CheckCircle2,
   Zap,
   BookOpen,
   ExternalLink,
@@ -201,7 +201,7 @@ export default function DocsPage() {
             <h2 className="text-xl font-semibold">Frequently Asked Questions</h2>
           </div>
 
-          <div className="space-y-4 pl-11">
+          <div className="space-y-3 pl-11">
             {faqs.map((faq, index) => (
               <div key={index} className="p-5 rounded-xl bg-card border border-border/50">
                 <h3 className="font-medium mb-2">{faq.question}</h3>

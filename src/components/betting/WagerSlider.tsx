@@ -10,14 +10,14 @@ interface WagerSliderProps {
   disabled?: boolean;
 }
 
-export function WagerSlider({ 
-  value, 
-  onChange, 
+export function WagerSlider({
+  value,
+  onChange,
   max = 100,
-  disabled = false 
+  disabled = false
 }: WagerSliderProps) {
   const percentage = (value / max) * 100;
-  
+
   // Abstract labels instead of actual amounts
   const getWagerLevel = (val: number) => {
     if (val < 25) return { label: "Conservative", color: "text-success" };
@@ -29,7 +29,7 @@ export function WagerSlider({
   const level = getWagerLevel(value);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-muted-foreground">Wager Amount</span>
         <div className="flex items-center gap-2">
@@ -49,7 +49,7 @@ export function WagerSlider({
           disabled={disabled}
           className="cursor-pointer"
         />
-        
+
         {/* Visual representation without actual numbers */}
         <div className="absolute -bottom-6 left-0 right-0 flex justify-between text-[10px] text-muted-foreground">
           <span>Min</span>

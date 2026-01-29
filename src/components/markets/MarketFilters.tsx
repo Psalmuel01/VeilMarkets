@@ -19,14 +19,14 @@ const categories = [
   { id: "Entertainment", label: "Entertainment" },
 ];
 
-export function MarketFilters({ 
-  activeCategory, 
+export function MarketFilters({
+  activeCategory,
   onCategoryChange,
   searchQuery,
-  onSearchChange 
+  onSearchChange
 }: MarketFiltersProps) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Search Bar */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -56,7 +56,7 @@ export function MarketFilters({
             {category.label}
           </Button>
         ))}
-        
+
         <Button
           variant="ghost"
           size="sm"

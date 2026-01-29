@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ZKBadge } from "@/components/ui/ZKBadge";
+import { WalletMultiButton } from "@demox-labs/aleo-wallet-adapter-reactui";
 
 const steps = [
   {
@@ -67,6 +68,7 @@ export default function LandingPage() {
                 Launch App
               </Button>
             </Link>
+            <WalletMultiButton />
           </div>
         </div>
       </nav>

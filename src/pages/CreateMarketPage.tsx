@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { 
-  Shield, 
-  Calendar, 
-  Tag, 
+import {
+  Shield,
+  Calendar,
+  Tag,
   FileText,
   ArrowRight,
   CheckCircle2,
@@ -115,7 +115,7 @@ export default function CreateMarketPage() {
                   <Tag className="w-4 h-4 text-primary" />
                   Category
                 </Label>
-                <Select 
+                <Select
                   value={formData.category}
                   onValueChange={(value) => setFormData({ ...formData, category: value })}
                 >
@@ -165,14 +165,14 @@ export default function CreateMarketPage() {
               <div className="text-sm">
                 <p className="font-medium text-foreground mb-1">Privacy Note</p>
                 <p className="text-muted-foreground">
-                  As a market creator, your identity remains private. All betting activity 
+                  As a market creator, your identity remains private. All betting activity
                   in your market will be encrypted using ZK proofs.
                 </p>
               </div>
             </div>
 
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={!isFormValid}
               className="w-full btn-glow-primary"
             >
@@ -195,7 +195,7 @@ export default function CreateMarketPage() {
                 <ZKBadge variant="proof" size="sm" />
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Question</p>
                   <p className="font-medium">{formData.title}</p>
@@ -303,7 +303,7 @@ export default function CreateMarketPage() {
             >
               <CheckCircle2 className="w-12 h-12 text-success" />
             </motion.div>
-            
+
             <div>
               <h3 className="text-xl font-semibold mb-2">Market Created!</h3>
               <p className="text-muted-foreground mb-4">
