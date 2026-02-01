@@ -83,9 +83,9 @@ program veilmarkets.aleo {
         resolution_block: u64
     ) {
         // Prevent overwrite
-        let existing_opt = Mapping::get(markets, market_id);
+        let exists: bool = Mapping::contains(markets, market_id);
         // "Market ID already exists"
-        assert_eq(existing_opt == none, true);
+        assert(!exists);
 
         let market = MarketInfo {
             creator: creator,
@@ -134,25 +134,25 @@ program veilmarkets.aleo {
         outcome: u8,
         amount: u64
     ) {
-        let market_opt = Mapping::get(markets, market_id);
-        assert(market_opt != none); // market does not exist
-        let market = market_opt.unwrap();
+        let market: MarketInfo = Mapping::get(markets, market_id);
 
-        assert(block.height < market.close_block); // market closed
+        assert(block.height as u64 < market.close_block); // market closed
         assert(!market.is_resolved); // market resolved
 
-        let pool_opt = Mapping::get(pools, market_id);
-        let pool = pool_opt.unwrap_or(PoolState { total_no: 0u64, total_yes: 0u64, participant_count: 0u64, locked: false });
+        let pool: PoolState = Mapping::get(pools, market_id);
         assert(!pool.locked); // pool locked
 
-        if (outcome == 0u8) {
-            pool.total_no += amount;
-        } else {
-            pool.total_yes += amount;
-        }
-        pool.participant_count += 1u64;
+        let new_total_no: u64 = (outcome == 0u8) ? pool.total_no + amount : pool.total_no;
+        let new_total_yes: u64 = (outcome == 1u8) ? pool.total_yes + amount : pool.total_yes;
 
-        Mapping::set(pools, market_id, pool);
+        let updated_pool: PoolState = PoolState {
+            total_no: new_total_no,
+            total_yes: new_total_yes,
+            participant_count: pool.participant_count + 1u64,
+            locked: pool.locked,
+        };
+
+        Mapping::set(pools, market_id, updated_pool);
     }
 
     // Resolve market (only creator, after resolution block)
@@ -170,13 +170,11 @@ program veilmarkets.aleo {
         winning_outcome: u8,
         caller: address
     ) {
-        let market_opt = Mapping::get(markets, market_id);
-        assert(market_opt != none); // market not found
-        let market = market_opt.unwrap();
+        let market: MarketInfo = Mapping::get(markets, market_id);
 
         // "Not creator"
         assert_eq(caller, market.creator);
-        assert(block.height >= market.resolution_block); // too early
+        assert(block.height as u64 >= market.resolution_block); // too early
         assert(!market.is_resolved); // already resolved
 
         market.is_resolved = true;
@@ -185,10 +183,14 @@ program veilmarkets.aleo {
         Mapping::set(markets, market_id, market);
 
         // Lock pool
-        let pool_opt = Mapping::get(pools, market_id);
-        let pool = pool_opt.unwrap();
-        pool.locked = true;
-        Mapping::set(pools, market_id, pool);
+        let pool: PoolState = Mapping::get(pools, market_id);
+        let updated_pool: PoolState = PoolState {
+            total_no: pool.total_no,
+            total_yes: pool.total_yes,
+            participant_count: pool.participant_count,
+            locked: true,
+        };
+        Mapping::set(pools, market_id, updated_pool);
     }
 
     // Claim winnings (private → private)
@@ -220,16 +222,13 @@ program veilmarkets.aleo {
         bet_outcome: u8,
         bet_amount: u64
     ) {
-        let market_opt = Mapping::get(markets, market_id);
-        assert(market_opt != none); // market not found
-        let market = market_opt.unwrap();
+        let market: MarketInfo = Mapping::get(markets, market_id);
 
         assert(market.is_resolved); // not resolved
         // "Did not win"
         assert_eq(bet_outcome, market.winning_outcome);
 
-        let pool_opt = Mapping::get(pools, market_id);
-        let pool = pool_opt.unwrap();
+        let pool: PoolState = Mapping::get(pools, market_id);
 
         let winning_pool: u64 = (market.winning_outcome == 0u8) ? pool.total_no : pool.total_yes;        
         let total_pool: u64 = pool.total_no + pool.total_yes;
@@ -239,6 +238,6 @@ program veilmarkets.aleo {
 
         // In real version: transfer shielded credits here or return payout to user record
         // For now: just compute (extend with credits.aleo integration later)
-        assert_gt(payout, 0u64, "No payout");
+        assert(payout > 0u64);
     }
 }

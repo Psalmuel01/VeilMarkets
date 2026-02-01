@@ -113,14 +113,14 @@ program veilmarkets_oracle.aleo {
             market_id: market_id,
             proposed_outcome: outcome,
             proposer: proposer,
-            timestamp: block.height,
+            timestamp: block.height as u64,
             votes_for: 1u64,
             votes_against: 0u64,
         };
         
         Mapping::set(proposals, market_id, proposal);
         
-        let deadline: u64 = block.height + 14400u64;
+        let deadline: u64 = block.height as u64 + 14400u64;
         Mapping::set(dispute_deadlines, market_id, deadline);
     }
 
@@ -146,7 +146,7 @@ program veilmarkets_oracle.aleo {
         
         let proposal: ResolutionProposal = Mapping::get(proposals, market_id);
         let deadline: u64 = Mapping::get(dispute_deadlines, market_id);
-        assert(block.height < deadline);
+        assert(block.height as u64 < deadline);
         
         let new_votes_for: u64 = vote_for ? proposal.votes_for + 1u64 : proposal.votes_for;
         let new_votes_against: u64 = vote_for ? proposal.votes_against : proposal.votes_against + 1u64;
@@ -173,7 +173,7 @@ program veilmarkets_oracle.aleo {
     async function finalize_finalize_resolution(market_id: field) {
         let proposal: ResolutionProposal = Mapping::get(proposals, market_id);
         let deadline: u64 = Mapping::get(dispute_deadlines, market_id);
-        assert(block.height >= deadline);
+        assert(block.height as u64 >= deadline);
         
         let total_votes: u64 = proposal.votes_for + proposal.votes_against;
         let threshold: u64 = (total_votes * 2u64) / 3u64;
@@ -213,9 +213,9 @@ program veilmarkets_oracle.aleo {
 
     async function finalize_file_dispute(market_id: field) {
         let deadline: u64 = Mapping::get(dispute_deadlines, market_id);
-        assert(block.height < deadline);
+        assert(block.height as u64 < deadline);
         
-        let extended_deadline: u64 = block.height + 28800u64;
+        let extended_deadline: u64 = block.height as u64 + 28800u64;
         Mapping::set(dispute_deadlines, market_id, extended_deadline);
     }
 
