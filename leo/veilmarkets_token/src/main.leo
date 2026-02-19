@@ -30,6 +30,11 @@ program veilmarkets_token.aleo {
     // TRANSITIONS
     // ============================================================================
 
+    @admin(address="aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc")
+    async constructor() {
+        // The Leo compiler automatically generates the constructor logic.
+    }
+
     // Deposit credits to place bet (lock in escrow)
     async transition deposit_for_bet(
         credits: Credits,

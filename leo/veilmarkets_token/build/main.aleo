@@ -99,3 +99,6 @@ function split_credits:
     cast r0.owner r4 into r5 as Credits.record;
     output r3 as Credits.record;
     output r5 as Credits.record;
+
+constructor:
+    assert.eq program_owner aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc;

@@ -53,6 +53,11 @@ program veilmarkets.aleo {
     // Transitions & Async Functions
     // ============================================================================
 
+    @admin(address="aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc")
+    async constructor() {
+        // The Leo compiler automatically generates the constructor logic.
+    }
+
     // Create market (off-chain compute market_id, on-chain state update)
     async transition create_market(
         public title_hash: field,
@@ -116,6 +121,8 @@ program veilmarkets.aleo {
     ) -> (BetPosition, Future) {
         assert(outcome == 0u8 || outcome == 1u8); // invalid outcome
 
+        // NOTE: Only user addresses should call this transition.
+        // If called by a program address, the resulting record cannot be spent.
         let position = BetPosition {
             owner: self.caller,
             market_id: market_id,

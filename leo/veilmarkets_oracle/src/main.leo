@@ -49,6 +49,11 @@ program veilmarkets_oracle.aleo {
     // ADMIN TRANSITIONS
     // ============================================================================
 
+    @admin(address="aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc")
+    async constructor() {
+        // The Leo compiler automatically generates the constructor logic.
+    }
+
     // Register a new oracle
     async transition register_oracle(
         public oracle_address: address,

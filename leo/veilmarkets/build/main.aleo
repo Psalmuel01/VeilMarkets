@@ -150,3 +150,6 @@ finalize claim_winnings:
     div r8 r6 into r9;
     gt r9 0u64 into r10;
     assert.eq r10 true;
+
+constructor:
+    assert.eq program_owner aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc;
