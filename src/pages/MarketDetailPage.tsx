@@ -68,13 +68,11 @@ export default function MarketDetailPage() {
         };
 
         setMarket({
-          id: found.id,
-          title: `Market ${found.id.substring(0, 10)}...`,
-          description: `On-chain Market ID: ${found.id}. Title Hash: ${found.title_hash}`,
+          ...found,
           category: categoryRevMap[found.category] || "General",
           status: found.resolved ? "Settled" : "Open",
           closingTime: `Block ${found.close_block}`,
-          closingDate: "",
+          closingDate: "On-chain block time", // Hardcoded placeholder
           betsPlaced: 0,
           createdAt: "On-chain",
           resolutionSource: "Creator",

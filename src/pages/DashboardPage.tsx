@@ -218,8 +218,8 @@ export default function DashboardPage() {
                 <div key={m.id} className="p-6 rounded-xl bg-card border border-border/50">
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h3 className="text-lg font-semibold">Market {m.id.substring(0, 10)}...</h3>
-                      <p className="text-sm text-muted-foreground">Market ID: {m.id}</p>
+                      <h3 className="text-lg font-semibold">{m.title}</h3>
+                      <p className="text-sm text-muted-foreground">{m.description || `Market ID: ${m.id}`}</p>
                       <p className="text-xs text-muted-foreground">Title Hash: {m.title_hash}</p>
                     </div>
                     <Badge variant="outline" className={m.resolved ? "bg-primary/10 text-primary" : "bg-success/10 text-success"}>

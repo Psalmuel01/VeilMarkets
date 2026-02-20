@@ -2,6 +2,7 @@ import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { PROGRAM_ID } from "../lib/constants";
 import { toast } from "sonner";
 import { fetchMappingValue, fetchTransaction, extractMarketIdFromTx, parseMarketInfo } from "../lib/aleo";
+import { saveMarketMetadata, getMarketMetadata } from "../lib/metadata";
 import { useState, useCallback } from "react";
 
 export const useAleoPrograms = () => {
@@ -67,8 +68,19 @@ export const useAleoPrograms = () => {
                 })
             );
 
-            const markets = (await Promise.all(marketFetches)).filter(Boolean);
-            console.log("Fetched markets:", markets);
+            const validMarkets = (await Promise.all(marketFetches)).filter(Boolean);
+
+            // Fetch metadata from Supabase for all valid markets
+            const markets = await Promise.all(validMarkets.map(async (market: any) => {
+                const meta = await getMarketMetadata(market.title_hash);
+                return {
+                    ...market,
+                    title: meta?.title || `Market ${market.id.substring(0, 8)}...`,
+                    description: meta?.description || "Market metadata not found on the network.",
+                };
+            }));
+
+            console.log("Fetched markets (hydrated):", markets);
             return markets;
         } catch (error) {
             console.error("Failed to fetch markets:", error);
@@ -114,6 +126,7 @@ export const useAleoPrograms = () => {
 
     const createMarket = async (
         title: string,
+        description: string,
         category: number,
         closeBlock: number,
         resolutionBlock: number
@@ -140,6 +153,7 @@ export const useAleoPrograms = () => {
             });
 
             if (result?.transactionId) {
+                saveMarketMetadata(titleHash, title, description);
                 toast.success(`Market created! Tx: ${result.transactionId}`);
                 return result.transactionId;
             }

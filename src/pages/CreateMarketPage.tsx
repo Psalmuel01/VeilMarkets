@@ -74,6 +74,7 @@ export default function CreateMarketPage() {
 
     const result = await createMarket(
       formData.title,
+      formData.description,
       categoryMap[formData.category] ?? 0,
       closeBlock,
       resolutionBlock

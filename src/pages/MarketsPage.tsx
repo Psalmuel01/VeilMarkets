@@ -87,13 +87,13 @@ export default function MarketsPage() {
 
       const mapped = realMarkets.map((m: any) => ({
         id: m.id,
-        title: `Market ${m.id.substring(0, 10)}...`, // We don't have the title string on-chain, only hash
-        description: `This is a private market on Aleo. Title Hash: ${m.title_hash}`,
-        category: categoryRevMap[m.category] || "General",
-        status: m.resolved ? "Settled" : "Open",
+        title: m.title,
+        description: m.description,
+        category: (categoryRevMap[m.category] || "General") as any,
+        status: (m.resolved ? "Settled" : "Open") as any,
         closingTime: `Block ${m.close_block}`,
         betsPlaced: 0, // Need to implement pool fetching for this
-        outcome: m.resolved ? (m.winning_outcome === 1 ? "Yes" : "No") : undefined,
+        outcome: (m.resolved ? (m.winning_outcome === 1 ? "Yes" : "No") : undefined) as any,
       }));
 
       // Combine with mock data for demo purposes if no markets found
