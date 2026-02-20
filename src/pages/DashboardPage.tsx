@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Wallet, TrendingUp, Clock, Trophy, CheckCircle2, Loader2 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { BetCard, UserBet } from "@/components/dashboard/BetCard";
 import { ZKBadge } from "@/components/ui/ZKBadge";
+import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -63,12 +65,52 @@ const stats = [
   { icon: Clock, label: "Pending", value: "3" },
 ];
 
+
+
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [claimStep, setClaimStep] = useState<"confirm" | "processing" | "success">("confirm");
+  const [userBets, setUserBets] = useState<UserBet[]>([]);
+  const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
+  const [myMarkets, setMyMarkets] = useState<any[]>([]);
+  const { fetchUserBets, fetchMarkets, loading, publicKey } = useAleoPrograms();
 
-  const filteredBets = mockBets.filter((bet) => {
+  useEffect(() => {
+    const loadBets = async () => {
+      if (!publicKey) return;
+      const records = await fetchUserBets();
+
+      const mapped: UserBet[] = records.map((r: any) => ({
+        id: r.market_id,
+        marketId: r.market_id,
+        marketTitle: `Market ${r.market_id.substring(0, 8)}...`,
+        category: "Private",
+        status: "Pending" as const,
+        outcome: r.outcome === "1" ? "Yes" : "No", // Cleaned u8 suffix
+        placedAt: "Recently",
+        canClaim: false,
+      }));
+
+      setUserBets(mapped.length > 0 ? mapped : mockBets);
+    };
+
+    const loadCreatedMarkets = async () => {
+      if (!publicKey) return;
+      const all = await fetchMarkets();
+      // On-chain address might need cleaning if it contains "address" suffix
+      const currentAddr = publicKey.toString().replace(/address/g, "").trim();
+      const filtered = all.filter((m: any) =>
+        m.creator && m.creator.replace(/address/g, "").trim() === currentAddr
+      );
+      setMyMarkets(filtered);
+    };
+
+    loadBets();
+    loadCreatedMarkets();
+  }, [fetchUserBets, fetchMarkets, publicKey]);
+
+  const filteredBets = userBets.filter((bet) => {
     if (activeTab === "all") return true;
     if (activeTab === "pending") return bet.status === "Pending";
     if (activeTab === "won") return bet.status === "Won";
@@ -76,16 +118,27 @@ export default function DashboardPage() {
     return true;
   });
 
-  const handleClaim = () => {
+  const { claimWinnings, resolveMarket } = useAleoPrograms();
+  const [txId, setTxId] = useState<string | null>(null);
+
+  const handleClaim = (marketId: string) => {
+    setSelectedMarketId(marketId);
     setShowClaimModal(true);
     setClaimStep("confirm");
   };
 
-  const processClaim = () => {
+  const processClaim = async () => {
     setClaimStep("processing");
-    setTimeout(() => {
+
+    if (!selectedMarketId) return;
+    const result = await claimWinnings(selectedMarketId);
+
+    if (result) {
+      setTxId(result);
       setClaimStep("success");
-    }, 2500);
+    } else {
+      setClaimStep("confirm");
+    }
   };
 
   return (
@@ -153,24 +206,81 @@ export default function DashboardPage() {
             <TabsTrigger value="pending">Pending</TabsTrigger>
             <TabsTrigger value="won">Won</TabsTrigger>
             <TabsTrigger value="lost">Lost</TabsTrigger>
+            <TabsTrigger value="created">My Markets</TabsTrigger>
           </TabsList>
         </Tabs>
 
-        {/* Bets Grid */}
-        <div className="grid md:grid-cols-2 gap-6">
-          {filteredBets.map((bet, index) => (
-            <motion.div
-              key={bet.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-            >
-              <BetCard bet={bet} onClaim={handleClaim} />
-            </motion.div>
-          ))}
-        </div>
+        {/* My Markets Content */}
+        {activeTab === "created" && (
+          <div className="space-y-6">
+            {myMarkets.length > 0 ? (
+              myMarkets.map((m) => (
+                <div key={m.id} className="p-6 rounded-xl bg-card border border-border/50">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold">Market {m.id.substring(0, 10)}...</h3>
+                      <p className="text-sm text-muted-foreground">Market ID: {m.id}</p>
+                      <p className="text-xs text-muted-foreground">Title Hash: {m.title_hash}</p>
+                    </div>
+                    <Badge variant="outline" className={m.resolved ? "bg-primary/10 text-primary" : "bg-success/10 text-success"}>
+                      {m.resolved ? "Settled" : "Open"}
+                    </Badge>
+                  </div>
+                  {!m.resolved && (
+                    <div className="flex gap-3">
+                      <Button
+                        onClick={() => resolveMarket(m.id, 1)}
+                        className="flex-1 bg-success/20 hover:bg-success/30 text-success border-success/30"
+                        variant="outline"
+                      >
+                        Resolve YES
+                      </Button>
+                      <Button
+                        onClick={() => resolveMarket(m.id, 0)}
+                        className="flex-1 bg-destructive/20 hover:bg-destructive/30 text-destructive border-destructive/30"
+                        variant="outline"
+                      >
+                        Resolve NO
+                      </Button>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-4 italic">
+                    * Final resolution for on-chain state.
+                  </p>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-16 p-6 rounded-xl bg-muted/10 border border-dashed border-border">
+                <p className="text-muted-foreground">You haven't created any markets yet</p>
+                <Button
+                  variant="link"
+                  className="mt-2 text-primary"
+                  onClick={() => window.location.href = '/market/new'}
+                >
+                  Create your first market
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
 
-        {filteredBets.length === 0 && (
+        {/* Bets Grid */}
+        {activeTab !== "created" && (
+          <div className="grid md:grid-cols-2 gap-6">
+            {filteredBets.map((bet, index) => (
+              <motion.div
+                key={bet.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+              >
+                <BetCard bet={bet} onClaim={handleClaim} />
+              </motion.div>
+            ))}
+          </div>
+        )}
+
+        {activeTab !== "created" && filteredBets.length === 0 && (
           <div className="text-center py-16">
             <p className="text-muted-foreground">No bets found</p>
           </div>
@@ -242,7 +352,7 @@ export default function DashboardPage() {
               >
                 <CheckCircle2 className="w-10 h-10 text-success" />
               </motion.div>
-              
+
               <div>
                 <h3 className="text-lg font-semibold mb-2">Winnings Claimed!</h3>
                 <p className="text-sm text-muted-foreground mb-4">

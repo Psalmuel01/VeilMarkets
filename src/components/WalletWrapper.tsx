@@ -18,7 +18,7 @@ export const WalletWrapper = ({ children }) => {
     const wallets = useMemo(
         () => [
             new LeoWalletAdapter({
-                appName: "zkAuction",
+                appName: "VeilMarkets",
             }),
             new PuzzleWalletAdapter({
                 programIdPermissions: {
@@ -28,8 +28,11 @@ export const WalletWrapper = ({ children }) => {
                     [WalletAdapterNetwork.TestnetBeta]: [
                         PROGRAM_ID,
                     ],
+                    ["testnet" as any]: [
+                        PROGRAM_ID,
+                    ],
                 },
-                appName: "zkAuction",
+                appName: "VeilMarkets",
                 appDescription: "Private Auctions on Aleo",
             }),
         ],
@@ -40,7 +43,7 @@ export const WalletWrapper = ({ children }) => {
         <WalletProvider
             wallets={wallets}
             decryptPermission={DecryptPermission.UponRequest}
-            network={WalletAdapterNetwork.TestnetBeta} // Change to 'MainnetBeta' or 'TestnetBeta' if needed
+            network={"testnet" as any} // Forced to 'testnet' for Beta compatibility
             autoConnect
         >
             <WalletModalProvider>

@@ -18,7 +18,7 @@ export interface UserBet {
 
 interface BetCardProps {
   bet: UserBet;
-  onClaim?: () => void;
+  onClaim?: (marketId: string) => void;
 }
 
 const statusConfig = {
@@ -56,7 +56,7 @@ export function BetCard({ bet, onClaim }: BetCardProps) {
         <ZKBadge variant="proof" size="sm" />
       </div>
 
-      <Link 
+      <Link
         to={`/market/${bet.marketId}`}
         className="block text-lg font-semibold text-foreground hover:text-primary transition-colors mb-2 line-clamp-2"
       >
@@ -80,7 +80,7 @@ export function BetCard({ bet, onClaim }: BetCardProps) {
           <span className="text-muted-foreground">Wager Amount</span>
           <span className="font-mono encrypted-text">•••••• ALEO</span>
         </div>
-        
+
         {bet.status === "Won" && (
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Winnings</span>
@@ -89,7 +89,7 @@ export function BetCard({ bet, onClaim }: BetCardProps) {
         )}
 
         {bet.canClaim && (
-          <Button onClick={onClaim} className="w-full btn-glow-primary mt-2">
+          <Button onClick={() => onClaim?.(bet.marketId)} className="w-full btn-glow-primary mt-2">
             Claim Winnings
           </Button>
         )}

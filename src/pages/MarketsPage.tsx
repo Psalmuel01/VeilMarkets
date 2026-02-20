@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { MarketCard, Market } from "@/components/markets/MarketCard";
 import { MarketFilters } from "@/components/markets/MarketFilters";
 import { motion } from "framer-motion";
+import { useAleoPrograms } from "@/hooks/useAleoPrograms";
+import { Badge } from "@/components/ui/badge";
+import { AlertCircle } from "lucide-react";
 
 // Mock data
 const mockMarkets: Market[] = [
@@ -66,10 +69,49 @@ const mockMarkets: Market[] = [
 export default function MarketsPage() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [markets, setMarkets] = useState<Market[]>([]);
+  const [isDemoData, setIsDemoData] = useState(false);
+  const { fetchMarkets, loading } = useAleoPrograms();
 
-  const filteredMarkets = mockMarkets.filter((market) => {
+  useEffect(() => {
+    const loadMarkets = async () => {
+      const realMarkets = await fetchMarkets();
+
+      const categoryRevMap: Record<number, string> = {
+        0: "Crypto",
+        1: "Finance",
+        2: "Sports",
+        3: "Politics",
+        4: "Entertainment",
+      };
+
+      const mapped = realMarkets.map((m: any) => ({
+        id: m.id,
+        title: `Market ${m.id.substring(0, 10)}...`, // We don't have the title string on-chain, only hash
+        description: `This is a private market on Aleo. Title Hash: ${m.title_hash}`,
+        category: categoryRevMap[m.category] || "General",
+        status: m.resolved ? "Settled" : "Open",
+        closingTime: `Block ${m.close_block}`,
+        betsPlaced: 0, // Need to implement pool fetching for this
+        outcome: m.resolved ? (m.winning_outcome === 1 ? "Yes" : "No") : undefined,
+      }));
+
+      // Combine with mock data for demo purposes if no markets found
+      if (mapped.length > 0) {
+        setMarkets(mapped);
+        setIsDemoData(false);
+      } else {
+        setMarkets(mockMarkets);
+        setIsDemoData(true);
+      }
+    };
+    loadMarkets();
+  }, [fetchMarkets]);
+
+  const filteredMarkets = markets.filter((market) => {
     const matchesCategory = activeCategory === "all" || market.category === activeCategory;
-    const matchesSearch = market.title.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = market.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      market.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
@@ -82,6 +124,12 @@ export default function MarketsPage() {
           <p className="text-muted-foreground">
             Browse and participate in private prediction markets
           </p>
+          {isDemoData && (
+            <Badge variant="outline" className="mt-2 bg-warning/10 text-warning border-warning/30">
+              <AlertCircle className="w-3 h-3 mr-1" />
+              Demo Mode: Using local mock data
+            </Badge>
+          )}
         </div>
 
         {/* Filters */}

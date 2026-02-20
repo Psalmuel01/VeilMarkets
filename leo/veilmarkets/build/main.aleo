@@ -42,9 +42,11 @@ function create_market:
     input r2 as u64.public;
     input r3 as u64.public;
     hash.bhp256 self.caller into r4 as field;
-    async create_market r4 self.caller r0 r1 r2 r3 into r5;
-    output r4 as field.private;
-    output r5 as veilmarkets.aleo/create_market.future;
+    add r4 r0 into r5;
+    hash.bhp256 r5 into r6 as field;
+    async create_market r6 self.caller r0 r1 r2 r3 into r7;
+    output r6 as field.private;
+    output r7 as veilmarkets.aleo/create_market.future;
 
 finalize create_market:
     input r0 as field.public;

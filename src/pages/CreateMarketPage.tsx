@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ZKBadge } from "@/components/ui/ZKBadge";
+import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 
 const categories = [
   { value: "crypto", label: "Crypto" },
@@ -46,16 +47,44 @@ export default function CreateMarketPage() {
     resolutionSource: "",
   });
 
+  const { createMarket } = useAleoPrograms();
+  const [txId, setTxId] = useState<string | null>(null);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setStep("review");
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     setStep("creating");
-    setTimeout(() => {
+
+    // Convert date to a mock block height (e.g., blocks from now)
+    // In a real app, you'd fetch current block height
+    const closeBlock = 1000000;
+    const resolutionBlock = 1100000;
+
+    // Map category string to u8
+    const categoryMap: Record<string, number> = {
+      crypto: 0,
+      finance: 1,
+      sports: 2,
+      politics: 3,
+      entertainment: 4,
+    };
+
+    const result = await createMarket(
+      formData.title,
+      categoryMap[formData.category] ?? 0,
+      closeBlock,
+      resolutionBlock
+    );
+
+    if (result) {
+      setTxId(result);
       setStep("success");
-    }, 3000);
+    } else {
+      setStep("form");
+    }
   };
 
   const isFormValid = formData.title && formData.description && formData.category && formData.closingDate;
@@ -313,9 +342,9 @@ export default function CreateMarketPage() {
             </div>
 
             <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
-              <div className="text-xs text-muted-foreground mb-1">Market ID</div>
-              <code className="text-sm font-mono text-primary">
-                aleo1market...{Math.random().toString(36).substring(2, 8)}
+              <div className="text-xs text-muted-foreground mb-1">Transaction ID</div>
+              <code className="text-sm font-mono text-primary break-all">
+                {txId || "aleo1tx..."}
               </code>
             </div>
 

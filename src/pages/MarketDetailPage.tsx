@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -6,9 +6,9 @@ import {
   Users,
   ArrowLeft,
   Shield,
-  ExternalLink,
   Calendar,
-  Info
+  Info,
+  AlertCircle
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -17,19 +17,20 @@ import { ZKBadge } from "@/components/ui/ZKBadge";
 import { OutcomeCard } from "@/components/betting/OutcomeCard";
 import { PlaceBetModal } from "@/components/betting/PlaceBetModal";
 import { cn } from "@/lib/utils";
+import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 
-// Mock data - in a real app this would come from an API
+// Mock data fallback
 const mockMarketDetail = {
   id: "1",
   title: "Will Bitcoin reach $100,000 by end of Q2 2024?",
-  description: "This market resolves YES if Bitcoin's price exceeds $100,000 USD on any major exchange (Coinbase, Binance, Kraken) before June 30, 2024 at 11:59 PM UTC. Price must be sustained for at least 1 minute. Data source: CoinGecko aggregate price.",
+  description: "This market resolves YES if Bitcoin's price exceeds $100,000 USD on any major exchange before June 30, 2024.",
   category: "Crypto",
   status: "Open" as const,
   closingTime: "Jun 30, 2024",
   closingDate: "2024-06-30T23:59:59Z",
   betsPlaced: 142,
   createdAt: "Jan 15, 2024",
-  resolutionSource: "CoinGecko",
+  resolutionSource: "Oracle",
 };
 
 const categoryColors = {
@@ -50,9 +51,41 @@ export default function MarketDetailPage() {
   const { id } = useParams();
   const [showBetModal, setShowBetModal] = useState(false);
   const [hasUserBet, setHasUserBet] = useState(false);
+  const [market, setMarket] = useState(mockMarketDetail);
+  const [isDemoData, setIsDemoData] = useState(false);
+  const { fetchMarkets, loading } = useAleoPrograms();
 
-  // In a real app, fetch market by id
-  const market = mockMarketDetail;
+  useEffect(() => {
+    const loadMarket = async () => {
+      if (!id) return;
+      const allMarkets = await fetchMarkets();
+      const found = allMarkets.find((m: any) => m.id === id);
+
+      if (found) {
+        setIsDemoData(false);
+        const categoryRevMap: Record<number, string> = {
+          0: "Crypto", 1: "Finance", 2: "Sports", 3: "Politics", 4: "Entertainment",
+        };
+
+        setMarket({
+          id: found.id,
+          title: `Market ${found.id.substring(0, 10)}...`,
+          description: `On-chain Market ID: ${found.id}. Title Hash: ${found.title_hash}`,
+          category: categoryRevMap[found.category] || "General",
+          status: found.resolved ? "Settled" : "Open",
+          closingTime: `Block ${found.close_block}`,
+          closingDate: "",
+          betsPlaced: 0,
+          createdAt: "On-chain",
+          resolutionSource: "Creator",
+        });
+      } else {
+        setMarket(mockMarketDetail);
+        setIsDemoData(true);
+      }
+    };
+    loadMarket();
+  }, [id, fetchMarkets]);
 
   return (
     <MainLayout>
@@ -81,13 +114,19 @@ export default function MarketDetailPage() {
             </Badge>
             <Badge
               variant="outline"
-              className={cn("text-xs uppercase tracking-wider", statusColors[market.status])}
+              className={cn("text-xs uppercase tracking-wider", statusColors[market.status as keyof typeof statusColors])}
             >
               {market.status}
             </Badge>
           </div>
 
           <h1 className="text-3xl md:text-4xl font-bold mb-4">{market.title}</h1>
+          {isDemoData && (
+            <Badge variant="outline" className="mb-4 bg-warning/10 text-warning border-warning/30">
+              <AlertCircle className="w-3 h-3 mr-1" />
+              Demo Mode: Using local mock data
+            </Badge>
+          )}
 
           <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-1.5">
@@ -170,7 +209,7 @@ export default function MarketDetailPage() {
                 </div>
                 <div className="flex justify-between items-center py-3">
                   <span className="text-muted-foreground">Last Activity</span>
-                  <span className="text-sm">2 hours ago</span>
+                  <span className="text-sm">Recently</span>
                 </div>
               </div>
             </div>
@@ -242,18 +281,6 @@ export default function MarketDetailPage() {
                 </li>
               </ul>
             </div>
-
-            {/* External Links */}
-            <div className="p-6 rounded-xl bg-card border border-border/50">
-              <h3 className="text-sm font-semibold mb-3">Verification</h3>
-              <a
-                href="#"
-                className="flex items-center justify-between text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <span>View on Aleo Explorer</span>
-                <ExternalLink className="w-4 h-4" />
-              </a>
-            </div>
           </motion.div>
         </div>
       </div>
@@ -265,6 +292,7 @@ export default function MarketDetailPage() {
           setHasUserBet(true);
         }}
         marketTitle={market.title}
+        marketId={market.id}
       />
     </MainLayout>
   );

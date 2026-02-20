@@ -12,26 +12,39 @@ import { OutcomeCard } from "./OutcomeCard";
 import { WagerSlider } from "./WagerSlider";
 import { PrivacyChecklist } from "@/components/ui/PrivacyChecklist";
 import { ZKBadge } from "@/components/ui/ZKBadge";
+import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 
 interface PlaceBetModalProps {
   open: boolean;
   onClose: () => void;
   marketTitle: string;
+  marketId: string;
 }
 
 type Step = "select" | "confirm" | "processing" | "success";
 
-export function PlaceBetModal({ open, onClose, marketTitle }: PlaceBetModalProps) {
+export function PlaceBetModal({ open, onClose, marketTitle, marketId }: PlaceBetModalProps) {
   const [step, setStep] = useState<Step>("select");
   const [selectedOutcome, setSelectedOutcome] = useState<"Yes" | "No" | null>(null);
   const [wagerAmount, setWagerAmount] = useState(50);
+  const [txId, setTxId] = useState<string | null>(null);
+  const { placeBet } = useAleoPrograms();
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setStep("processing");
-    // Simulate ZK proof generation
-    setTimeout(() => {
+
+    const result = await placeBet(
+      marketId,
+      selectedOutcome === "Yes" ? 1 : 0,
+      wagerAmount
+    );
+
+    if (result) {
+      setTxId(result);
       setStep("success");
-    }, 3000);
+    } else {
+      setStep("confirm");
+    }
   };
 
   const handleClose = () => {
@@ -189,7 +202,7 @@ export function PlaceBetModal({ open, onClose, marketTitle }: PlaceBetModalProps
               >
                 <CheckCircle2 className="w-10 h-10 text-success" />
               </motion.div>
-              
+
               <div>
                 <h3 className="text-lg font-semibold mb-2">Bet Placed Successfully!</h3>
                 <p className="text-sm text-muted-foreground mb-4">
@@ -201,7 +214,7 @@ export function PlaceBetModal({ open, onClose, marketTitle }: PlaceBetModalProps
               <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
                 <div className="text-xs text-muted-foreground mb-1">Transaction ID</div>
                 <code className="text-sm font-mono text-primary break-all">
-                  aleo1...{Math.random().toString(36).substring(2, 8)}
+                  {txId || "aleo1tx..."}
                 </code>
               </div>
 

@@ -65,7 +65,10 @@ program veilmarkets.aleo {
         public close_block: u64,
         public resolution_block: u64
     ) -> (field, Future) {
-        let market_id: field = BHP256::hash_to_field(self.caller);  // Simple deterministic ID; improve with nonce if needed
+        // Combine caller and title_hash for a more unique market_id
+        // Using sequential hashing as tuples are not supported in this Leo version
+        let caller_hash: field = BHP256::hash_to_field(self.caller);
+        let market_id: field = BHP256::hash_to_field(caller_hash + title_hash);
 
         let f: Future = create_market_onchain(
             market_id,
