@@ -32,7 +32,7 @@ const categories = [
   { value: "sports", label: "Sports" },
   { value: "politics", label: "Politics" },
   { value: "entertainment", label: "Entertainment" },
-  { value: "Tech", label: "Tech"},
+  { value: "tech", label: "Tech" },
 ];
 
 type Step = "form" | "review" | "creating" | "success";
@@ -79,8 +79,10 @@ export default function CreateMarketPage() {
       formData.description,
       categoryMap[formData.category] ?? 0,
       closeBlock,
-      resolutionBlock
+      resolutionBlock,
+      formData.resolutionSource
     );
+    console.log(result);
 
     if (result) {
       setTxId(result);
@@ -360,7 +362,7 @@ export default function CreateMarketPage() {
                 View All Markets
               </Button>
               <Button
-                onClick={() => navigate("/market/new")}
+                onClick={() => navigate(`/market/${txId}`)}
                 className="flex-1 btn-glow-primary"
               >
                 View Your Market

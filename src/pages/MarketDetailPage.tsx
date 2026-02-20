@@ -40,13 +40,21 @@ export default function MarketDetailPage() {
   const [showBetModal, setShowBetModal] = useState(false);
   const [hasUserBet, setHasUserBet] = useState(false);
   const [market, setMarket] = useState<any>(null);
-  const { fetchMarkets, loading } = useAleoPrograms();
+  const [notFound, setNotFound] = useState(false);
+  const { fetchMarkets, loading: aleoLoading } = useAleoPrograms();
 
   useEffect(() => {
     const loadMarket = async () => {
       if (!id) return;
       const allMarkets = await fetchMarkets();
-      const found = allMarkets.find((m: any) => m.id === id);
+
+      // Flexible matching: check against market.id OR market.transactionId
+      const cleanId = (sid: string) => (sid || "").replace("field", "").trim();
+      const currentId = cleanId(id);
+
+      const found = allMarkets.find((m: any) =>
+        cleanId(m.id) === currentId || cleanId(m.transactionId) === currentId
+      );
 
       if (found) {
         const categoryRevMap: Record<number, string> = {
@@ -61,17 +69,41 @@ export default function MarketDetailPage() {
           closingDate: "On-chain block time",
           betsPlaced: 0,
           createdAt: "On-chain",
-          resolutionSource: "Creator",
+          resolutionSource: found.source || "Creator",
         });
+        setNotFound(false);
+      } else if (allMarkets.length > 0) {
+        setNotFound(true);
       }
     };
     loadMarket();
   }, [id, fetchMarkets]);
 
-  if (!market) {
+  if (notFound) {
     return (
       <MainLayout>
         <div className="max-w-4xl mx-auto py-16 text-center">
+          <AlertCircle className="w-12 h-12 text-warning mx-auto mb-4" />
+          <h2 className="text-2xl font-bold mb-2">Market Not Found</h2>
+          <p className="text-muted-foreground mb-6">
+            We couldn't find a market with ID: {id}
+          </p>
+          <Button asChild variant="outline">
+            <Link to="/markets">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Markets
+            </Link>
+          </Button>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (aleoLoading || !market) {
+    return (
+      <MainLayout>
+        <div className="max-w-4xl mx-auto py-16 text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading market details...</p>
         </div>
       </MainLayout>

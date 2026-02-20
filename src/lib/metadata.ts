@@ -3,17 +3,19 @@ import { supabase } from "./supabase";
 export interface MarketMetadata {
     title: string;
     description: string;
+    source?: string;
 }
 
 /**
  * Saves market metadata to Supabase so it's globally accessible.
- * We use titleHash as the Primary Key mapping back to the Aleo contract.
+ * We use transaction_id as the Primary Key mapping back to the Aleo contract.
  */
 export const saveMarketMetadata = async (
     transactionId: string,
     titleHash: string,
     title: string,
-    description: string
+    description: string,
+    source?: string
 ) => {
     try {
         const { error } = await supabase.from("markets").insert([
@@ -22,13 +24,12 @@ export const saveMarketMetadata = async (
                 title_hash: titleHash,
                 title,
                 description,
+                source,
             },
         ]);
 
         if (error) {
             console.error("Supabase Insert Error:", error.message);
-        } else {
-            console.log(`Saved metadata to Supabase for TX ${transactionId}`);
         }
     } catch (e) {
         console.error("Failed to save metadata", e);
@@ -43,12 +44,16 @@ export const getMarketMetadata = async (transactionId: string): Promise<MarketMe
     try {
         const { data, error } = await supabase
             .from("markets")
-            .select("title, description")
+            .select("title, description, source")
             .eq("transaction_id", transactionId)
             .single();
 
         if (!error && data) {
-            return { title: data.title, description: data.description };
+            return {
+                title: data.title,
+                description: data.description,
+                source: data.source
+            };
         }
 
         if (error && error.code !== "PGRST116") {
@@ -59,5 +64,37 @@ export const getMarketMetadata = async (transactionId: string): Promise<MarketMe
     } catch (e) {
         console.error("Failed to load metadata", e);
         return null;
+    }
+};
+
+/**
+ * Retrieves multiple market metadata from Supabase in a single batch.
+ * Returns a record mapping transactionId to MarketMetadata.
+ */
+export const getBatchMarketMetadata = async (transactionIds: string[]): Promise<Record<string, MarketMetadata>> => {
+    if (transactionIds.length === 0) return {};
+    try {
+        const { data, error } = await supabase
+            .from("markets")
+            .select("transaction_id, title, description, source")
+            .in("transaction_id", transactionIds);
+
+        if (error) {
+            console.error("Supabase Batch Select Error:", error.message);
+            return {};
+        }
+
+        const metadataMap: Record<string, MarketMetadata> = {};
+        data?.forEach((row: any) => {
+            metadataMap[row.transaction_id] = {
+                title: row.title,
+                description: row.description,
+                source: row.source
+            };
+        });
+        return metadataMap;
+    } catch (e) {
+        console.error("Failed to load batch metadata", e);
+        return {};
     }
 };

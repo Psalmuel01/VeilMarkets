@@ -2,47 +2,37 @@ import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { PROGRAM_ID } from "../lib/constants";
 import { toast } from "sonner";
 import { fetchMappingValue, fetchTransaction, extractMarketIdFromTx, parseMarketInfo } from "../lib/aleo";
-import { saveMarketMetadata, getMarketMetadata } from "../lib/metadata";
+import { saveMarketMetadata, getBatchMarketMetadata } from "../lib/metadata";
 import { useState, useCallback } from "react";
 
 export const useAleoPrograms = () => {
     const { address, executeTransaction, requestRecords, requestTransactionHistory } = useWallet();
-    const publicKey = address; // compatibility alias
+    const publicKey = address;
     const [loading, setLoading] = useState(false);
 
     /**
-     * Fetch all markets by:
-     * 1. Getting all program transaction IDs via requestTransactionHistory
-     * 2. Fetching each TX to extract the market_id output
-     * 3. Fetching each market's MarketInfo from the mapping
+     * Fetch all markets by cross-referencing on-chain data with off-chain metadata.
+     * Uses the shield-specific ID for Supabase lookups.
      */
     const fetchMarkets = useCallback(async () => {
+        if (!requestTransactionHistory) return [];
         setLoading(true);
-        console.log("Fetching markets for:", PROGRAM_ID);
         try {
-            // Step 1: Get all transaction IDs for this program
-            if (!requestTransactionHistory) {
-                console.warn("requestTransactionHistory not available — wallet not connected?");
-                return [];
-            }
-
             const historyResult = await requestTransactionHistory(PROGRAM_ID);
-            console.log("TX history result:", historyResult);
+            const transactions = (historyResult?.transactions || []).filter((t: any) => t.transactionId);
 
-            const txIds: string[] = (historyResult?.transactions || []).map(
-                (t: any) => t.transactionId || t.id
-            ).filter(Boolean);
+            if (transactions.length === 0) return [];
 
-            if (txIds.length === 0) {
-                console.warn("No transactions found for program.");
-                return [];
-            }
+            const txIds = transactions.map((t: any) => t.transactionId);
+            const txIdToShieldId: Record<string, string> = {};
+            transactions.forEach((t: any) => {
+                txIdToShieldId[t.transactionId] = t.id;
+            });
 
-            console.log(`Found ${txIds.length} transactions, fetching market IDs...`);
-
-            // Step 2: For each TX, extract the market_id from the create_market output
+            // Extract market_id from each transaction
             const marketIdSet = new Set<string>();
-            const marketIdToTxId: Record<string, string> = {}; // Map market_id back to txId for metadata lookup
+            const marketIdToShieldId: Record<string, string> = {};
+            const marketIdToTxHash: Record<string, string> = {}; // Added for routing
             const txFetches = txIds.map((txId) => fetchTransaction(txId));
             const txData = await Promise.all(txFetches);
 
@@ -50,18 +40,16 @@ export const useAleoPrograms = () => {
                 if (!tx) return;
                 const marketId = extractMarketIdFromTx(tx);
                 if (marketId) {
-                    console.log(`TX ${txIds[i]} → market_id: ${marketId}`);
                     marketIdSet.add(marketId);
-                    marketIdToTxId[marketId] = txIds[i];
+                    const txId = txIds[i];
+                    marketIdToShieldId[marketId] = txIdToShieldId[txId];
+                    marketIdToTxHash[marketId] = txId; // The at1... hash
                 }
             });
 
-            if (marketIdSet.size === 0) {
-                console.warn("No market IDs extracted from transactions.");
-                return [];
-            }
+            if (marketIdSet.size === 0) return [];
 
-            // Step 3: Fetch each market's MarketInfo from the mapping
+            // Fetch MarketInfo from on-chain mapping
             const marketIds = Array.from(marketIdSet);
             const marketFetches = marketIds.map((id) =>
                 fetchMappingValue(PROGRAM_ID, "markets", id).then((raw) => {
@@ -72,19 +60,22 @@ export const useAleoPrograms = () => {
 
             const validMarkets = (await Promise.all(marketFetches)).filter(Boolean);
 
-            // Fetch metadata from Supabase for all valid markets
-            const markets = await Promise.all(validMarkets.map(async (market: any) => {
-                const txId = marketIdToTxId[market.id];
-                const meta = txId ? await getMarketMetadata(txId) : null;
+            // Fetch metadata from Supabase in batch using shield IDs
+            const shieldIdsForMetadata = Object.values(marketIdToShieldId);
+            const metadataMap = await getBatchMarketMetadata(shieldIdsForMetadata);
+
+            return validMarkets.map((market: any) => {
+                const shieldId = marketIdToShieldId[market.id];
+                const txHash = marketIdToTxHash[market.id];
+                const meta = shieldId ? metadataMap[shieldId] : null;
                 return {
                     ...market,
+                    transactionId: txHash, // Explicitly include the hash
                     title: meta?.title || `Market ${market.id.substring(0, 8)}...`,
                     description: meta?.description || "Market metadata not found on the network.",
+                    source: meta?.source || "Creator",
                 };
-            }));
-
-            console.log("Fetched markets (hydrated):", markets);
-            return markets;
+            });
         } catch (error) {
             console.error("Failed to fetch markets:", error);
             return [];
@@ -94,16 +85,10 @@ export const useAleoPrograms = () => {
     }, [requestTransactionHistory]);
 
     const fetchUserBets = useCallback(async () => {
-        if (!address || !requestRecords) {
-            console.warn("Wallet not connected or requestRecords not available");
-            return [];
-        }
+        if (!address || !requestRecords) return [];
         setLoading(true);
-        console.log("Fetching records for:", PROGRAM_ID, "Owner:", address);
         try {
             const records = await requestRecords(PROGRAM_ID);
-            console.log("Raw records fetched:", records);
-
             const unspent = (records as any[]).filter((r: any) => !r.spent);
 
             return unspent.map((r: any) => {
@@ -132,19 +117,16 @@ export const useAleoPrograms = () => {
         description: string,
         category: number,
         closeBlock: number,
-        resolutionBlock: number
+        resolutionBlock: number,
+        resolutionSource: string
     ) => {
         if (!address) {
             toast.error("Please connect your wallet first");
             return;
         }
 
-        const titleHashString = BigInt(
-            Math.floor(Math.random() * 1000000000000)
-        ).toString();
+        const titleHashString = BigInt(Math.floor(Math.random() * 1000000000000)).toString();
         const titleHash = `${titleHashString}field`;
-
-        console.log("Creating market:", { titleHash, category, closeBlock, resolutionBlock });
 
         try {
             const result = await executeTransaction({
@@ -154,9 +136,9 @@ export const useAleoPrograms = () => {
                 fee: 2000000,
                 privateFee: false,
             });
-
             if (result?.transactionId) {
-                await saveMarketMetadata(result.transactionId, titleHash, title, description);
+                const shieldId = (result as any).id || result.transactionId;
+                await saveMarketMetadata(shieldId, titleHash, title, description, resolutionSource);
                 toast.success(`Market created! Tx: ${result.transactionId}`);
                 return result.transactionId;
             }
@@ -173,8 +155,6 @@ export const useAleoPrograms = () => {
         }
 
         const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
-        console.log("Placing bet:", { marketId: cleanMarketId, outcome, amount });
-
         try {
             const result = await executeTransaction({
                 program: PROGRAM_ID,

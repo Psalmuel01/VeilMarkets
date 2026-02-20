@@ -72,23 +72,32 @@ export default function MarketsPage() {
         </div>
 
         {/* Market Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredMarkets.map((market, index) => (
-            <motion.div
-              key={market.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-            >
-              <MarketCard market={market} />
-            </motion.div>
-          ))}
-        </div>
-
-        {filteredMarkets.length === 0 && (
-          <div className="text-center py-16">
-            <p className="text-muted-foreground">No markets found matching your criteria</p>
+        {loading && markets.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+            <p className="text-muted-foreground text-lg">Fetching markets from the ZK network...</p>
           </div>
+        ) : (
+          <>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredMarkets.map((market, index) => (
+                <motion.div
+                  key={market.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                >
+                  <MarketCard market={market} />
+                </motion.div>
+              ))}
+            </div>
+
+            {filteredMarkets.length === 0 && !loading && (
+              <div className="text-center py-16">
+                <p className="text-muted-foreground">No markets found matching your criteria</p>
+              </div>
+            )}
+          </>
         )}
       </div>
     </MainLayout>

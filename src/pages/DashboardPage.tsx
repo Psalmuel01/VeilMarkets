@@ -57,6 +57,16 @@ const mockBets: UserBet[] = [
     placedAt: "Feb 10, 2024",
     canClaim: false,
   },
+  {
+    id: "5",
+    marketId: "5",
+    marketTitle: "Will Apple release a foldable iPhone in 2026?",
+    category: "Technology",
+    status: "Won",
+    outcome: "Yes",
+    placedAt: "Feb 12, 2026",
+    canClaim: true,
+  }
 ];
 
 const stats = [
