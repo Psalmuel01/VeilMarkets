@@ -42,6 +42,7 @@ export const useAleoPrograms = () => {
 
             // Step 2: For each TX, extract the market_id from the create_market output
             const marketIdSet = new Set<string>();
+            const marketIdToTxId: Record<string, string> = {}; // Map market_id back to txId for metadata lookup
             const txFetches = txIds.map((txId) => fetchTransaction(txId));
             const txData = await Promise.all(txFetches);
 
@@ -51,6 +52,7 @@ export const useAleoPrograms = () => {
                 if (marketId) {
                     console.log(`TX ${txIds[i]} → market_id: ${marketId}`);
                     marketIdSet.add(marketId);
+                    marketIdToTxId[marketId] = txIds[i];
                 }
             });
 
@@ -72,7 +74,8 @@ export const useAleoPrograms = () => {
 
             // Fetch metadata from Supabase for all valid markets
             const markets = await Promise.all(validMarkets.map(async (market: any) => {
-                const meta = await getMarketMetadata(market.title_hash);
+                const txId = marketIdToTxId[market.id];
+                const meta = txId ? await getMarketMetadata(txId) : null;
                 return {
                     ...market,
                     title: meta?.title || `Market ${market.id.substring(0, 8)}...`,
@@ -153,7 +156,7 @@ export const useAleoPrograms = () => {
             });
 
             if (result?.transactionId) {
-                saveMarketMetadata(titleHash, title, description);
+                await saveMarketMetadata(result.transactionId, titleHash, title, description);
                 toast.success(`Market created! Tx: ${result.transactionId}`);
                 return result.transactionId;
             }

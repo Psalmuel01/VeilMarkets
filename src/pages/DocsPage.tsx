@@ -55,7 +55,7 @@ const sections = [
     content: [
       {
         title: "Market types",
-        description: "VeilMarkets supports binary outcome markets across various categories including Crypto, Finance, Sports, Politics, and Entertainment. Each market has a clear resolution criteria and closing date.",
+        description: "VeilMarkets supports binary outcome markets across various categories including Crypto, Finance, Sports, Politics, Entertainment and Tech. Each market has a clear resolution criteria and closing date.",
       },
       {
         title: "Creating a market",

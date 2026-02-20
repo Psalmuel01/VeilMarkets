@@ -32,6 +32,7 @@ const categories = [
   { value: "sports", label: "Sports" },
   { value: "politics", label: "Politics" },
   { value: "entertainment", label: "Entertainment" },
+  { value: "Tech", label: "Tech"},
 ];
 
 type Step = "form" | "review" | "creating" | "success";
@@ -70,6 +71,7 @@ export default function CreateMarketPage() {
       sports: 2,
       politics: 3,
       entertainment: 4,
+      tech: 5,
     };
 
     const result = await createMarket(

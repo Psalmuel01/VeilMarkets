@@ -19,19 +19,6 @@ import { PlaceBetModal } from "@/components/betting/PlaceBetModal";
 import { cn } from "@/lib/utils";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 
-// Mock data fallback
-const mockMarketDetail = {
-  id: "1",
-  title: "Will Bitcoin reach $100,000 by end of Q2 2024?",
-  description: "This market resolves YES if Bitcoin's price exceeds $100,000 USD on any major exchange before June 30, 2024.",
-  category: "Crypto",
-  status: "Open" as const,
-  closingTime: "Jun 30, 2024",
-  closingDate: "2024-06-30T23:59:59Z",
-  betsPlaced: 142,
-  createdAt: "Jan 15, 2024",
-  resolutionSource: "Oracle",
-};
 
 const categoryColors = {
   Sports: "bg-blue-500/10 text-blue-400 border-blue-500/30",
@@ -39,6 +26,7 @@ const categoryColors = {
   Crypto: "bg-orange-500/10 text-orange-400 border-orange-500/30",
   Politics: "bg-purple-500/10 text-purple-400 border-purple-500/30",
   Entertainment: "bg-pink-500/10 text-pink-400 border-pink-500/30",
+  Tech: "bg-green-500/10 text-green-400 border-green-500/30",
 };
 
 const statusColors = {
@@ -51,8 +39,7 @@ export default function MarketDetailPage() {
   const { id } = useParams();
   const [showBetModal, setShowBetModal] = useState(false);
   const [hasUserBet, setHasUserBet] = useState(false);
-  const [market, setMarket] = useState(mockMarketDetail);
-  const [isDemoData, setIsDemoData] = useState(false);
+  const [market, setMarket] = useState<any>(null);
   const { fetchMarkets, loading } = useAleoPrograms();
 
   useEffect(() => {
@@ -62,9 +49,8 @@ export default function MarketDetailPage() {
       const found = allMarkets.find((m: any) => m.id === id);
 
       if (found) {
-        setIsDemoData(false);
         const categoryRevMap: Record<number, string> = {
-          0: "Crypto", 1: "Finance", 2: "Sports", 3: "Politics", 4: "Entertainment",
+          0: "Crypto", 1: "Finance", 2: "Sports", 3: "Politics", 4: "Entertainment", 5: "Tech"
         };
 
         setMarket({
@@ -72,18 +58,25 @@ export default function MarketDetailPage() {
           category: categoryRevMap[found.category] || "General",
           status: found.resolved ? "Settled" : "Open",
           closingTime: `Block ${found.close_block}`,
-          closingDate: "On-chain block time", // Hardcoded placeholder
+          closingDate: "On-chain block time",
           betsPlaced: 0,
           createdAt: "On-chain",
           resolutionSource: "Creator",
         });
-      } else {
-        setMarket(mockMarketDetail);
-        setIsDemoData(true);
       }
     };
     loadMarket();
   }, [id, fetchMarkets]);
+
+  if (!market) {
+    return (
+      <MainLayout>
+        <div className="max-w-4xl mx-auto py-16 text-center">
+          <p className="text-muted-foreground">Loading market details...</p>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -119,12 +112,7 @@ export default function MarketDetailPage() {
           </div>
 
           <h1 className="text-3xl md:text-4xl font-bold mb-4">{market.title}</h1>
-          {isDemoData && (
-            <Badge variant="outline" className="mb-4 bg-warning/10 text-warning border-warning/30">
-              <AlertCircle className="w-3 h-3 mr-1" />
-              Demo Mode: Using local mock data
-            </Badge>
-          )}
+
 
           <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-1.5">

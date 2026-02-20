@@ -8,7 +8,7 @@ export interface Market {
   id: string;
   title: string;
   description: string;
-  category: "Sports" | "Finance" | "Crypto" | "Politics" | "Entertainment";
+  category: "Sports" | "Finance" | "Crypto" | "Politics" | "Entertainment" | "Tech";
   status: "Open" | "Closed" | "Settled";
   closingTime: string;
   betsPlaced: number;
@@ -25,6 +25,7 @@ const categoryColors = {
   Crypto: "bg-orange-500/10 text-orange-400 border-orange-500/30",
   Politics: "bg-purple-500/10 text-purple-400 border-purple-500/30",
   Entertainment: "bg-pink-500/10 text-pink-400 border-pink-500/30",
+  Tech: "bg-green-500/10 text-green-400 border-green-500/30"
 };
 
 const statusColors = {

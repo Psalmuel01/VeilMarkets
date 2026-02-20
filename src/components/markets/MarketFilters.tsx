@@ -17,6 +17,7 @@ const categories = [
   { id: "Crypto", label: "Crypto" },
   { id: "Politics", label: "Politics" },
   { id: "Entertainment", label: "Entertainment" },
+  { id: "Tech", label: "Tech"},
 ];
 
 export function MarketFilters({
