@@ -51,7 +51,7 @@ export default function MarketsPage() {
   });
 
   return (
-    <MainLayout>
+    <MainLayout requireWallet={true}>
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-8">

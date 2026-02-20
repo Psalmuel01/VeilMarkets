@@ -81,7 +81,7 @@ export default function MarketDetailPage() {
 
   if (notFound) {
     return (
-      <MainLayout>
+      <MainLayout requireWallet={true}>
         <div className="max-w-4xl mx-auto py-16 text-center">
           <AlertCircle className="w-12 h-12 text-warning mx-auto mb-4" />
           <h2 className="text-2xl font-bold mb-2">Market Not Found</h2>
@@ -101,7 +101,7 @@ export default function MarketDetailPage() {
 
   if (aleoLoading || !market) {
     return (
-      <MainLayout>
+      <MainLayout requireWallet={true}>
         <div className="max-w-4xl mx-auto py-16 text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading market details...</p>
@@ -111,7 +111,7 @@ export default function MarketDetailPage() {
   }
 
   return (
-    <MainLayout>
+    <MainLayout requireWallet={true}>
       <div className="max-w-4xl mx-auto">
         {/* Back Navigation */}
         <Link

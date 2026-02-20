@@ -1,5 +1,5 @@
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
-import { PROGRAM_ID } from "../lib/constants";
+import { PROGRAM_ID, TOKEN_PROGRAM_ID } from "../lib/constants";
 import { toast } from "sonner";
 import { fetchMappingValue, fetchTransaction, extractMarketIdFromTx, parseMarketInfo } from "../lib/aleo";
 import { saveMarketMetadata, getBatchMarketMetadata } from "../lib/metadata";
@@ -148,15 +148,78 @@ export const useAleoPrograms = () => {
         }
     };
 
+    const requestCredits = async (amount: number) => {
+        if (!address) return;
+        try {
+            const result = await executeTransaction({
+                program: TOKEN_PROGRAM_ID,
+                function: "faucet",
+                inputs: [`${amount}u64`],
+                fee: 1000000,
+                privateFee: false,
+            });
+            if (result?.transactionId) {
+                toast.success(`Credits requested! Tx: ${result.transactionId}`);
+                return result.transactionId;
+            }
+        } catch (e: any) {
+            console.error("Faucet failed:", e);
+            toast.error(`Faucet error: ${e?.message || "Failed"}`);
+        }
+    };
+
+    const findCreditsRecord = async (amount: number) => {
+        if (!address || !requestRecords) return null;
+        const records = await requestRecords(TOKEN_PROGRAM_ID);
+        const unspent = (records as any[]).filter((r: any) => !r.spent);
+
+        // Find a record with enough balance
+        return unspent.find((r: any) => {
+            const val = r.data?.amount || r.amount;
+            const num = parseInt(typeof val === 'string' ? val.replace('u64', '') : val);
+            return num >= amount;
+        });
+    };
+
     const placeBet = async (marketId: string, outcome: number, amount: number) => {
         if (!address) {
             toast.error("Please connect your wallet first");
             return;
         }
 
+        setLoading(true);
         const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+
         try {
-            const result = await executeTransaction({
+            // STEP 1: Escrow funds in veilmarket_token
+            toast.info("Step 1/2: Escrowing funds...");
+            const creditsRecord = await findCreditsRecord(amount);
+            if (!creditsRecord) {
+                toast.error("No Credits record found with sufficient balance. Please deposit first.");
+                setLoading(false);
+                return;
+            }
+
+            const escrowResult = await executeTransaction({
+                program: TOKEN_PROGRAM_ID,
+                function: "deposit_for_bet",
+                inputs: [
+                    creditsRecord,
+                    cleanMarketId,
+                    `${outcome}u8`,
+                    `${amount}u64`
+                ],
+                fee: 1000000,
+                privateFee: false,
+            });
+
+            if (!escrowResult?.transactionId) {
+                throw new Error("Escrow transaction failed");
+            }
+
+            // STEP 2: Update pools in veilmarkets
+            toast.info("Step 2/2: Updating market pool...");
+            const betResult = await executeTransaction({
                 program: PROGRAM_ID,
                 function: "place_bet",
                 inputs: [cleanMarketId, `${outcome}u8`, `${amount}u64`],
@@ -164,13 +227,15 @@ export const useAleoPrograms = () => {
                 privateFee: false,
             });
 
-            if (result?.transactionId) {
-                toast.success(`Bet placed! Tx: ${result.transactionId}`);
-                return result.transactionId;
+            if (betResult?.transactionId) {
+                toast.success(`Bet successfully placed!`);
+                return betResult.transactionId;
             }
         } catch (error: any) {
             console.error("Place bet failed:", error);
             toast.error(`Bet error: ${error?.message || "Failed"}`);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -225,6 +290,7 @@ export const useAleoPrograms = () => {
         claimWinnings,
         fetchMarkets,
         fetchUserBets,
+        requestCredits,
         loading,
         publicKey,
     };

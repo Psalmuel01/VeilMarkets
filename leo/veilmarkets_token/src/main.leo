@@ -3,9 +3,7 @@
 
 program veilmarkets_token.aleo {
     
-    // ============================================================================
     // RECORDS
-    // ============================================================================
     
     record Credits {
         owner: address,
@@ -19,20 +17,24 @@ program veilmarkets_token.aleo {
         outcome: u8,
     }
 
-    // ============================================================================
     // MAPPINGS
-    // ============================================================================
     
     mapping market_escrow: field => u64;
     mapping platform_fees: u8 => u64;
 
-    // ============================================================================
     // TRANSITIONS
-    // ============================================================================
 
     @admin(address="aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc")
     async constructor() {
         // The Leo compiler automatically generates the constructor logic.
+    }
+    
+    // Faucet for testing
+    transition faucet(public amount: u64) -> Credits {
+        return Credits {
+            owner: self.caller,
+            amount: amount,
+        };
     }
 
     // Deposit credits to place bet (lock in escrow)

@@ -230,7 +230,7 @@ export default function DocsPage() {
               <ExternalLink className="w-4 h-4 text-muted-foreground" />
             </a>
             <a
-              href="#"
+              href="https://github.com/Psalmuel01/VeilMarkets"
               className="flex items-center justify-between p-4 rounded-lg bg-card border border-border/50 hover:border-primary/30 transition-colors"
             >
               <span className="text-sm font-medium">GitHub Repository</span>

@@ -95,7 +95,7 @@ export default function CreateMarketPage() {
   const isFormValid = formData.title && formData.description && formData.category && formData.closingDate;
 
   return (
-    <MainLayout>
+    <MainLayout requireWallet={true}>
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="mb-8">

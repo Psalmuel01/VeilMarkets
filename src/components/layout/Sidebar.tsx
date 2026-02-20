@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutGrid,
@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
+import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 
 const navItems = [
   { icon: LayoutGrid, label: "Markets", path: "/markets" },
@@ -24,6 +25,20 @@ const navItems = [
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const { requestCredits, fetchMarkets } = useAleoPrograms();
+  const [activeMarketsCount, setActiveMarketsCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        const markets = await fetchMarkets();
+        setActiveMarketsCount(markets.length);
+      } catch (error) {
+        console.error("Failed to fetch sidebar stats:", error);
+      }
+    };
+    loadStats();
+  }, [fetchMarkets]);
 
   return (
     <aside
@@ -82,7 +97,9 @@ export function Sidebar() {
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Active Markets</span>
-                <span className="font-medium text-foreground">24</span>
+                <span className="font-medium text-foreground">
+                  {activeMarketsCount !== null ? activeMarketsCount : "..."}
+                </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Total Bets</span>
@@ -93,8 +110,19 @@ export function Sidebar() {
         </div>
       )}
 
-      {/* Wallet Connect */}
-      <div className="p-3 border-t border-border/50">
+      {/* Wallet Connect & Faucet */}
+      <div className="p-3 border-t border-border/50 space-y-2">
+        {!collapsed && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full border-primary/30 hover:border-primary/50 text-xs"
+            onClick={() => requestCredits(1000)}
+          >
+            <Shield className="w-3.5 h-3.5 mr-2 text-primary" />
+            Request 1000 Credits
+          </Button>
+        )}
         <ConnectWalletButton className={collapsed ? "w-10 px-0 justify-center" : "w-full"} />
       </div>
 

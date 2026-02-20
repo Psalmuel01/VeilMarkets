@@ -10,6 +10,7 @@ import DashboardPage from "./pages/DashboardPage";
 import CreateMarketPage from "./pages/CreateMarketPage";
 import DocsPage from "./pages/DocsPage";
 import NotFound from "./pages/NotFound";
+import { WalletGuard } from "./components/auth/WalletGuard";
 
 const queryClient = new QueryClient();
 

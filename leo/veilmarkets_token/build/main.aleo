@@ -18,6 +18,11 @@ mapping platform_fees:
     key as u8.public;
     value as u64.public;
 
+function faucet:
+    input r0 as u64.public;
+    cast self.caller r0 into r1 as Credits.record;
+    output r1 as Credits.record;
+
 function deposit_for_bet:
     input r0 as Credits.record;
     input r1 as field.public;

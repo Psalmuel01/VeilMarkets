@@ -53,21 +53,21 @@ export default function LandingPage() {
           </Link>
 
           <div className="flex items-center gap-4">
-            <Link to="/markets">
-              <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
-                Explore Markets
-              </Button>
-            </Link>
             <Link to="/docs">
               <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
                 Docs
               </Button>
             </Link>
             <Link to="/markets">
+              <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
+                Explore Markets
+              </Button>
+            </Link>
+            {/* <Link to="/markets">
               <Button className="btn-glow-primary">
                 Launch App
               </Button>
-            </Link>
+            </Link> */}
             <ConnectWalletButton />
           </div>
         </div>
