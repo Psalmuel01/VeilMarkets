@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { Network } from "@provablehq/aleo-types";
+import { DecryptPermission } from "@provablehq/aleo-wallet-adaptor-core";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,

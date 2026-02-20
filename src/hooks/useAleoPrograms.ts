@@ -1,35 +1,82 @@
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { PROGRAM_ID } from "../lib/constants";
 import { toast } from "sonner";
-import { fetchAllMappingEntries, parseMarketInfo } from "../lib/aleo";
+import { fetchMappingValue, fetchTransaction, extractMarketIdFromTx, parseMarketInfo } from "../lib/aleo";
 import { useState, useCallback } from "react";
 
 export const useAleoPrograms = () => {
-    const { address, executeTransaction, requestRecords } = useWallet();
-    const publicKey = address;  // compatibility alias
+    const { address, executeTransaction, requestRecords, requestTransactionHistory } = useWallet();
+    const publicKey = address; // compatibility alias
     const [loading, setLoading] = useState(false);
 
+    /**
+     * Fetch all markets by:
+     * 1. Getting all program transaction IDs via requestTransactionHistory
+     * 2. Fetching each TX to extract the market_id output
+     * 3. Fetching each market's MarketInfo from the mapping
+     */
     const fetchMarkets = useCallback(async () => {
         setLoading(true);
         console.log("Fetching markets for:", PROGRAM_ID);
         try {
-            const entries = await fetchAllMappingEntries(PROGRAM_ID, "markets");
-            console.log("Raw markets fetched:", entries);
-            if (!entries || entries.length === 0) {
-                console.warn("No markets found on-chain.");
+            // Step 1: Get all transaction IDs for this program
+            if (!requestTransactionHistory) {
+                console.warn("requestTransactionHistory not available — wallet not connected?");
                 return [];
             }
-            return entries.map((entry: any) => ({
-                id: entry.key.replace(/field/g, ""),
-                ...parseMarketInfo(entry.value)
-            }));
+
+            const historyResult = await requestTransactionHistory(PROGRAM_ID);
+            console.log("TX history result:", historyResult);
+
+            const txIds: string[] = (historyResult?.transactions || []).map(
+                (t: any) => t.transactionId || t.id
+            ).filter(Boolean);
+
+            if (txIds.length === 0) {
+                console.warn("No transactions found for program.");
+                return [];
+            }
+
+            console.log(`Found ${txIds.length} transactions, fetching market IDs...`);
+
+            // Step 2: For each TX, extract the market_id from the create_market output
+            const marketIdSet = new Set<string>();
+            const txFetches = txIds.map((txId) => fetchTransaction(txId));
+            const txData = await Promise.all(txFetches);
+
+            txData.forEach((tx, i) => {
+                if (!tx) return;
+                const marketId = extractMarketIdFromTx(tx);
+                if (marketId) {
+                    console.log(`TX ${txIds[i]} → market_id: ${marketId}`);
+                    marketIdSet.add(marketId);
+                }
+            });
+
+            if (marketIdSet.size === 0) {
+                console.warn("No market IDs extracted from transactions.");
+                return [];
+            }
+
+            // Step 3: Fetch each market's MarketInfo from the mapping
+            const marketIds = Array.from(marketIdSet);
+            const marketFetches = marketIds.map((id) =>
+                fetchMappingValue(PROGRAM_ID, "markets", id).then((raw) => {
+                    if (!raw) return null;
+                    return parseMarketInfo(raw, id);
+                })
+            );
+
+            const markets = (await Promise.all(marketFetches)).filter(Boolean);
+            console.log("Fetched markets:", markets);
+            return markets;
         } catch (error) {
             console.error("Failed to fetch markets:", error);
             return [];
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [requestTransactionHistory]);
 
     const fetchUserBets = useCallback(async () => {
         if (!address || !requestRecords) {
@@ -54,7 +101,7 @@ export const useAleoPrograms = () => {
                     market_id: clean(rawData.market_id),
                     outcome: clean(rawData.outcome),
                     amount: clean(rawData.amount),
-                    spent: r.spent
+                    spent: r.spent,
                 };
             });
         } catch (error) {
@@ -76,10 +123,12 @@ export const useAleoPrograms = () => {
             return;
         }
 
-        const titleHashString = BigInt(Math.floor(Math.random() * 1000000000000)).toString();
+        const titleHashString = BigInt(
+            Math.floor(Math.random() * 1000000000000)
+        ).toString();
         const titleHash = `${titleHashString}field`;
 
-        console.log("Creating market with inputs:", { titleHash, category, closeBlock, resolutionBlock });
+        console.log("Creating market:", { titleHash, category, closeBlock, resolutionBlock });
 
         try {
             const result = await executeTransaction({
@@ -90,7 +139,6 @@ export const useAleoPrograms = () => {
                 privateFee: false,
             });
 
-            console.log("Create market result:", result);
             if (result?.transactionId) {
                 toast.success(`Market created! Tx: ${result.transactionId}`);
                 return result.transactionId;
