@@ -1,17 +1,12 @@
-import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
-import {
-    WalletAdapterNetwork,
-    Transaction,
-} from "@demox-labs/aleo-wallet-adapter-base";
-import {
-    PROGRAM_ID,
-} from "../lib/constants";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
+import { PROGRAM_ID } from "../lib/constants";
 import { toast } from "sonner";
 import { fetchAllMappingEntries, parseMarketInfo } from "../lib/aleo";
 import { useState, useCallback } from "react";
 
 export const useAleoPrograms = () => {
-    const { publicKey, requestTransaction, requestRecords } = useWallet();
+    const { address, executeTransaction, requestRecords } = useWallet();
+    const publicKey = address;  // compatibility alias
     const [loading, setLoading] = useState(false);
 
     const fetchMarkets = useCallback(async () => {
@@ -37,25 +32,24 @@ export const useAleoPrograms = () => {
     }, []);
 
     const fetchUserBets = useCallback(async () => {
-        if (!publicKey || !requestRecords) {
+        if (!address || !requestRecords) {
             console.warn("Wallet not connected or requestRecords not available");
             return [];
         }
         setLoading(true);
-        console.log("Fetching records for:", PROGRAM_ID, "Owner:", publicKey);
+        console.log("Fetching records for:", PROGRAM_ID, "Owner:", address);
         try {
             const records = await requestRecords(PROGRAM_ID);
             console.log("Raw records fetched:", records);
 
-            // Filter for BetPosition records (not spent)
-            // Some wallets return data in .data, others directly on the object
-            const unspent = records.filter((r: any) => !r.spent);
+            const unspent = (records as any[]).filter((r: any) => !r.spent);
 
             return unspent.map((r: any) => {
                 const rawData = r.data || r;
-                // Clean Aleo types from record fields
-                const clean = (val: string) => typeof val === 'string' ? val.replace(/u8|u64|field|address/g, "").trim() : val;
-
+                const clean = (val: string) =>
+                    typeof val === "string"
+                        ? val.replace(/u8|u64|field|address/g, "").trim()
+                        : val;
                 return {
                     market_id: clean(rawData.market_id),
                     outcome: clean(rawData.outcome),
@@ -69,7 +63,7 @@ export const useAleoPrograms = () => {
         } finally {
             setLoading(false);
         }
-    }, [publicKey, requestRecords]);
+    }, [address, requestRecords]);
 
     const createMarket = async (
         title: string,
@@ -77,7 +71,7 @@ export const useAleoPrograms = () => {
         closeBlock: number,
         resolutionBlock: number
     ) => {
-        if (!publicKey) {
+        if (!address) {
             toast.error("Please connect your wallet first");
             return;
         }
@@ -87,103 +81,96 @@ export const useAleoPrograms = () => {
 
         console.log("Creating market with inputs:", { titleHash, category, closeBlock, resolutionBlock });
 
-        const aleoTransaction = Transaction.createTransaction(
-            publicKey,
-            "testnet",
-            PROGRAM_ID,
-            "create_market",
-            [titleHash, `${category}u8`, `${closeBlock}u64`, `${resolutionBlock}u64`],
-            2000000,
-            false
-        );
-
-        if (!requestTransaction) {
-            console.error("requestTransaction not available");
-            toast.error("Wallet does not support transactions");
-            return;
-        }
-
-        console.log("Requesting transaction with Transaction object:", aleoTransaction);
-
         try {
-            const txId = await requestTransaction(aleoTransaction);
-            console.log("Transaction ID success:", txId);
-            toast.success(`Transaction submitted: ${txId}`);
-            return txId;
+            const result = await executeTransaction({
+                program: PROGRAM_ID,
+                function: "create_market",
+                inputs: [titleHash, `${category}u8`, `${closeBlock}u64`, `${resolutionBlock}u64`],
+                fee: 2000000,
+                privateFee: false,
+            });
+
+            console.log("Create market result:", result);
+            if (result?.transactionId) {
+                toast.success(`Market created! Tx: ${result.transactionId}`);
+                return result.transactionId;
+            }
         } catch (error: any) {
-            console.error("Transaction call threw error:", error);
-            const msg = error?.message || "Check balance & permissions";
-            toast.error(`Authorization Failed: ${msg}`);
+            console.error("Create market failed:", error);
+            toast.error(`Failed: ${error?.message || "Unknown error"}`);
         }
     };
 
     const placeBet = async (marketId: string, outcome: number, amount: number) => {
-        if (!publicKey) {
+        if (!address) {
             toast.error("Please connect your wallet first");
             return;
         }
 
-        // Ensure marketId has field suffix if not present
         const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
-
         console.log("Placing bet:", { marketId: cleanMarketId, outcome, amount });
 
-        const aleoTransaction = Transaction.createTransaction(
-            publicKey,
-            "testnet",
-            PROGRAM_ID,
-            "place_bet",
-            [cleanMarketId, `${outcome}u8`, `${amount}u64`],
-            1000000,
-            false
-        );
-
         try {
-            if (requestTransaction) {
-                const txId = await requestTransaction(aleoTransaction);
-                toast.success(`Bet submitted: ${txId}`);
-                return txId;
+            const result = await executeTransaction({
+                program: PROGRAM_ID,
+                function: "place_bet",
+                inputs: [cleanMarketId, `${outcome}u8`, `${amount}u64`],
+                fee: 1000000,
+                privateFee: false,
+            });
+
+            if (result?.transactionId) {
+                toast.success(`Bet placed! Tx: ${result.transactionId}`);
+                return result.transactionId;
             }
         } catch (error: any) {
-            console.error("Bet transaction failed:", error);
+            console.error("Place bet failed:", error);
             toast.error(`Bet error: ${error?.message || "Failed"}`);
         }
     };
 
     const resolveMarket = async (marketId: string, winningOutcome: number) => {
-        if (!publicKey) return;
+        if (!address) return;
         const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
 
-        const aleoTransaction = Transaction.createTransaction(
-            publicKey,
-            "testnet",
-            PROGRAM_ID,
-            "resolve_market",
-            [cleanMarketId, `${winningOutcome}u8`],
-            500000,
-            false
-        );
         try {
-            if (requestTransaction) return await requestTransaction(aleoTransaction);
-        } catch (e) { console.error(e); }
+            const result = await executeTransaction({
+                program: PROGRAM_ID,
+                function: "resolve_market",
+                inputs: [cleanMarketId, `${winningOutcome}u8`],
+                fee: 500000,
+                privateFee: false,
+            });
+            if (result?.transactionId) {
+                toast.success(`Market resolved! Tx: ${result.transactionId}`);
+                return result.transactionId;
+            }
+        } catch (e: any) {
+            console.error("Resolve market failed:", e);
+            toast.error(`Resolve error: ${e?.message || "Failed"}`);
+        }
     };
 
     const claimWinnings = async (marketId: string) => {
-        if (!publicKey) return;
+        if (!address) return;
         const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
 
-        const aleoTransaction = Transaction.createTransaction(
-            publicKey,
-            "testnet",
-            PROGRAM_ID,
-            "claim_winnings",
-            [cleanMarketId],
-            500000,
-            false
-        );
         try {
-            if (requestTransaction) return await requestTransaction(aleoTransaction);
-        } catch (e) { console.error(e); }
+            const result = await executeTransaction({
+                program: PROGRAM_ID,
+                function: "claim_winnings",
+                inputs: [cleanMarketId],
+                fee: 500000,
+                privateFee: false,
+            });
+            if (result?.transactionId) {
+                toast.success(`Winnings claimed! Tx: ${result.transactionId}`);
+                return result.transactionId;
+            }
+        } catch (e: any) {
+            console.error("Claim winnings failed:", e);
+            toast.error(`Claim error: ${e?.message || "Failed"}`);
+        }
     };
 
     return {

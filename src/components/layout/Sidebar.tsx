@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 
 const navItems = [
   { icon: LayoutGrid, label: "Markets", path: "/markets" },
@@ -91,6 +92,11 @@ export function Sidebar() {
           </div>
         </div>
       )}
+
+      {/* Wallet Connect */}
+      <div className="p-3 border-t border-border/50">
+        <ConnectWalletButton className={collapsed ? "w-10 px-0 justify-center" : "w-full"} />
+      </div>
 
       {/* Collapse Toggle */}
       <div className="p-3 border-t border-border/50">
