@@ -170,15 +170,48 @@ export const useAleoPrograms = () => {
 
     const findCreditsRecord = async (amount: number) => {
         if (!address || !requestRecords) return null;
-        const records = await requestRecords(TOKEN_PROGRAM_ID);
-        const unspent = (records as any[]).filter((r: any) => !r.spent);
+        console.log("Finding Credits record in", TOKEN_PROGRAM_ID, "for amount:", amount);
 
-        // Find a record with enough balance
-        return unspent.find((r: any) => {
-            const val = r.data?.amount || r.amount;
-            const num = parseInt(typeof val === 'string' ? val.replace('u64', '') : val);
-            return num >= amount;
-        });
+        try {
+            const records = await requestRecords(TOKEN_PROGRAM_ID);
+            console.log("Found records for token program:", records?.length || 0);
+
+            if (!records || records.length === 0) {
+                console.warn("No records returned from wallet for", TOKEN_PROGRAM_ID);
+                return null;
+            }
+
+            const unspent = (records as any[]).filter((r: any) => !r.spent);
+            console.log("Unspent records:", unspent.length);
+
+            // Find a record with enough balance
+            const found = unspent.find((r: any) => {
+                // Handle different possible data structures from different wallet adapters
+                let val = r.data?.amount || r.amount;
+
+                // If val is an object, try to extract value
+                if (typeof val === 'object' && val !== null) {
+                    val = val.value || val.amount || Object.values(val)[0];
+                }
+
+                if (!val) return false;
+
+                const num = parseInt(typeof val === 'string' ? val.replace('u64', '') : val);
+                console.log("Checking record:", r.id, "amount:", num);
+                return !isNaN(num) && num >= amount;
+            });
+
+            if (found) {
+                console.log("Found suitable record:", found.id);
+            } else {
+                console.warn("No unspent record found with balance >=", amount);
+            }
+
+            return found;
+        } catch (error) {
+            console.error("Error in findCreditsRecord:", error);
+            return null;
+        }
     };
 
     const placeBet = async (marketId: string, outcome: number, amount: number) => {
