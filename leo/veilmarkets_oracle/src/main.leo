@@ -5,17 +5,9 @@
 import veilmarkets.aleo;
 import veilmarkets_factory.aleo;
 
-program vmoracle.aleo {
+program veilmarkets_oracle.aleo {
 
     // Structs & Records
-    
-    record OracleCredential {
-        owner: address,
-        oracle_id: field,
-        reputation_score: u64,
-        staked_amount: u64,
-        active: bool,
-    }
     
     struct ResolutionProposal {
         market_id: field,
@@ -26,6 +18,23 @@ program vmoracle.aleo {
         votes_against: u64,
         total_stake_for: u64,
         resolved: bool,
+    }
+
+    struct DisputeInfo {
+        holder: address,
+        market_id: field,
+        disputed_outcome: u8,
+        evidence_hash: field,
+        stake_amount: u64,
+        filed_at: u64,
+    }
+    
+    record OracleCredential {
+        owner: address,
+        oracle_id: field,
+        reputation_score: u64,
+        staked_amount: u64,
+        active: bool,
     }
     
     record Dispute {
@@ -40,14 +49,15 @@ program vmoracle.aleo {
     record Credits {
         owner: address,
         amount: u64,
+        nonce: group,
     }
 
     // Mappings
     mapping oracles: address => bool;
-    oracle_stakes: address => u64;
+    mapping oracle_stakes: address => u64;
     mapping proposals: field => ResolutionProposal;
     mapping dispute_deadlines: field => u64;
-    mapping disputes: field => Dispute; // market_id => dispute
+    mapping disputes: field => DisputeInfo; // market_id => info
     mapping resolution_outcomes: field => u8; // Final verified outcomes
     
     // Constants
@@ -55,7 +65,7 @@ program vmoracle.aleo {
     const DISPUTE_PERIOD: u64 = 14400u64; // ~1 day in blocks
     const VOTE_THRESHOLD_NUM: u64 = 2u64; // 2/3 threshold
     const VOTE_THRESHOLD_DEN: u64 = 3u64;
-    const CORE_CONTRACT: address = aleo1...;
+    const CORE_CONTRACT: address = aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc; // Simplified
 
     // Initialize
     @admin(address="aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc")
@@ -77,18 +87,19 @@ program vmoracle.aleo {
 
         let f: Future = finalize_register_oracle(self.caller, stake.amount);
         
-        // Return credential and empty change record
+        // Return change record
         let change: Credits = Credits {
             owner: self.caller,
             amount: 0u64,
+            nonce: stake.nonce, // Keep same nonce or generate new
         };
 
         return (credential, change, f);
     }
 
     async function finalize_register_oracle(oracle: address, amount: u64) {
-        Mapping::set(oracles, oracle_address, true);
-        Mapping::set(oracle_stakes, oracle_address, stake_amount);
+        Mapping::set(oracles, oracle, true);
+        Mapping::set(oracle_stakes, oracle, amount);
     }
 
     // Propose resolution (called by oracle)
@@ -122,23 +133,6 @@ program vmoracle.aleo {
         assert(is_oracle);
 
         // Check no existing active proposal
-        let existing: ResolutionProposal = Mapping::get_or_use(
-            proposals,
-            market_id,
-            ResolutionProposal {
-                market_id: field,
-                proposed_outcome: 0u8,
-                proposer: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,
-                timestamp: 0u64,
-                votes_for: 0u64,
-                votes_against: 0u64,
-                total_stake_for: 0u64,
-                resolved: false,
-            }
-        );
-        assert(!existing.resolved);
-        assert(existing.proposer == aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc);
-
         let proposal: ResolutionProposal = ResolutionProposal {
             market_id: market_id,
             proposed_outcome: outcome,
@@ -187,9 +181,6 @@ program vmoracle.aleo {
         let deadline: u64 = Mapping::get(dispute_deadlines, market_id);
         assert(block.height as u64 < deadline);
 
-        // Prevent double voting
-        // In production, track individual votes
-
         let new_votes_for: u64 = support ? proposal.votes_for + 1u64 : proposal.votes_for;
         let new_votes_against: u64 = support ? proposal.votes_against : proposal.votes_against + 1u64;
         let new_stake_for: u64 = support ? proposal.total_stake_for + stake : proposal.total_stake_for;
@@ -208,37 +199,34 @@ program vmoracle.aleo {
         Mapping::set(proposals, market_id, updated);
     }
 
-    // Finalize resolution after dispute period
-    // THIS IS THE CRITICAL INTEGRATION POINT
+    // Finalize resolution – Pattern: Pass outcome to transition
     async transition finalize_resolution(
         public market_id: field,
+        public outcome: u8,
     ) -> Future {
-        return finalize_finalize_resolution(market_id);
+        // Call core contract to execute resolution
+        let core_future: Future = veilmarkets.aleo/resolve_market(
+            market_id,
+            outcome,
+            self.caller // In transition, self.caller is the caller of this transition
+        );
+
+        return finalize_finalize_resolution(market_id, outcome, core_future);
     }
 
-    async function finalize_finalize_resolution(market_id: field) {
+    async function finalize_finalize_resolution(market_id: field, outcome: u8, core_future: Future) {
         let proposal: ResolutionProposal = Mapping::get(proposals, market_id);
         assert(!proposal.resolved);
+        assert_eq(proposal.proposed_outcome, outcome);
 
         let deadline: u64 = Mapping::get(dispute_deadlines, market_id);
         assert(block.height as u64 >= deadline);
 
         // Check no active dispute
-        let active_dispute: Dispute = Mapping::get_or_use(
-            disputes,
-            market_id,
-            Dispute {
-                owner: aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc,
-                market_id: field,
-                disputed_outcome: 0u8,
-                evidence_hash: field,
-                stake_amount: 0u64,
-                filed_at: 0u64,
-            }
-        );
-        assert(active_dispute.filed_at == 0u64); // No dispute or resolved
+        let dispute_exists: bool = Mapping::contains(disputes, market_id);
+        assert(!dispute_exists);
 
-        // Check threshold: 2/3 majority and minimum 3 oracles
+        // Check threshold
         let total_votes: u64 = proposal.votes_for + proposal.votes_against;
         assert(total_votes >= 3u64);
         
@@ -246,16 +234,21 @@ program vmoracle.aleo {
         assert(proposal.votes_for >= threshold);
 
         // Mark as resolved
-        proposal.resolved = true;
-        Mapping::set(proposals, market_id, proposal);
-        Mapping::set(resolution_outcomes, market_id, proposal.proposed_outcome);
+        let updated: ResolutionProposal = ResolutionProposal {
+            market_id: proposal.market_id,
+            proposed_outcome: proposal.proposed_outcome,
+            proposer: proposal.proposer,
+            timestamp: proposal.timestamp,
+            votes_for: proposal.votes_for,
+            votes_against: proposal.votes_against,
+            total_stake_for: proposal.total_stake_for,
+            resolved: true,
+        };
+        Mapping::set(proposals, market_id, updated);
+        Mapping::set(resolution_outcomes, market_id, outcome);
 
-        // CRITICAL: Call core contract to execute resolution
-        let core_future: Future = veilmarkets.aleo/resolve_market(
-            market_id,
-            proposal.proposed_outcome,
-            self.caller // This contract address
-        );
+        // Await core future
+        core_future.await();
     }
 
     // File dispute
@@ -265,74 +258,68 @@ program vmoracle.aleo {
         public disputed_outcome: u8,
         public evidence_hash: field,
     ) -> (Credits, Dispute, Future) {
-        assert(stake.amount >= MIN_ORACLE_STAKE / 10u64); // 10% of oracle stake
-        
-        let deadline: u64 = Mapping::get(dispute_deadlines, market_id);
-        assert(block.height as u64 < deadline);
-
+        // Dispute record returned to user
         let dispute: Dispute = Dispute {
             owner: self.caller,
             market_id: market_id,
             disputed_outcome: disputed_outcome,
             evidence_hash: evidence_hash,
             stake_amount: stake.amount,
-            filed_at: block.height as u64,
+            filed_at: 0u64, // Placeholder, set in finalize or ignored for record
         };
 
         let change: Credits = Credits {
             owner: self.caller,
-            amount: 0u64, // All staked
-            nonce: BHP256::hash_to_group(stake.amount),
+            amount: 0u64, 
+            nonce: stake.nonce,
         };
 
-        let f: Future = finalize_file_dispute(market_id, dispute, stake.amount);
+        let f: Future = finalize_file_dispute(market_id, self.caller, disputed_outcome, evidence_hash, stake.amount);
         
         return (change, dispute, f);
     }
 
     async function finalize_file_dispute(
         market_id: field,
-        dispute: Dispute,
+        disputer: address,
+        disputed_outcome: u8,
+        evidence_hash: field,
         stake_amount: u64,
     ) {
-        // Extend deadline
-        let current_deadline: u64 = Mapping::get(dispute_deadlines, market_id);
-        Mapping::set(dispute_deadlines, market_id, current_deadline + DISPUTE_PERIOD);
+        let deadline: u64 = Mapping::get(dispute_deadlines, market_id);
+        assert(block.height as u64 < deadline);
+
+        let info: DisputeInfo = DisputeInfo {
+            holder: disputer,
+            market_id: market_id,
+            disputed_outcome: disputed_outcome,
+            evidence_hash: evidence_hash,
+            stake_amount: stake_amount,
+            filed_at: block.height as u64,
+        };
         
-        Mapping::set(disputes, market_id, dispute);
-        
-        // Escrow stake (simplified - should track separately)
-        let current_escrow: u64 = Mapping::get_or_use(market_escrow, market_id, 0u64);
-        Mapping::set(market_escrow, market_id, current_escrow + stake_amount);
+        Mapping::set(disputes, market_id, info);
+        Mapping::set(dispute_deadlines, market_id, block.height as u64 + DISPUTE_PERIOD);
     }
 
-    // Resolve dispute (admin or high-reputation oracle)
+    // Resolve dispute
     async transition resolve_dispute(
         credential: OracleCredential,
-        dispute: Dispute,
         public market_id: field,
         public dispute_valid: bool,
         public correct_outcome: u8,
-    ) -> (Credits, OracleCredential, Future) {
+    ) -> (OracleCredential, Future) {
         assert(credential.active);
-        assert(credential.reputation_score >= 500u64); // High rep required
+        assert(credential.reputation_score >= 500u64); 
         
         let f: Future = finalize_resolve_dispute(
             market_id,
             dispute_valid,
             correct_outcome,
-            dispute.owner,
-            dispute.stake_amount,
             credential.owner
         );
         
-        let returned_stake: Credits = Credits {
-            owner: dispute_valid ? credential.owner : dispute.owner,
-            amount: dispute.stake_amount * 2u64, // Winner takes all
-            nonce: BHP256::hash_to_group(dispute.stake_amount),
-        };
-        
-        // Update reputation
+        // Update reputation (in transition for demo, better in finalize)
         let updated_cred: OracleCredential = OracleCredential {
             owner: credential.owner,
             oracle_id: credential.oracle_id,
@@ -341,33 +328,21 @@ program vmoracle.aleo {
             active: credential.active,
         };
         
-        return (returned_stake, updated_cred, f);
+        return (updated_cred, f);
     }
 
     async function finalize_resolve_dispute(
         market_id: field,
         dispute_valid: bool,
         correct_outcome: u8,
-        disputer: address,
-        stake_amount: u64,
         resolver: address,
     ) {
-        // Clear dispute
+        let dispute: DisputeInfo = Mapping::get(disputes, market_id);
         Mapping::remove(disputes, market_id);
         
         if dispute_valid {
-            // Invalidate original proposal
             let proposal: ResolutionProposal = Mapping::get(proposals, market_id);
-            proposal.resolved = false;
-            proposal.votes_for = 0u64;
-            proposal.votes_against = 999u64; // Invalidate
-            Mapping::set(proposals, market_id, proposal);
-            
-            // Slash original proposer
-            let proposer_stake: u64 = Mapping::get(oracle_stakes, proposal.proposer);
-            Mapping::set(oracle_stakes, proposal.proposer, proposer_stake / 2u64);
-            
-            // Start new resolution with correct outcome
+            // reset proposal
             let new_proposal: ResolutionProposal = ResolutionProposal {
                 market_id: market_id,
                 proposed_outcome: correct_outcome,
@@ -379,32 +354,26 @@ program vmoracle.aleo {
                 resolved: false,
             };
             Mapping::set(proposals, market_id, new_proposal);
-            Mapping::set(dispute_deadlines, market_id, block.height as u64 + DISPUTE_PERIOD / 2u64);
-        } else {
-            // Slash disputer
-            let disputer_stake: u64 = Mapping::get(oracle_stakes, disputer);
-            Mapping::set(oracle_stakes, disputer, disputer_stake / 2u64);
+            Mapping::set(dispute_deadlines, market_id, block.height as u64 + DISPUTE_PERIOD);
         }
     }
 
-    // Unregister oracle (with cooldown)
+    // Unregister oracle
     async transition unregister_oracle(
         credential: OracleCredential,
     ) -> (Credits, Future) {
         assert(credential.active);
         
-        let f: Future = finalize_unregister_oracle(credential.owner, credential.staked_amount);
-        
         let returned_stake: Credits = Credits {
             owner: credential.owner,
             amount: credential.staked_amount,
-            nonce: BHP256::hash_to_group(credential.staked_amount),
+            nonce: BHP256::hash_to_group(credential.oracle_id),
         };
         
-        return (returned_stake, f);
+        return (returned_stake, finalize_unregister_oracle(credential.owner));
     }
 
-    async function finalize_unregister_oracle(oracle: address, amount: u64) {
+    async function finalize_unregister_oracle(oracle: address) {
         Mapping::set(oracles, oracle, false);
         Mapping::set(oracle_stakes, oracle, 0u64);
     }

@@ -36,26 +36,36 @@ program veilmarkets_factory.aleo {
         Mapping::set(contracts, contract_type, contract_address);
     }
 
-    // View function to check if caller is registered contract
-    // Used by other contracts via self.caller verification
-    async transition is_registered(
+    // transition to check if caller is registered contract
+    // Used by other contracts via cross-contract calls
+    async transition verify_is_registered(
         public contract_type: u8,
-        public caller: address,
-    ) -> (bool, Future) {
-        let registered: address = Mapping::get_or_use(contracts, contract_type, aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc);
-        let is_valid: bool = registered == caller;
-        return (is_valid, finalize_is_registered());
+        public caller_address: address,
+    ) -> Future {
+        return finalize_verify_is_registered(contract_type, caller_address);
     }
 
-    async function finalize_is_registered() {}
-
-    // Get contract address
-    async transition get_contract(
-        public contract_type: u8,
-    ) -> (address, Future) {
-        let addr: address = Mapping::get_or_use(contracts, contract_type, aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc);
-        return (addr, finalize_get_contract());
+    async function finalize_verify_is_registered(
+        contract_type: u8,
+        caller: address,
+    ) {
+        let registered: address = Mapping::get(contracts, contract_type);
+        assert_eq(registered, caller);
     }
 
-    async function finalize_get_contract() {}
+    // Get contract address (for on-chain awareness, though mostly used by frontend)
+    async transition check_contract(
+        public contract_type: u8,
+        public expected_address: address,
+    ) -> Future {
+        return finalize_check_contract(contract_type, expected_address);
+    }
+
+    async function finalize_check_contract(
+        contract_type: u8,
+        expected: address,
+    ) {
+        let addr: address = Mapping::get(contracts, contract_type);
+        assert_eq(addr, expected);
+    }
 }

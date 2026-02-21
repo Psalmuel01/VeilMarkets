@@ -48,9 +48,10 @@ program veilmarkets.aleo {
     mapping pools: field => PoolState;
     mapping spent_nullifiers: field => bool;  // Anti-replay protection
     mapping position_to_escrow: field => field; // Maps position hash to escrow id
+    mapping pending_payouts: field => u64;    // nullifier => payout_amount (for token contract)
 
     // Constants
-    const FACTORY_CONTRACT: address = aleo1...; // Set at deployment
+    const FACTORY_CONTRACT: address = aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc; // Set at deployment
 
     // Initialize
     @admin(address="aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc")
@@ -70,11 +71,8 @@ program veilmarkets.aleo {
         public close_block: u64,
         public resolution_block: u64
     ) -> (field, Future) {
-        assert(close_block > block.height as u64);
-        assert(resolution_block > close_block);
-
         let caller_hash: field = BHP256::hash_to_field(self.caller);
-        let market_id: field = BHP256::hash_to_field(caller_hash + title_hash + block.height as field);
+        let market_id: field = BHP256::hash_to_field(caller_hash + title_hash);
 
         let f: Future = finalize_create_market(
             market_id,
@@ -99,7 +97,7 @@ program veilmarkets.aleo {
         let exists: bool = Mapping::contains(markets, market_id);
         assert(!exists);
 
-        let market = MarketInfo {
+        let market: MarketInfo = MarketInfo {
             creator: creator,
             title_hash: title_hash,
             category: category,
@@ -109,6 +107,10 @@ program veilmarkets.aleo {
             winning_outcome: 2u8,
             resolved_by_oracle: false,
         };
+
+        // Check blocks in finalize
+        assert(close_block > block.height as u64);
+        assert(resolution_block > close_block);
 
         let pool = PoolState {
             total_no: 0u64,
@@ -137,7 +139,8 @@ program veilmarkets.aleo {
         assert(outcome == 0u8 || outcome == 1u8);
         assert(amount > 0u64);
 
-        let position_hash: field = BHP256::hash_to_field(bettor + market_id + escrow_id);
+        let bettor_hash: field = BHP256::hash_to_field(bettor);
+        let position_hash: field = BHP256::hash_to_field(bettor_hash + market_id + escrow_id);
 
         let f: Future = finalize_place_bet(
             market_id,
@@ -189,7 +192,8 @@ program veilmarkets.aleo {
     ) -> BetPosition {
         // User generates their own record - only they know the nonce
         // This ensures privacy of the bet details
-        let nonce_seed: field = BHP256::hash_to_field(self.caller + escrow_id + block.height as field);
+        let caller_hash: field = BHP256::hash_to_field(self.caller);
+        let nonce_seed: field = BHP256::hash_to_field(caller_hash + escrow_id);
         
         return BetPosition {
             owner: self.caller,
@@ -247,18 +251,14 @@ program veilmarkets.aleo {
     async transition claim_winnings(
         private position: BetPosition,
     ) -> (WinningsClaim, Future) {
-        // Verify position is valid
-        let position_hash: field = BHP256::hash_to_field(
-            position.owner + position.market_id + position.escrow_id
-        );
+        // Generate position hash (verified in finalize)
+        let owner_hash: field = BHP256::hash_to_field(position.owner);
+        let position_hash: field = BHP256::hash_to_field(owner_hash + position.market_id + position.escrow_id);
         
-        // Check escrow link exists
-        let stored_escrow: field = Mapping::get(position_to_escrow, position_hash);
-        assert_eq(stored_escrow, position.escrow_id);
-
-        // Generate nullifier from position (unique per bet)
+        // Generate nullifier from position (verified in finalize)
+        let amount_field: field = position.amount as field;
         let nullifier: field = BHP256::hash_to_field(
-            position.owner + position.market_id + position.amount + position.outcome + position.escrow_id
+            owner_hash + position.market_id + amount_field + position.outcome as field + position.escrow_id
         );
 
         let f: Future = finalize_claim_winnings(
@@ -266,14 +266,15 @@ program veilmarkets.aleo {
             position.outcome,
             position.amount,
             position.escrow_id,
-            nullifier
+            nullifier,
+            position_hash
         );
 
         // Payout computed in finalize, returned in record
         let claim: WinningsClaim = WinningsClaim {
             owner: position.owner,
             market_id: position.market_id,
-            payout_amount: 0u64, // Will be set in finalize
+            payout_amount: 0u64, // Placeholder
             nullifier: nullifier,
             nonce: BHP256::hash_to_group(nullifier),
         };
@@ -287,11 +288,16 @@ program veilmarkets.aleo {
         bet_amount: u64,
         escrow_id: field,
         nullifier: field,
-    ) -> u64 {
+        position_hash: field
+    ) {
         // Anti-replay: check nullifier not spent
         let is_spent: bool = Mapping::get_or_use(spent_nullifiers, nullifier, false);
         assert(!is_spent);
         Mapping::set(spent_nullifiers, nullifier, true);
+
+        // Check escrow link exists and belongs to this position
+        let stored_escrow: field = Mapping::get(position_to_escrow, position_hash);
+        assert_eq(stored_escrow, escrow_id);
 
         let market: MarketInfo = Mapping::get(markets, market_id);
         assert(market.is_resolved);
@@ -302,36 +308,28 @@ program veilmarkets.aleo {
         let winning_pool: u64 = (market.winning_outcome == 0u8) ? pool.total_no : pool.total_yes;
         let total_pool: u64 = pool.total_no + pool.total_yes;
 
-        // Pro-rata payout
+        // Pro-rata payout validation
         let payout: u64 = (bet_amount * total_pool) / winning_pool;
         assert(payout > 0u64);
 
-        // Notify token contract to release funds
-        // This returns payout amount to be used by token contract
-        return payout;
+        Mapping::set(pending_payouts, nullifier, payout);
     }
 
-    // View function for token contract to verify claim
+    // For token contract to verify payout amount
     async transition verify_claim(
-        public market_id: field,
         public nullifier: field,
-    ) -> (bool, u64, address, Future) {
-        let is_spent: bool = Mapping::get_or_use(spent_nullifiers, nullifier, false);
-        
-        if is_spent {
-            return (false, 0u64, self.caller, finalize_verify_claim());
-        }
-
-        let market: MarketInfo = Mapping::get(markets, market_id);
-        if !market.is_resolved {
-            return (false, 0u64, self.caller, finalize_verify_claim());
-        }
-
-        // Return success - actual validation happens in claim_winnings
-        return (true, market.winning_outcome as u64, self.caller, finalize_verify_claim());
+        public payout_amount: u64,
+    ) -> Future {
+        return finalize_verify_claim(nullifier, payout_amount);
     }
 
-    async function finalize_verify_claim() {}
+    async function finalize_verify_claim(
+        nullifier: field,
+        payout_amount: u64,
+    ) {
+        let stored: u64 = Mapping::get(pending_payouts, nullifier);
+        assert_eq(stored, payout_amount);
+    }
 
     // Emergency cancel market (only creator, before close)
     async transition cancel_market(

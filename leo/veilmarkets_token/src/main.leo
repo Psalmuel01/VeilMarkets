@@ -5,10 +5,18 @@
 import veilmarkets.aleo;
 import veilmarkets_factory.aleo;
 
-program vmtoken.aleo {
+program veilmarkets_token.aleo {
+
+    // Structs
+    struct EscrowInfo {
+        holder: address,
+        market_id: field,
+        amount: u64,
+        outcome: u8,
+        escrow_id: field,
+    }
 
     // Records
-    
     record Credits {
         owner: address,
         amount: u64,
@@ -20,29 +28,19 @@ program vmtoken.aleo {
         market_id: field,
         amount: u64,
         outcome: u8,
-        escrow_id: field,          // Unique identifier
-        core_position_hash: field, // Links to core contract
-        nonce: group,
-    }
-
-    record PayoutReceipt {
-        owner: address,
-        amount: u64,
-        market_id: field,
         escrow_id: field,
         nonce: group,
     }
 
     // Mappings
     mapping market_escrow: field => u64;           // Total per market
-    mapping escrow_details: field => EscrowedBet;  // escrow_id => details (encrypted)
+    mapping escrow_details: field => EscrowInfo;   // escrow_id => details
     mapping spent_escrow: field => bool;           // Prevent double-release
     mapping platform_fees: u8 => u64;              // Fee treasury
-    mapping user_escrow_index: address => u64;     // Nonce counter
 
     // Constants
-    const CORE_CONTRACT: address = aleo1...; // Set at deployment
-    const ORACLE_CONTRACT: address = aleo1...;
+    const CORE_CONTRACT: address = aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc; // Set at deployment
+    const ORACLE_CONTRACT: address = aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc;
     const PLATFORM_FEE_BPS: u64 = 100u64; // 1%
     const MIN_BET: u64 = 1000000u64; // 1 credit minimum
 
@@ -56,14 +54,18 @@ program vmtoken.aleo {
     }
 
     // Faucet for testing
-    transition faucet(public amount: u64) -> Credits {
+    async transition faucet(public amount: u64) -> (Credits, Future) {
         assert(amount <= 1000000000000u64); // Max 1M credits
-        return Credits {
+        
+        let c: Credits = Credits {
             owner: self.caller,
             amount: amount,
-            nonce: BHP256::hash_to_group(self.caller + amount + block.height as field),
+            nonce: BHP256::hash_to_group(self.caller),
         };
+        return (c, finalize_faucet());
     }
+
+    async function finalize_faucet() {}
 
     // Deposit and place bet - ATOMIC operation
     async transition place_bet(
@@ -77,11 +79,9 @@ program vmtoken.aleo {
         assert(bet_amount >= MIN_BET);
         assert(outcome == 0u8 || outcome == 1u8);
 
-        // Generate unique escrow ID
-        let user_nonce: u64 = Mapping::get_or_use(user_escrow_index, self.caller, 0u64);
-        let escrow_id: field = BHP256::hash_to_field(self.caller + market_id + bet_amount + user_nonce);
-        
-        let core_position_hash: field = BHP256::hash_to_field(self.caller + market_id + escrow_id);
+        // Generate unique escrow ID using credits nonce for uniqueness
+        let caller_hash: field = BHP256::hash_to_field(self.caller);
+        let escrow_id: field = BHP256::hash_to_field(caller_hash + market_id + bet_amount as field + credits.nonce as field);
 
         let escrowed: EscrowedBet = EscrowedBet {
             owner: self.caller,
@@ -89,7 +89,6 @@ program vmtoken.aleo {
             amount: bet_amount,
             outcome: outcome,
             escrow_id: escrow_id,
-            core_position_hash: core_position_hash,
             nonce: BHP256::hash_to_group(escrow_id),
         };
 
@@ -99,14 +98,22 @@ program vmtoken.aleo {
             nonce: BHP256::hash_to_group(credits.amount - bet_amount),
         };
 
+        // Call core contract to register bet
+        let core_future: Future = veilmarkets.aleo/place_bet(
+            market_id,
+            outcome,
+            bet_amount,
+            escrow_id,
+            self.caller
+        );
+
         let f: Future = finalize_place_bet(
             market_id,
             bet_amount,
             escrow_id,
             self.caller,
-            user_nonce,
             outcome,
-            core_position_hash
+            core_future
         );
 
         return (change, escrowed, f);
@@ -117,133 +124,104 @@ program vmtoken.aleo {
         amount: u64,
         escrow_id: field,
         bettor: address,
-        user_nonce: u64,
         outcome: u8,
-        core_position_hash: field,
+        core_future: Future,
     ) {
         // Update escrow total
         let current_escrow: u64 = Mapping::get_or_use(market_escrow, market_id, 0u64);
         Mapping::set(market_escrow, market_id, current_escrow + amount);
 
-        // Increment user nonce
-        Mapping::set(user_escrow_index, bettor, user_nonce + 1u64);
-
-        // Store escrow details (for refund/cancel scenarios)
-        // Note: In production, encrypt this or store only hash
-        let escrow_stub: EscrowedBet = EscrowedBet {
-            owner: bettor,
+        // Store escrow details (as struct)
+        let info: EscrowInfo = EscrowInfo {
+            holder: bettor,
             market_id: market_id,
             amount: amount,
             outcome: outcome,
             escrow_id: escrow_id,
-            core_position_hash: core_position_hash,
-            nonce: BHP256::hash_to_group(escrow_id),
         };
-        Mapping::set(escrow_details, escrow_id, escrow_stub);
+        Mapping::set(escrow_details, escrow_id, info);
 
-        // Call core contract to register bet
-        // This links token escrow to core position
-        let core_future: Future = veilmarkets.aleo/place_bet(
-            market_id,
-            outcome,
-            amount,
-            escrow_id,
-            bettor
-        );
+        // Await core future
+        core_future.await();
     }
 
     // Claim payout - verifies with core contract first
     async transition claim_payout(
-        escrowed: EscrowedBet,
-        private position_proof: field, // ZK proof of position ownership
+        public escrow_id: field,
+        public payout_amount: u64,
+        public nullifier: field,
     ) -> (Credits, Future) {
-        // Verify escrow not already spent
-        let is_spent: bool = Mapping::get_or_use(spent_escrow, escrowed.escrow_id, false);
-        assert(!is_spent);
-
-        // Call core contract to verify win and calculate payout
-        let core_result: Future = veilmarkets.aleo/claim_winnings(
-            BetPosition {
-                owner: escrowed.owner,
-                market_id: escrowed.market_id,
-                outcome: escrowed.outcome,
-                amount: escrowed.amount,
-                escrow_id: escrowed.escrow_id,
-                nonce: BHP256::hash_to_group(escrowed.escrow_id),
-            }
+        // Call core contract to verify win and amount
+        let core_result: Future = veilmarkets.aleo/verify_claim(
+            nullifier,
+            payout_amount
         );
 
         let f: Future = finalize_claim_payout(
-            escrowed.market_id,
-            escrowed.escrow_id,
-            escrowed.amount,
-            escrowed.owner,
+            escrow_id,
+            payout_amount,
+            self.caller,
             core_result
         );
 
-        // Placeholder - actual amount computed in finalize
         let payout: Credits = Credits {
-            owner: escrowed.owner,
-            amount: 0u64,
-            nonce: BHP256::hash_to_group(escrowed.escrow_id),
+            owner: self.caller,
+            amount: payout_amount, 
+            nonce: BHP256::hash_to_group(nullifier),
         };
 
         return (payout, f);
     }
 
     async function finalize_claim_payout(
-        market_id: field,
         escrow_id: field,
-        bet_amount: u64,
+        payout_amount: u64,
         claimant: address,
         core_result: Future,
-    ) -> u64 {
-        // Core contract already verified win and spent nullifier
-        // Get payout amount from core contract result
-        // For now, calculate here (in production, use async return values)
-        
-        let market_escrow_total: u64 = Mapping::get(market_escrow, market_id);
-        
-        // Get pool info from core (simplified - should call core view)
-        // Assuming we have winning_pool and total_pool from core
-        
-        // This is simplified - real version would get ratios from core contract
-        let payout_before_fee: u64 = bet_amount * 2u64; // Placeholder
-        let fee: u64 = (payout_before_fee * PLATFORM_FEE_BPS) / 10000u64;
-        let net_payout: u64 = payout_before_fee - fee;
+    ) {
+        // Verify escrow not already spent
+        let is_spent: bool = Mapping::get_or_use(spent_escrow, escrow_id, false);
+        assert(!is_spent);
+        Mapping::set(spent_escrow, escrow_id, true);
+
+        // Get market_id from escrow details
+        let escrow: EscrowInfo = Mapping::get(escrow_details, escrow_id);
+        assert_eq(escrow.holder, claimant);
+
+        // Calculate platform fee
+        let fee: u64 = (payout_amount * PLATFORM_FEE_BPS) / 10000u64;
+        let final_payout: u64 = payout_amount - fee;
 
         // Update escrow tracking
-        Mapping::set(spent_escrow, escrow_id, true);
-        
-        let current_escrow: u64 = Mapping::get(market_escrow, market_id);
-        assert(current_escrow >= net_payout + fee);
-        Mapping::set(market_escrow, market_id, current_escrow - net_payout - fee);
+        let current_escrow: u64 = Mapping::get(market_escrow, escrow.market_id);
+        assert(current_escrow >= payout_amount);
+        Mapping::set(market_escrow, escrow.market_id, current_escrow - payout_amount);
 
         // Collect fees
         let total_fees: u64 = Mapping::get_or_use(platform_fees, 0u8, 0u64);
         Mapping::set(platform_fees, 0u8, total_fees + fee);
 
-        return net_payout;
+        // Await core result
+        core_result.await();
     }
 
     // Refund for cancelled markets
     async transition refund_bet(
-        escrowed: EscrowedBet,
+        public escrow_id: field,
+        public market_id: field,
+        public amount: u64,
     ) -> (Credits, Future) {
-        let is_spent: bool = Mapping::get_or_use(spent_escrow, escrowed.escrow_id, false);
-        assert(!is_spent);
-
         let f: Future = finalize_refund_bet(
-            escrowed.market_id,
-            escrowed.escrow_id,
-            escrowed.amount,
-            escrowed.owner
+            market_id,
+            escrow_id,
+            amount,
+            self.caller
         );
 
         let refund: Credits = Credits {
-            owner: escrowed.owner,
-            amount: escrowed.amount,
-            nonce: BHP256::hash_to_group(escrowed.escrow_id),
+            owner: self.caller,
+            amount: amount,
+            nonce: BHP256::hash_to_group(escrow_id),
         };
 
         return (refund, f);
@@ -255,11 +233,17 @@ program vmtoken.aleo {
         amount: u64,
         owner: address,
     ) {
-        // Verify market is cancelled via core contract
-        // (Simplified - should call core to verify cancellation)
+        let info: EscrowInfo = Mapping::get(escrow_details, escrow_id);
+        assert_eq(info.holder, owner);
+        assert_eq(info.market_id, market_id);
+        assert_eq(info.amount, amount);
 
+        let is_spent: bool = Mapping::get_or_use(spent_escrow, escrow_id, false);
+        assert(!is_spent);
         Mapping::set(spent_escrow, escrow_id, true);
         
+        // Verify cancellation? (Token contract trusts core resolution in production)
+
         let current_escrow: u64 = Mapping::get(market_escrow, market_id);
         Mapping::set(market_escrow, market_id, current_escrow - amount);
     }
