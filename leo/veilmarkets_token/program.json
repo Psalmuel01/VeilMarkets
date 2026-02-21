@@ -4,6 +4,17 @@
   "description": "",
   "license": "MIT",
   "leo": "3.4.0",
-  "dependencies": null,
+  "dependencies": [
+    {
+      "name": "veilmarkets.aleo",
+      "location": "local",
+      "path": "../veilmarkets"
+    },
+    {
+      "name": "veilmarkets_factory.aleo",
+      "location": "local",
+      "path": "../factory"
+    }
+  ],
   "dev_dependencies": null
 }
