@@ -57,35 +57,36 @@ This leads to **manipulation, MEV, exposure of high-value bettors, and friction 
 
 - **Aleo** — Layer-1 blockchain with programmable privacy
 - **Leo** — Aleo smart contract language for bet and settlement logic
-- **React** — Frontend framework for responsive UI
-- **Tailwind CSS / Figma** — UI/UX design system
-- **TypeScript** — Type safety across frontend and contracts
+- **React / Vite** — Frontend framework for premium UX
+- **Supabase** — Off-chain metadata storage for rich market details
+- **Tailwind CSS** — Modern, responsive UI design
+- **TypeScript** — Type safety across the entire stack
 
 ---
 
 ## Architecture
 
+VeilMarkets uses a modular **4-program architecture** to ensure scalability, security, and Aleo compliance:
+
+```mermaid
+graph TD
+    Factory[veilmarkets_factory.aleo] --> Core[veilmarkets.aleo]
+    Factory --> Token[veilmarkets_token.aleo]
+    Factory --> Oracle[veilmarkets_oracle.aleo]
+    
+    User[User Wallet] --> Token
+    Token --> Core
+    Core -.-> Pending[Pending Payouts]
+    Oracle --> Core
+    
+    Frontend[Frontend App] --> Supabase[(Supabase Metadata)]
+    Frontend --> Aleo[Aleo Network]
 ```
-Frontend (React / Next.js) ↔ Aleo Smart Contracts (Leo)
-┌─────────────────────────────┐
-│  Market Creation Contract    │
-│  - Create binary markets     │
-│  - Store public metadata     │
-└─────────────┬───────────────┘
-              │
-┌─────────────▼───────────────┐
-│      Bet Contract            │
-│  - Accept encrypted bets     │
-│  - Validate wager privately  │
-└─────────────┬───────────────┘
-              │
-┌─────────────▼───────────────┐
-│   Settlement Contract        │
-│  - Oracle submits outcome    │
-│  - Compute private payouts   │
-│  - ZK proof verification     │
-└─────────────────────────────┘
-```
+
+- **veilmarkets_factory.aleo**: System registry and permission management.
+- **veilmarkets.aleo**: Core logic for market creation, pool accounting, and pro-rata winnings calculation.
+- **veilmarkets_token.aleo**: Integrated pari-mutuel escrow vault. Handles deposits, bet funding, and secure payouts.
+- **veilmarkets_oracle.aleo**: Decentralized resolution governance with built-in dispute mechanisms.
 
 ---
 
@@ -104,20 +105,27 @@ cd veilmarkets
 npm install
 ```
 
-3. Deploy contracts to Aleo Testnet:
-
+3. Setup Environment Variables:
+Create a `.env` file in the root directory:
 ```bash
-# deploy market, bet, settlement contracts
-leo run
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_ALEO_NETWORK=testnet
 ```
 
-4. Run the frontend locally:
+4. Deploy contracts to Aleo Testnet (requires Aleo SDK):
+```bash
+# Order of deployment
+# 1. factory, 2. veilmarkets, 3. veilmarkets_token, 4. veilmarkets_oracle
+cd leo/factory && leo deploy
+```
 
+5. Run the frontend locally:
 ```bash
 npm run dev
 ```
 
-5. Open your browser at `http://localhost:3000` and interact with the UI.
+6. Open your browser at `http://localhost:5173` and interact with the UI.
 
 ---
 

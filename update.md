@@ -11,8 +11,9 @@
 ### 2. Working Demo
 **Deployment**: Integrated with Aleo Testnet using the Shield Wallet adapter.  
 **Functional Leo Contracts**:
+- `veilmarkets_factory.aleo`: Central registry for system contracts.
 - `veilmarkets.aleo`: Core logic for market creation and pool accounting.
-- `veilmarket_token.aleo`: Token escrow for bets and automated payout distribution.
+- `veilmarkets_token.aleo`: Integrated pari-mutuel escrow vault and credit system.
 - `veilmarkets_oracle.aleo`: Governance framework for trusted resolution and disputes.
 **Core Features**:
 - Real-time on-chain market discovery.
@@ -22,12 +23,14 @@
 
 ### 3. Technical Documentation
 **GitHub Repository**: [Psalmuel01/VeilMarkets](https://github.com/Psalmuel01/VeilMarkets)  
-**Architecture Overview**: A 3-program architecture separating **Logic** (Markets), **Finance** (Token Escrow), and **Governance** (Oracle).  
+**Architecture Overview**: A modular 4-program architecture separating **Registry** (Factory), **Logic** (Markets), **Finance** (Token Escrow), and **Governance** (Oracle).  
 **Privacy Model**: Uses shielded records and transition inputs to ensure that bet outcomes and wager amounts are never revealed to the public, while maintaining verifiable pool integrity.
 
 ### 4. Progress Changelog (Wave 2)
 **What's New (Today's Updates)**:
-- **Two-Step Betting Flow**: Implemented a secure funds escrow system where money is locked in `veilmarket_token.aleo` before the bet is recorded in the core contract.
+- **Modular 4-Program Architecture**: Successfully refactored and built the entire contract suite, including a new `veilmarkets_factory.aleo` for centralized registry management.
+- **Aleo Build Readiness**: Resolved all syntax, type, and cross-contract communication errors to achieve a 100% successful build across all programs.
+- **Two-Step Betting Flow**: Implemented a secure funds escrow system where money is locked in `veilmarkets_token.aleo` before the bet is recorded in the core contract.
 - **Supabase Metadata Sync**: Developed a robust off-chain sync using Transaction (Shield) IDs to link rich metadata (titles, descriptions, sources) with on-chain market data.
 - **Resolution Source Integration**: Added a "Resolution Source" field throughout the market lifecycle to enhance transparency and resolution accuracy.
 - **Dynamic Network Stats**: Live fetching of "Active Market" counts and network activity directly from the Aleo blockchain.
