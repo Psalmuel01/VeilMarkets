@@ -104,6 +104,10 @@ export function PlaceBetModal({ open, onClose, marketTitle, marketId, onBetPlace
                 onChange={setWagerAmount}
               />
 
+              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs text-muted-foreground">
+                <p>Each bet requires Aleo Credits. If you're out of credits, use the <strong>Faucet</strong> in the sidebar.</p>
+              </div>
+
               <Button
                 onClick={() => setStep("confirm")}
                 disabled={!selectedOutcome}

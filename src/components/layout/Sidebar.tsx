@@ -117,10 +117,10 @@ export function Sidebar() {
             variant="outline"
             size="sm"
             className="w-full border-primary/30 hover:border-primary/50 text-xs"
-            onClick={() => requestCredits(1000)}
+            onClick={() => requestCredits(500)}
           >
             <Shield className="w-3.5 h-3.5 mr-2 text-primary" />
-            Request 1000 Credits
+            Request 500 Credits
           </Button>
         )}
         <ConnectWalletButton className={collapsed ? "w-10 px-0 justify-center" : "w-full"} />

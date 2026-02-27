@@ -82,11 +82,13 @@ const getErrorMessage = (error: unknown): string => {
 };
 
 const extractRecordAmount = (record: WalletRecord): number => {
+  // Try record.data.amount first (most common)
   const dataAmount = record.data?.amount;
   if (typeof dataAmount === "number" || typeof dataAmount === "string") {
     return parseAleoAmount(dataAmount);
   }
 
+  // Try nested object inside data.amount
   if (typeof dataAmount === "object" && dataAmount !== null) {
     const dataObj = dataAmount as Record<string, unknown>;
     const nestedCandidate =
@@ -96,7 +98,24 @@ const extractRecordAmount = (record: WalletRecord): number => {
     return parseAleoAmount(nestedCandidate);
   }
 
-  return parseAleoAmount(record.amount);
+  // Try record.amount directly
+  if (record.amount !== undefined) {
+    return parseAleoAmount(record.amount);
+  }
+
+  // Try record.data as a string (some wallets return plaintext records)
+  const dataValue = (record as any).data;
+  if (typeof dataValue === "string") {
+    const amountMatch = dataValue.match(/amount\s*:\s*(\d+)u64/);
+    if (amountMatch) return Number.parseInt(amountMatch[1], 10);
+  }
+
+  // Try parsing the entire record as string
+  const recordStr = JSON.stringify(record);
+  const amountMatch = recordStr.match(/(\d+)u64/);
+  if (amountMatch) return Number.parseInt(amountMatch[1], 10);
+
+  return 0;
 };
 
 export const useAleoPrograms = () => {
@@ -105,8 +124,24 @@ export const useAleoPrograms = () => {
   const [loading, setLoading] = useState(false);
 
   const executeWalletTransaction = useCallback(
-    async (options: ExecuteWalletTransactionOptions) =>
-      executeTransaction(options as unknown as Parameters<typeof executeTransaction>[0]),
+    async (options: ExecuteWalletTransactionOptions) => {
+      // Clean up inputs - ensure strings are trimmed and records are passed as plaintext
+      const cleanedInputs = options.inputs.map((input) => {
+        if (typeof input === "string") return input.trim();
+        if (typeof input === "object" && input !== null) {
+          const rec = input as Record<string, unknown>;
+          return (rec.recordPlaintext || rec.plaintext || JSON.stringify(input)) as string;
+        }
+        return String(input);
+      });
+
+      console.log(`[executeWalletTransaction] Executing ${options.program}/${options.function}`, cleanedInputs);
+
+      return executeTransaction({
+        ...options,
+        inputs: cleanedInputs,
+      } as Parameters<typeof executeTransaction>[0]);
+    },
     [executeTransaction],
   );
 
@@ -247,6 +282,8 @@ export const useAleoPrograms = () => {
         privateFee: false,
       });
 
+      console.log(result);
+
       if (result?.transactionId) {
         await saveMarketMetadata(result.transactionId, titleHash, title, description, resolutionSource);
         toast.success(`Market created! Tx: ${result.transactionId}`);
@@ -286,7 +323,20 @@ export const useAleoPrograms = () => {
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       const unspent = records.filter((record) => !record.spent);
 
+      console.log(`[findCreditsRecord] Found ${unspent.length} unspent records from ${TOKEN_PROGRAM_ID}`);
+
+      // Log all unspent records for debugging
+      for (const record of unspent) {
+        const amount = extractRecordAmount(record);
+        console.log(`[findCreditsRecord] Record amount: ${amount}, required: ${requiredAmountMicro}`, record);
+      }
+
       const matchingRecord = unspent.find((record) => extractRecordAmount(record) >= requiredAmountMicro);
+
+      if (!matchingRecord) {
+        console.warn(`[findCreditsRecord] No record with >= ${requiredAmountMicro} microcredits found among ${unspent.length} unspent records`);
+      }
+
       return matchingRecord ?? null;
     } catch (error) {
       console.error("Error in findCreditsRecord:", error);
@@ -365,7 +415,7 @@ export const useAleoPrograms = () => {
         program: TOKEN_PROGRAM_ID,
         function: "place_bet",
         inputs: [creditsRecord, cleanMarketId, formatU8(outcome), formatU64(amountMicro)],
-        fee: 1_000_000,
+        fee: 1_500_000,
         privateFee: false,
       });
 
