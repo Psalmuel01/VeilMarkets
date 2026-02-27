@@ -2,10 +2,10 @@
 // Decentralized resolution with dispute mechanism
 // Integrated with core contract for finalization
 
-import veilmarkets.aleo;
-import veilmarkets_factory.aleo;
+import veilmarkets_v2.aleo;
+import veilmarkets_factory_v2.aleo;
 
-program veilmarkets_oracle.aleo {
+program veilmarkets_oracle_v2.aleo {
 
     // Structs & Records
     
@@ -205,7 +205,7 @@ program veilmarkets_oracle.aleo {
         public outcome: u8,
     ) -> Future {
         // Call core contract to execute resolution
-        let core_future: Future = veilmarkets.aleo/resolve_market(
+        let core_future: Future = veilmarkets_v2.aleo/resolve_market(
             market_id,
             outcome,
             self.caller // In transition, self.caller is the caller of this transition

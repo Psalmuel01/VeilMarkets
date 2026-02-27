@@ -374,7 +374,10 @@ export default function CreateMarketPage() {
                 View All Markets
               </Button>
               <Button
-                onClick={() => navigate(`/market/${txId}`)}
+                onClick={() => {
+                  console.log("Navigating to market with ID:", txId);
+                  navigate(`/market/${txId}`);
+                }}
                 className="flex-1 btn-glow-primary"
               >
                 View Your Market

@@ -2,7 +2,7 @@
 // Central deployment and permission management
 // All contracts verify against this factory's registry
 
-program veilmarkets_factory.aleo {
+program veilmarkets_factory_v2.aleo {
 
     // Contract registry - stores official addresses
     mapping contracts: u8 => address;

@@ -23,7 +23,7 @@ export const saveMarketMetadata = async (
   source?: string,
 ) => {
   try {
-    const { error } = await supabase.from("markets").insert([
+    const { error } = await supabase.from("markets_alt").insert([
       {
         transaction_id: transactionId,
         title_hash: titleHash,
@@ -48,7 +48,7 @@ export const saveMarketMetadata = async (
 export const getMarketMetadata = async (transactionId: string): Promise<MarketMetadata | null> => {
   try {
     const { data, error } = await supabase
-      .from("markets")
+      .from("markets_alt")
       .select("title, description, source")
       .eq("transaction_id", transactionId)
       .single();
@@ -80,7 +80,7 @@ export const getBatchMarketMetadata = async (transactionIds: string[]): Promise<
   if (transactionIds.length === 0) return {};
   try {
     const { data, error } = await supabase
-      .from("markets")
+      .from("markets_alt")
       .select("transaction_id, title, description, source")
       .in("transaction_id", transactionIds);
 
@@ -111,7 +111,7 @@ export const getBatchMarketMetadata = async (transactionIds: string[]): Promise<
 export const getAllMarketMetadata = async (): Promise<MarketMetadataRow[]> => {
   try {
     const { data, error } = await supabase
-      .from("markets")
+      .from("markets_alt")
       .select("transaction_id, title_hash, title, description, source");
 
     if (error) {

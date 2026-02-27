@@ -84,6 +84,12 @@ export default function DashboardPage() {
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [claimStep, setClaimStep] = useState<"confirm" | "processing" | "success">("confirm");
   const [userBets, setUserBets] = useState<UserBet[]>([]);
+  const [tokenBalance, setTokenBalance] = useState<number | null>(null);
+  const [stats, setStats] = useState([
+    { icon: Trophy, label: "Total Bets", value: "0" },
+    { icon: TrendingUp, label: "Win Rate", value: "0%" },
+    { icon: Clock, label: "Pending", value: "0" },
+  ]);
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
   const [myMarkets, setMyMarkets] = useState<
     Array<{
@@ -94,49 +100,97 @@ export default function DashboardPage() {
       is_resolved: boolean;
     }>
   >([]);
-  const { fetchUserBets, fetchMarkets, loading, publicKey, claimWinnings } = useAleoPrograms();
+  const { fetchUserBets, fetchMarkets, fetchTokenBalance, loading, publicKey, claimWinnings } = useAleoPrograms();
 
   useEffect(() => {
-    const loadBets = async () => {
+    const loadData = async () => {
       if (!publicKey) return;
-      const records = await fetchUserBets();
 
-      const mapped: UserBet[] = records.map((record) => ({
-        id: record.market_id,
-        marketId: record.market_id,
-        marketTitle: `Market ${record.market_id.substring(0, 8)}...`,
-        category: "Private",
-        status: "Pending" as const,
-        outcome: record.outcome === "1" ? "Yes" : "No",
-        placedAt: "Recently",
-        canClaim: false,
-      }));
+      try {
+        const [records, allMarkets, balance] = await Promise.all([
+          fetchUserBets(),
+          fetchMarkets(),
+          fetchTokenBalance()
+        ]);
 
-      setUserBets(mapped);
+        setTokenBalance(balance);
+
+        const marketMap = new Map(allMarkets.map(m => [m.id.replace("field", "").trim(), m]));
+
+        const mapped: UserBet[] = records.map((record) => {
+          // record.market_id is already cleaned by the hook
+          const market = marketMap.get(record.market_id);
+          const outcomeLabel = record.outcome === "1" ? "Yes" : "No";
+
+          console.log(`[Dashboard] Joining bet for market ${record.market_id}:`, {
+            foundMarket: !!market,
+            marketTitle: market?.title,
+            isResolved: market?.is_resolved
+          });
+
+          let status: "Pending" | "Won" | "Lost" | "Cancelled" = "Pending";
+          let canClaim = false;
+
+          if (market?.is_resolved) {
+            if (market.winning_outcome === 3) {
+              status = "Cancelled";
+              canClaim = !record.spent;
+            } else if (market.winning_outcome === (record.outcome === "1" ? 1 : 0)) {
+              status = "Won";
+              canClaim = !record.spent;
+            } else {
+              status = "Lost";
+            }
+          }
+
+          return {
+            id: `${record.market_id}-${record.escrow_id}`,
+            marketId: record.market_id,
+            marketTitle: market?.title || `Market ${record.market_id.substring(0, 8)}...`,
+            category: market?.category === 0 ? "Crypto" : market?.category === 1 ? "Sports" : "Misc",
+            status,
+            outcome: outcomeLabel,
+            placedAt: "Recorded",
+            canClaim,
+          };
+        });
+
+        setUserBets(mapped);
+
+        // Calculate Stats
+        const total = mapped.length;
+        const pending = mapped.filter(b => b.status === "Pending").length;
+        const resolved = mapped.filter(b => b.status === "Won" || b.status === "Lost");
+        const won = resolved.filter(b => b.status === "Won").length;
+        const rate = resolved.length > 0 ? Math.round((won / resolved.length) * 100) : 0;
+
+        setStats([
+          { icon: Trophy, label: "Total Bets", value: total.toString() },
+          { icon: TrendingUp, label: "Win Rate", value: `${rate}%` },
+          { icon: Clock, label: "Pending", value: pending.toString() },
+        ]);
+
+        // Filter created markets
+        const currentAddr = publicKey.toString().replace(/address/g, "").trim();
+        const filtered = allMarkets.filter((market) =>
+          market.creator && market.creator.replace(/address/g, "").trim() === currentAddr
+        );
+        setMyMarkets(
+          filtered.map((market) => ({
+            id: market.id,
+            title: market.title,
+            description: market.description,
+            title_hash: market.title_hash,
+            is_resolved: market.is_resolved,
+          })),
+        );
+      } catch (error) {
+        console.error("Dashboard error:", error);
+      }
     };
 
-    const loadCreatedMarkets = async () => {
-      if (!publicKey) return;
-      const all = await fetchMarkets();
-      // On-chain address might need cleaning if it contains "address" suffix
-      const currentAddr = publicKey.toString().replace(/address/g, "").trim();
-      const filtered = all.filter((market) =>
-        market.creator && market.creator.replace(/address/g, "").trim() === currentAddr
-      );
-      setMyMarkets(
-        filtered.map((market) => ({
-          id: market.id,
-          title: market.title,
-          description: market.description,
-          title_hash: market.title_hash,
-          is_resolved: market.is_resolved,
-        })),
-      );
-    };
-
-    loadBets();
-    loadCreatedMarkets();
-  }, [fetchUserBets, fetchMarkets, publicKey]);
+    loadData();
+  }, [fetchUserBets, fetchMarkets, fetchTokenBalance, publicKey]);
 
   const filteredBets = userBets.filter((bet) => {
     if (activeTab === "all") return true;
@@ -218,8 +272,10 @@ export default function DashboardPage() {
                 <Wallet className="w-6 h-6 text-primary" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Total Winnings (Private)</p>
-                <p className="text-2xl font-bold font-mono encrypted-text">•••••••• ALEO</p>
+                <p className="text-sm text-muted-foreground">Available Balance (Private)</p>
+                <p className="text-2xl font-bold font-mono">
+                  {tokenBalance !== null ? `${tokenBalance.toLocaleString()} ALEO` : "•••••••• ALEO"}
+                </p>
               </div>
             </div>
             <ZKBadge variant="encrypted" />

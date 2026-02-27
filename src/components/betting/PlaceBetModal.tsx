@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Shield, Loader2, CheckCircle2, X } from "lucide-react";
 import {
@@ -29,7 +29,32 @@ export function PlaceBetModal({ open, onClose, marketTitle, marketId, onBetPlace
   const [selectedOutcome, setSelectedOutcome] = useState<"Yes" | "No" | null>(null);
   const [wagerAmount, setWagerAmount] = useState(50);
   const [txId, setTxId] = useState<string | null>(null);
-  const { placeBet } = useAleoPrograms();
+  const { placeBet, fetchPoolStats } = useAleoPrograms();
+  const [pool, setPool] = useState<{ total_yes: number; total_no: number } | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      fetchPoolStats(marketId).then(setPool);
+    }
+  }, [marketId, open, fetchPoolStats]);
+
+  const calculateReturn = () => {
+    if (!pool || !selectedOutcome) return null;
+    const x = wagerAmount * 1_000_000;
+    const total_yes = pool.total_yes;
+    const total_no = pool.total_no;
+
+    let payout = 0;
+    if (selectedOutcome === "Yes") {
+      payout = (x / (total_yes + x)) * (total_yes + total_no + x);
+    } else {
+      payout = (x / (total_no + x)) * (total_yes + total_no + x);
+    }
+
+    return payout / 1_000_000;
+  };
+
+  const potentialReturn = calculateReturn();
 
   const handleSubmit = async () => {
     setStep("processing");
@@ -104,6 +129,10 @@ export function PlaceBetModal({ open, onClose, marketTitle, marketId, onBetPlace
                 onChange={setWagerAmount}
               />
 
+              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs text-muted-foreground">
+                <p>Each bet requires Aleo Credits. If you're out of credits, use the <strong>Faucet</strong> in the sidebar.</p>
+              </div>
+
               <Button
                 onClick={() => setStep("confirm")}
                 disabled={!selectedOutcome}
@@ -132,6 +161,12 @@ export function PlaceBetModal({ open, onClose, marketTitle, marketId, onBetPlace
                   <span className="text-muted-foreground">Wager Amount</span>
                   <span className="font-mono encrypted-text">Encrypted</span>
                 </div>
+                {potentialReturn && (
+                  <div className="flex justify-between text-sm pt-2 border-t border-border/10">
+                    <span className="text-muted-foreground">Potential Return</span>
+                    <span className="font-semibold text-success">~{potentialReturn.toFixed(2)} ALEO</span>
+                  </div>
+                )}
               </div>
 
               {/* Privacy Checklist */}

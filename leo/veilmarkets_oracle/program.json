@@ -1,19 +1,21 @@
 {
-  "program": "veilmarkets_oracle.aleo",
+  "program": "veilmarkets_oracle_v2.aleo",
   "version": "0.1.0",
   "description": "",
   "license": "MIT",
   "leo": "3.4.0",
   "dependencies": [
     {
-      "name": "veilmarkets.aleo",
-      "location": "local",
-      "path": "../veilmarkets"
+      "name": "veilmarkets_factory_v2.aleo",
+      "location": "network",
+      "network": "testnet",
+      "path": null
     },
     {
-      "name": "veilmarkets_factory.aleo",
-      "location": "local",
-      "path": "../factory"
+      "name": "veilmarkets_v2.aleo",
+      "location": "network",
+      "network": "testnet",
+      "path": null
     }
   ],
   "dev_dependencies": null

@@ -1,3 +1,5 @@
+import { PROGRAM_ID } from "./constants";
+
 const ALEO_API_URL = "https://api.explorer.provable.com/v2";
 const ALEO_NETWORK = "testnet";
 const ESTIMATED_BLOCK_TIME_SECONDS = 15;
@@ -50,7 +52,8 @@ export interface PoolInfo {
 const asRecord = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 
-const stripTypeSuffixes = (value: string) => value.replace(/u8|u64|field|group|address/g, "").trim();
+const stripTypeSuffixes = (value: string) =>
+  value.replace(/u8|u64|field|group|address|\.private|\.public/g, "").trim();
 
 const parseAleoInt = (value: unknown): number => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -181,7 +184,7 @@ export const extractMarketIdFromTx = (tx: AleoTransaction | null): string | null
     if (!Array.isArray(transitions)) return null;
 
     const createMarketTx = transitions.find(
-      (transition) => transition.function === "create_market" && transition.program === "veilmarkets.aleo",
+      (transition) => transition.function === "create_market" && transition.program === PROGRAM_ID,
     );
     if (!createMarketTx) return null;
 

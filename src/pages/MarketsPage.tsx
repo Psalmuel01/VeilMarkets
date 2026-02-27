@@ -28,26 +28,47 @@ export default function MarketsPage() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [markets, setMarkets] = useState<Market[]>([]);
-  const { fetchMarkets, loading } = useAleoPrograms();
+  const { fetchMarkets, fetchPoolStats, loading } = useAleoPrograms();
 
   useEffect(() => {
     const loadMarkets = async () => {
       const realMarkets = await fetchMarkets();
-      const mapped: Market[] = realMarkets.map((market) => ({
+
+      // Initially map with 0 bets
+      const initialMapped: Market[] = realMarkets.map((market) => ({
         id: market.id,
         title: market.title,
         description: market.description,
-        category: mapCategory(market.category),
+        category: (market.category === 0 ? "Crypto" :
+          market.category === 1 ? "Finance" :
+            market.category === 2 ? "Sports" :
+              market.category === 3 ? "Politics" :
+                market.category === 4 ? "Entertainment" : "Tech"),
         status: market.is_resolved ? "Settled" : "Open",
         closingTime: `Block ${market.close_block}`,
-        betsPlaced: 0, // TODO: map from pools mapping once exposed in API pipeline.
+        betsPlaced: 0,
         outcome: market.is_resolved ? (market.winning_outcome === 1 ? "Yes" : "No") : undefined,
       }));
 
-      setMarkets(mapped);
+      setMarkets(initialMapped);
+
+      // Fetch real pool stats for each market to get bet counts
+      try {
+        const statsPromises = realMarkets.map(m => fetchPoolStats(m.id));
+        const allStats = await Promise.all(statsPromises);
+
+        const updated = initialMapped.map((m, i) => ({
+          ...m,
+          betsPlaced: allStats[i]?.participant_count || 0
+        }));
+
+        setMarkets(updated);
+      } catch (error) {
+        console.error("Failed to fetch pool stats for markets:", error);
+      }
     };
     loadMarkets();
-  }, [fetchMarkets]);
+  }, [fetchMarkets, fetchPoolStats]);
 
   const filteredMarkets = markets.filter((market) => {
     const matchesCategory = activeCategory === "all" || market.category === activeCategory;
