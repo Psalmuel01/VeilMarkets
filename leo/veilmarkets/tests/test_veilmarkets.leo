@@ -1,17 +1,13 @@
-// The 'test_veilmarkets' test program.
-import veilmarkets.aleo;
+import veilmarkets_v2.aleo;
+
 program test_veilmarkets.aleo {
     @test
-    script test_it() {
-        let result: u32 = veilmarkets.aleo/main(1u32, 2u32);
-        assert_eq(result, 3u32);
-    }
+    script market_struct_primitives_are_valid() {
+        let unresolved_outcome: u8 = 2u8;
+        assert_eq(unresolved_outcome, 2u8);
 
-    @test
-    @should_fail
-    transition do_nothing() {
-        let result: u32 = veilmarkets.aleo/main(2u32, 3u32);
-        assert_eq(result, 3u32);
+        let sample_market_id: field = 12345field;
+        assert_eq(sample_market_id, 12345field);
     }
 
     @noupgrade

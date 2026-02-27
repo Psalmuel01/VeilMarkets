@@ -10,7 +10,7 @@ export interface UserBet {
   marketId: string;
   marketTitle: string;
   category: string;
-  status: "Pending" | "Won" | "Lost";
+  status: "Pending" | "Won" | "Lost" | "Cancelled";
   outcome: "Yes" | "No";
   placedAt: string;
   canClaim: boolean;
@@ -33,6 +33,10 @@ const statusConfig = {
   Lost: {
     color: "bg-destructive/10 text-destructive border-destructive/30",
     label: "Lost",
+  },
+  Cancelled: {
+    color: "bg-muted/10 text-muted-foreground border-border/50",
+    label: "Cancelled",
   },
 };
 

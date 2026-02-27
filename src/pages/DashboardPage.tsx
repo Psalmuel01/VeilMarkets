@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Wallet, TrendingUp, Clock, Trophy, CheckCircle2, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { BetCard, UserBet } from "@/components/dashboard/BetCard";
 import { ZKBadge } from "@/components/ui/ZKBadge";
@@ -78,47 +79,118 @@ const stats = [
 
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("all");
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [claimStep, setClaimStep] = useState<"confirm" | "processing" | "success">("confirm");
   const [userBets, setUserBets] = useState<UserBet[]>([]);
+  const [tokenBalance, setTokenBalance] = useState<number | null>(null);
+  const [stats, setStats] = useState([
+    { icon: Trophy, label: "Total Bets", value: "0" },
+    { icon: TrendingUp, label: "Win Rate", value: "0%" },
+    { icon: Clock, label: "Pending", value: "0" },
+  ]);
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
-  const [myMarkets, setMyMarkets] = useState<any[]>([]);
-  const { fetchUserBets, fetchMarkets, loading, publicKey } = useAleoPrograms();
+  const [myMarkets, setMyMarkets] = useState<
+    Array<{
+      id: string;
+      title: string;
+      description: string;
+      title_hash: string;
+      is_resolved: boolean;
+    }>
+  >([]);
+  const { fetchUserBets, fetchMarkets, fetchTokenBalance, loading, publicKey, claimWinnings } = useAleoPrograms();
 
   useEffect(() => {
-    const loadBets = async () => {
+    const loadData = async () => {
       if (!publicKey) return;
-      const records = await fetchUserBets();
 
-      const mapped: UserBet[] = records.map((r: any) => ({
-        id: r.market_id,
-        marketId: r.market_id,
-        marketTitle: `Market ${r.market_id.substring(0, 8)}...`,
-        category: "Private",
-        status: "Pending" as const,
-        outcome: r.outcome === "1" ? "Yes" : "No", // Cleaned u8 suffix
-        placedAt: "Recently",
-        canClaim: false,
-      }));
+      try {
+        const [records, allMarkets, balance] = await Promise.all([
+          fetchUserBets(),
+          fetchMarkets(),
+          fetchTokenBalance()
+        ]);
 
-      setUserBets(mapped.length > 0 ? mapped : mockBets);
+        setTokenBalance(balance);
+
+        const marketMap = new Map(allMarkets.map(m => [m.id.replace("field", "").trim(), m]));
+
+        const mapped: UserBet[] = records.map((record) => {
+          // record.market_id is already cleaned by the hook
+          const market = marketMap.get(record.market_id);
+          const outcomeLabel = record.outcome === "1" ? "Yes" : "No";
+
+          console.log(`[Dashboard] Joining bet for market ${record.market_id}:`, {
+            foundMarket: !!market,
+            marketTitle: market?.title,
+            isResolved: market?.is_resolved
+          });
+
+          let status: "Pending" | "Won" | "Lost" | "Cancelled" = "Pending";
+          let canClaim = false;
+
+          if (market?.is_resolved) {
+            if (market.winning_outcome === 3) {
+              status = "Cancelled";
+              canClaim = !record.spent;
+            } else if (market.winning_outcome === (record.outcome === "1" ? 1 : 0)) {
+              status = "Won";
+              canClaim = !record.spent;
+            } else {
+              status = "Lost";
+            }
+          }
+
+          return {
+            id: `${record.market_id}-${record.escrow_id}`,
+            marketId: record.market_id,
+            marketTitle: market?.title || `Market ${record.market_id.substring(0, 8)}...`,
+            category: market?.category === 0 ? "Crypto" : market?.category === 1 ? "Sports" : "Misc",
+            status,
+            outcome: outcomeLabel,
+            placedAt: "Recorded",
+            canClaim,
+          };
+        });
+
+        setUserBets(mapped);
+
+        // Calculate Stats
+        const total = mapped.length;
+        const pending = mapped.filter(b => b.status === "Pending").length;
+        const resolved = mapped.filter(b => b.status === "Won" || b.status === "Lost");
+        const won = resolved.filter(b => b.status === "Won").length;
+        const rate = resolved.length > 0 ? Math.round((won / resolved.length) * 100) : 0;
+
+        setStats([
+          { icon: Trophy, label: "Total Bets", value: total.toString() },
+          { icon: TrendingUp, label: "Win Rate", value: `${rate}%` },
+          { icon: Clock, label: "Pending", value: pending.toString() },
+        ]);
+
+        // Filter created markets
+        const currentAddr = publicKey.toString().replace(/address/g, "").trim();
+        const filtered = allMarkets.filter((market) =>
+          market.creator && market.creator.replace(/address/g, "").trim() === currentAddr
+        );
+        setMyMarkets(
+          filtered.map((market) => ({
+            id: market.id,
+            title: market.title,
+            description: market.description,
+            title_hash: market.title_hash,
+            is_resolved: market.is_resolved,
+          })),
+        );
+      } catch (error) {
+        console.error("Dashboard error:", error);
+      }
     };
 
-    const loadCreatedMarkets = async () => {
-      if (!publicKey) return;
-      const all = await fetchMarkets();
-      // On-chain address might need cleaning if it contains "address" suffix
-      const currentAddr = publicKey.toString().replace(/address/g, "").trim();
-      const filtered = all.filter((m: any) =>
-        m.creator && m.creator.replace(/address/g, "").trim() === currentAddr
-      );
-      setMyMarkets(filtered);
-    };
-
-    loadBets();
-    loadCreatedMarkets();
-  }, [fetchUserBets, fetchMarkets, publicKey]);
+    loadData();
+  }, [fetchUserBets, fetchMarkets, fetchTokenBalance, publicKey]);
 
   const filteredBets = userBets.filter((bet) => {
     if (activeTab === "all") return true;
@@ -128,7 +200,6 @@ export default function DashboardPage() {
     return true;
   });
 
-  const { claimWinnings, resolveMarket } = useAleoPrograms();
   const [txId, setTxId] = useState<string | null>(null);
 
   const handleClaim = (marketId: string) => {
@@ -201,8 +272,10 @@ export default function DashboardPage() {
                 <Wallet className="w-6 h-6 text-primary" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Total Winnings (Private)</p>
-                <p className="text-2xl font-bold font-mono encrypted-text">•••••••• ALEO</p>
+                <p className="text-sm text-muted-foreground">Available Balance (Private)</p>
+                <p className="text-2xl font-bold font-mono">
+                  {tokenBalance !== null ? `${tokenBalance.toLocaleString()} ALEO` : "•••••••• ALEO"}
+                </p>
               </div>
             </div>
             <ZKBadge variant="encrypted" />
@@ -232,27 +305,14 @@ export default function DashboardPage() {
                       <p className="text-sm text-muted-foreground">{m.description || `Market ID: ${m.id}`}</p>
                       <p className="text-xs text-muted-foreground">Title Hash: {m.title_hash}</p>
                     </div>
-                    <Badge variant="outline" className={m.resolved ? "bg-primary/10 text-primary" : "bg-success/10 text-success"}>
-                      {m.resolved ? "Settled" : "Open"}
+                    <Badge variant="outline" className={m.is_resolved ? "bg-primary/10 text-primary" : "bg-success/10 text-success"}>
+                      {m.is_resolved ? "Settled" : "Open"}
                     </Badge>
                   </div>
-                  {!m.resolved && (
-                    <div className="flex gap-3">
-                      <Button
-                        onClick={() => resolveMarket(m.id, 1)}
-                        className="flex-1 bg-success/20 hover:bg-success/30 text-success border-success/30"
-                        variant="outline"
-                      >
-                        Resolve YES
-                      </Button>
-                      <Button
-                        onClick={() => resolveMarket(m.id, 0)}
-                        className="flex-1 bg-destructive/20 hover:bg-destructive/30 text-destructive border-destructive/30"
-                        variant="outline"
-                      >
-                        Resolve NO
-                      </Button>
-                    </div>
+                  {!m.is_resolved && (
+                    <p className="text-sm text-muted-foreground">
+                      Resolution is oracle-driven. Finalization is only available after oracle proposal and voting.
+                    </p>
                   )}
                   <p className="text-xs text-muted-foreground mt-4 italic">
                     * Final resolution for on-chain state.
@@ -265,7 +325,7 @@ export default function DashboardPage() {
                 <Button
                   variant="link"
                   className="mt-2 text-primary"
-                  onClick={() => window.location.href = '/market/new'}
+                  onClick={() => navigate("/create")}
                 >
                   Create your first market
                 </Button>

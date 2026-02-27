@@ -65,7 +65,7 @@ export function WagerSlider({
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Your wager (encrypted)</span>
           <span className="font-mono text-lg encrypted-text">
-            •••••••• ALEO
+            {value} ALEO
           </span>
         </div>
       </div>

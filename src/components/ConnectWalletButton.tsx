@@ -17,15 +17,16 @@ export function ConnectWalletButton({ className }: { className?: string }) {
     const [showModal, setShowModal] = useState(false);
     const [copied, setCopied] = useState(false);
 
-    const handleSelectWallet = async (walletName: string) => {
+    const handleSelectWallet = async (walletName: (typeof wallets)[number]["adapter"]["name"]) => {
         const chosen = wallets.find((w) => w.adapter.name === walletName);
         if (!chosen) return;
-        selectWallet(walletName as any);
+        selectWallet(walletName);
         try {
             await connect(Network.TESTNET);
             setShowModal(false);
-        } catch (e: any) {
-            toast.error(`Failed to connect: ${e?.message || "Unknown error"}`);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Unknown error";
+            toast.error(`Failed to connect: ${message}`);
         }
     };
 

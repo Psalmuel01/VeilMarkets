@@ -25,20 +25,34 @@ const navItems = [
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
-  const { requestCredits, fetchMarkets } = useAleoPrograms();
+  const { requestCredits, fetchMarkets, fetchTokenBalance, publicKey } = useAleoPrograms();
   const [activeMarketsCount, setActiveMarketsCount] = useState<number | null>(null);
+  const [tokenBalance, setTokenBalance] = useState<number | null>(null);
 
   useEffect(() => {
     const loadStats = async () => {
       try {
-        const markets = await fetchMarkets();
+        const [markets, balance] = await Promise.all([
+          fetchMarkets(),
+          fetchTokenBalance()
+        ]);
         setActiveMarketsCount(markets.length);
+        setTokenBalance(balance);
       } catch (error) {
         console.error("Failed to fetch sidebar stats:", error);
       }
     };
     loadStats();
-  }, [fetchMarkets]);
+  }, [fetchMarkets, fetchTokenBalance, publicKey]);
+
+  const handleRequestCredits = async (amount: number) => {
+    const tx = await requestCredits(amount);
+    if (tx) {
+      // Refresh balance after a short delay to allow for the tx to be detected locally if possible
+      // or just wait for next poll
+      setTimeout(() => fetchTokenBalance().then(setTokenBalance), 5000);
+    }
+  };
 
   return (
     <aside
@@ -102,8 +116,10 @@ export function Sidebar() {
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Total Bets</span>
-                <span className="font-medium encrypted-text">•••••</span>
+                <span className="text-muted-foreground">Your Balance</span>
+                <span className="font-medium text-primary">
+                  {tokenBalance !== null ? `${tokenBalance.toLocaleString()} Credits` : "..."}
+                </span>
               </div>
             </div>
           </div>
@@ -117,10 +133,10 @@ export function Sidebar() {
             variant="outline"
             size="sm"
             className="w-full border-primary/30 hover:border-primary/50 text-xs"
-            onClick={() => requestCredits(1000)}
+            onClick={() => handleRequestCredits(500)}
           >
             <Shield className="w-3.5 h-3.5 mr-2 text-primary" />
-            Request 1000 Credits
+            Request 500 Credits
           </Button>
         )}
         <ConnectWalletButton className={collapsed ? "w-10 px-0 justify-center" : "w-full"} />

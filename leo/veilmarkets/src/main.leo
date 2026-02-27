@@ -1,9 +1,9 @@
 // VeilMarkets Core
 // Private Binary Prediction Markets with full cross-contract integration
 
-import veilmarkets_factory.aleo;
+import veilmarkets_factory_v2.aleo;
 
-program veilmarkets.aleo {
+program veilmarkets_v2.aleo {
 
     // Records & Structs
 
@@ -51,18 +51,12 @@ program veilmarkets.aleo {
     mapping pending_payouts: field => u64;    // nullifier => payout_amount (for token contract)
 
     // Constants
-    const FACTORY_CONTRACT: address = aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc; // Set at deployment
+    const TOKEN_CONTRACT_TYPE: u8 = 1u8;
+    const ORACLE_CONTRACT_TYPE: u8 = 2u8;
 
     // Initialize
     @admin(address="aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc")
     async constructor() {}
-
-    // Helper: Verify caller is authorized (factory or token contract)
-    inline verify_caller() {
-        // In production, check against factory registry
-        // For now, assert self.caller is known contract
-        assert_eq(self.caller, FACTORY_CONTRACT); // Simplified
-    }
 
     // Create market
     async transition create_market(
@@ -133,8 +127,11 @@ program veilmarkets.aleo {
         public escrow_id: field,     // From token contract
         public bettor: address,      // Original bettor (not self.caller)
     ) -> Future {
-        // Only callable by token contract
-        verify_caller();
+        // Must be called by the registered token contract via factory registry.
+        let auth_future: Future = veilmarkets_factory_v2.aleo/verify_is_registered(
+            TOKEN_CONTRACT_TYPE,
+            self.caller
+        );
         
         assert(outcome == 0u8 || outcome == 1u8);
         assert(amount > 0u64);
@@ -147,7 +144,8 @@ program veilmarkets.aleo {
             outcome,
             amount,
             escrow_id,
-            position_hash
+            position_hash,
+            auth_future
         );
 
         return f;
@@ -159,7 +157,10 @@ program veilmarkets.aleo {
         amount: u64,
         escrow_id: field,
         position_hash: field,
+        auth_future: Future,
     ) {
+        auth_future.await();
+
         let market: MarketInfo = Mapping::get(markets, market_id);
         assert(block.height as u64 < market.close_block);
         assert(!market.is_resolved);
@@ -211,18 +212,24 @@ program veilmarkets.aleo {
         public winning_outcome: u8,
         public resolver: address,    // Oracle contract verifies this
     ) -> Future {
-        // Only oracle contract can call this
-        verify_caller(); // Should check for oracle contract specifically
+        // Must be called by the registered oracle contract via factory registry.
+        let auth_future: Future = veilmarkets_factory_v2.aleo/verify_is_registered(
+            ORACLE_CONTRACT_TYPE,
+            self.caller
+        );
         
         assert(winning_outcome == 0u8 || winning_outcome == 1u8);
 
-        return finalize_resolve_market(market_id, winning_outcome);
+        return finalize_resolve_market(market_id, winning_outcome, auth_future);
     }
 
     async function finalize_resolve_market(
         market_id: field,
         winning_outcome: u8,
+        auth_future: Future,
     ) {
+        auth_future.await();
+
         let market: MarketInfo = Mapping::get(markets, market_id);
         
         // Only oracle can resolve (creator cannot directly resolve anymore)
@@ -320,13 +327,20 @@ program veilmarkets.aleo {
         public nullifier: field,
         public payout_amount: u64,
     ) -> Future {
-        return finalize_verify_claim(nullifier, payout_amount);
+        let auth_future: Future = veilmarkets_factory_v2.aleo/verify_is_registered(
+            TOKEN_CONTRACT_TYPE,
+            self.caller
+        );
+        return finalize_verify_claim(nullifier, payout_amount, auth_future);
     }
 
     async function finalize_verify_claim(
         nullifier: field,
         payout_amount: u64,
+        auth_future: Future,
     ) {
+        auth_future.await();
+
         let stored: u64 = Mapping::get(pending_payouts, nullifier);
         assert_eq(stored, payout_amount);
     }

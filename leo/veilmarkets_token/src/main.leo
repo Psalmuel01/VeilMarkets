@@ -2,10 +2,10 @@
 // Integrated escrow with cross-contract validation
 // Handles credits, escrow, payouts with nullifier tracking
 
-import veilmarkets.aleo;
-import veilmarkets_factory.aleo;
+import veilmarkets_v2.aleo;
+import veilmarkets_factory_v2.aleo;
 
-program veilmarkets_token.aleo {
+program veilmarkets_token_v2.aleo {
 
     // Structs
     struct EscrowInfo {
@@ -99,7 +99,7 @@ program veilmarkets_token.aleo {
         };
 
         // Call core contract to register bet
-        let core_future: Future = veilmarkets.aleo/place_bet(
+        let core_future: Future = veilmarkets_v2.aleo/place_bet(
             market_id,
             outcome,
             bet_amount,
@@ -152,7 +152,7 @@ program veilmarkets_token.aleo {
         public nullifier: field,
     ) -> (Credits, Future) {
         // Call core contract to verify win and amount
-        let core_result: Future = veilmarkets.aleo/verify_claim(
+        let core_result: Future = veilmarkets_v2.aleo/verify_claim(
             nullifier,
             payout_amount
         );

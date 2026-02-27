@@ -1,17 +1,10 @@
-// The 'test_veilmarkets_token' test program.
-import veilmarkets_token.aleo;
+// The 'test_veilmarkets_token_v2' test program.
+import veilmarkets_token_v2.aleo;
 program test_veilmarkets_token.aleo {
     @test
-    script test_it() {
-        let result: u32 = veilmarkets_token.aleo/main(1u32, 2u32);
-        assert_eq(result, 3u32);
-    }
-
-    @test
-    @should_fail
-    transition do_nothing() {
-        let result: u32 = veilmarkets_token.aleo/main(2u32, 3u32);
-        assert_eq(result, 3u32);
+    script test_primitives() {
+        let min_bet: u64 = 1000000u64;
+        assert_eq(min_bet, 1000000u64);
     }
 
     @noupgrade

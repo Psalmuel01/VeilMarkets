@@ -4,44 +4,71 @@ import { MarketCard, Market } from "@/components/markets/MarketCard";
 import { MarketFilters } from "@/components/markets/MarketFilters";
 import { motion } from "framer-motion";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
-import { Badge } from "@/components/ui/badge";
-import { AlertCircle } from "lucide-react";
 
+const mapCategory = (value: number): Market["category"] => {
+  switch (value) {
+    case 0:
+      return "Crypto";
+    case 1:
+      return "Finance";
+    case 2:
+      return "Sports";
+    case 3:
+      return "Politics";
+    case 4:
+      return "Entertainment";
+    case 5:
+      return "Tech";
+    default:
+      return "Tech";
+  }
+};
 
 export default function MarketsPage() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [markets, setMarkets] = useState<Market[]>([]);
-  const { fetchMarkets, loading } = useAleoPrograms();
+  const { fetchMarkets, fetchPoolStats, loading } = useAleoPrograms();
 
   useEffect(() => {
     const loadMarkets = async () => {
       const realMarkets = await fetchMarkets();
 
-      const categoryRevMap: Record<number, string> = {
-        0: "Crypto",
-        1: "Finance",
-        2: "Sports",
-        3: "Politics",
-        4: "Entertainment",
-        5: "Tech"
-      };
-
-      const mapped = realMarkets.map((m: any) => ({
-        id: m.id,
-        title: m.title,
-        description: m.description,
-        category: (categoryRevMap[m.category] || "General") as any,
-        status: (m.resolved ? "Settled" : "Open") as any,
-        closingTime: `Block ${m.close_block}`,
-        betsPlaced: 0, // Need to implement pool fetching for this
-        outcome: (m.resolved ? (m.winning_outcome === 1 ? "Yes" : "No") : undefined) as any,
+      // Initially map with 0 bets
+      const initialMapped: Market[] = realMarkets.map((market) => ({
+        id: market.id,
+        title: market.title,
+        description: market.description,
+        category: (market.category === 0 ? "Crypto" :
+          market.category === 1 ? "Finance" :
+            market.category === 2 ? "Sports" :
+              market.category === 3 ? "Politics" :
+                market.category === 4 ? "Entertainment" : "Tech"),
+        status: market.is_resolved ? "Settled" : "Open",
+        closingTime: `Block ${market.close_block}`,
+        betsPlaced: 0,
+        outcome: market.is_resolved ? (market.winning_outcome === 1 ? "Yes" : "No") : undefined,
       }));
 
-      setMarkets(mapped);
+      setMarkets(initialMapped);
+
+      // Fetch real pool stats for each market to get bet counts
+      try {
+        const statsPromises = realMarkets.map(m => fetchPoolStats(m.id));
+        const allStats = await Promise.all(statsPromises);
+
+        const updated = initialMapped.map((m, i) => ({
+          ...m,
+          betsPlaced: allStats[i]?.participant_count || 0
+        }));
+
+        setMarkets(updated);
+      } catch (error) {
+        console.error("Failed to fetch pool stats for markets:", error);
+      }
     };
     loadMarkets();
-  }, [fetchMarkets]);
+  }, [fetchMarkets, fetchPoolStats]);
 
   const filteredMarkets = markets.filter((market) => {
     const matchesCategory = activeCategory === "all" || market.category === activeCategory;
