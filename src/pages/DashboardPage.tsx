@@ -115,11 +115,18 @@ export default function DashboardPage() {
 
         setTokenBalance(balance);
 
-        const marketMap = new Map(allMarkets.map(m => [m.id, m]));
+        const marketMap = new Map(allMarkets.map(m => [m.id.replace("field", "").trim(), m]));
 
         const mapped: UserBet[] = records.map((record) => {
+          // record.market_id is already cleaned by the hook
           const market = marketMap.get(record.market_id);
           const outcomeLabel = record.outcome === "1" ? "Yes" : "No";
+
+          console.log(`[Dashboard] Joining bet for market ${record.market_id}:`, {
+            foundMarket: !!market,
+            marketTitle: market?.title,
+            isResolved: market?.is_resolved
+          });
 
           let status: "Pending" | "Won" | "Lost" | "Cancelled" = "Pending";
           let canClaim = false;

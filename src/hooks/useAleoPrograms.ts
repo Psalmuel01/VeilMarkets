@@ -57,7 +57,10 @@ const toObject = (value: unknown): Record<string, unknown> | null =>
 
 const cleanAleoPrimitive = (value: unknown): string => {
   if (typeof value === "string") {
-    return value.replace(/u8|u64|field|address/g, "").trim();
+    return value
+      .replace(/u8|u64|field|group|address|\.private|\.public/g, "")
+      .replace(/["']/g, "")
+      .trim();
   }
   return String(value ?? "");
 };
@@ -81,41 +84,41 @@ const getErrorMessage = (error: unknown): string => {
   return "Unknown error";
 };
 
-const extractRecordAmount = (record: WalletRecord): number => {
-  // Try record.data.amount first (most common)
-  const dataAmount = record.data?.amount;
-  if (typeof dataAmount === "number" || typeof dataAmount === "string") {
-    return parseAleoAmount(dataAmount);
+const parseRecordField = (record: WalletRecord, field: string): string => {
+  const rawData = record.data ?? record;
+
+  // Try direct object access
+  if (typeof rawData === "object" && rawData !== null && (rawData as any)[field] !== undefined) {
+    return cleanAleoPrimitive((rawData as any)[field]);
   }
 
-  // Try nested object inside data.amount
-  if (typeof dataAmount === "object" && dataAmount !== null) {
-    const dataObj = dataAmount as Record<string, unknown>;
-    const nestedCandidate =
-      dataObj.value ??
-      dataObj.amount ??
-      (Object.keys(dataObj).length > 0 ? dataObj[Object.keys(dataObj)[0]] : undefined);
-    return parseAleoAmount(nestedCandidate);
+  // Try parsing from string representation
+  const searchPattern = new RegExp(`${field}\\s*:\\s*([^,\\n}]+)`, "i");
+
+  // Try record.recordPlaintext (ideal)
+  if (typeof record.recordPlaintext === "string") {
+    const match = record.recordPlaintext.match(searchPattern);
+    if (match) return cleanAleoPrimitive(match[1]);
   }
 
-  // Try record.amount directly
-  if (record.amount !== undefined) {
-    return parseAleoAmount(record.amount);
-  }
-
-  // Try record.data as a string (some wallets return plaintext records)
+  // Try record.data as string
   const dataValue = (record as any).data;
   if (typeof dataValue === "string") {
-    const amountMatch = dataValue.match(/amount\s*:\s*(\d+)u64/);
-    if (amountMatch) return Number.parseInt(amountMatch[1], 10);
+    const match = dataValue.match(searchPattern);
+    if (match) return cleanAleoPrimitive(match[1]);
   }
 
-  // Try parsing the entire record as string
+  // Try whole record as JSON
   const recordStr = JSON.stringify(record);
-  const amountMatch = recordStr.match(/(\d+)u64/);
-  if (amountMatch) return Number.parseInt(amountMatch[1], 10);
+  const jsonMatch = recordStr.match(searchPattern);
+  if (jsonMatch) return cleanAleoPrimitive(jsonMatch[1]);
 
-  return 0;
+  return "";
+};
+
+const extractRecordAmount = (record: WalletRecord): number => {
+  const val = parseRecordField(record, "amount");
+  return val ? Number.parseInt(val, 10) : 0;
 };
 
 export const useAleoPrograms = () => {
@@ -236,18 +239,31 @@ export const useAleoPrograms = () => {
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       const unspentRecords = records.filter((record) => !record.spent);
 
-      return unspentRecords
+      console.log(`[fetchUserBets] Found ${records.length} total records from ${TOKEN_PROGRAM_ID}, ${unspentRecords.length} are unspent.`);
+
+      const results = unspentRecords
         .map((record) => {
-          const rawData = record.data ?? record;
+          const market_id = parseRecordField(record, "market_id");
+          const outcome = parseRecordField(record, "outcome");
+          const amount = parseRecordField(record, "amount");
+          const escrow_id = parseRecordField(record, "escrow_id");
+
+          if (market_id) {
+            console.log(`[fetchUserBets] Found bet for market: ${market_id}`, { outcome, amount, escrow_id });
+          }
+
           return {
-            market_id: cleanAleoPrimitive(rawData.market_id),
-            outcome: cleanAleoPrimitive(rawData.outcome),
-            amount: cleanAleoPrimitive(rawData.amount),
-            escrow_id: cleanAleoPrimitive(rawData.escrow_id),
+            market_id,
+            outcome,
+            amount,
+            escrow_id,
             spent: Boolean(record.spent),
           };
         })
         .filter((record) => Boolean(record.market_id));
+
+      console.log(`[fetchUserBets] Returning ${results.length} valid bet records.`);
+      return results;
     } catch (error) {
       console.error("Failed to fetch user bets:", error);
       return [];

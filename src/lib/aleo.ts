@@ -52,7 +52,8 @@ export interface PoolInfo {
 const asRecord = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 
-const stripTypeSuffixes = (value: string) => value.replace(/u8|u64|field|group|address/g, "").trim();
+const stripTypeSuffixes = (value: string) =>
+  value.replace(/u8|u64|field|group|address|\.private|\.public/g, "").trim();
 
 const parseAleoInt = (value: unknown): number => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
