@@ -2,14 +2,22 @@ import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { ORACLE_PROGRAM_ID, PROGRAM_ID, TOKEN_PROGRAM_ID } from "../lib/constants";
 import { toast } from "sonner";
 import type { TxHistoryResult } from "@provablehq/aleo-types";
-import { fetchMappingValue, fetchTransaction, extractMarketIdFromTx, parseMarketInfo } from "../lib/aleo";
+import {
+  fetchMappingValue,
+  fetchTransaction,
+  extractMarketIdFromTx,
+  parseMarketInfo,
+  fetchCurrentBlockHeight,
+  PoolInfo,
+  parsePoolInfo,
+} from "@/lib/aleo";
 import {
   saveMarketMetadata,
   getBatchMarketMetadata,
   getAllMarketMetadata,
   type MarketMetadata,
 } from "../lib/metadata";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 type TxHistoryTransaction = TxHistoryResult["transactions"][number];
 
@@ -229,6 +237,31 @@ export const useAleoPrograms = () => {
       setLoading(false);
     }
   }, [requestTransactionHistory]);
+
+  const [currentHeight, setCurrentHeight] = useState<number | null>(null);
+
+  // Poll for current height
+  useEffect(() => {
+    const updateHeight = async () => {
+      const h = await fetchCurrentBlockHeight();
+      if (h) setCurrentHeight(h);
+    };
+    updateHeight();
+    const interval = setInterval(updateHeight, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchPoolStats = useCallback(async (marketId: string): Promise<PoolInfo | null> => {
+    try {
+      const cleanedId = marketId.replace("field", "").trim() + "field";
+      const raw = await fetchMappingValue(PROGRAM_ID, "pools", cleanedId);
+      if (!raw) return null;
+      return parsePoolInfo(raw as any);
+    } catch (error) {
+      console.error(`Failed to fetch pool stats for ${marketId}:`, error);
+      return null;
+    }
+  }, []);
 
   const fetchUserBets = useCallback(async (): Promise<ParsedBetRecord[]> => {
     if (!address) return [];
@@ -556,8 +589,10 @@ export const useAleoPrograms = () => {
     fetchMarkets,
     fetchUserBets,
     fetchTokenBalance,
+    fetchPoolStats,
     requestCredits,
     loading,
+    currentHeight,
     publicKey,
   };
 };

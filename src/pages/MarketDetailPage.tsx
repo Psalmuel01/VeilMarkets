@@ -18,6 +18,7 @@ import { OutcomeCard } from "@/components/betting/OutcomeCard";
 import { PlaceBetModal } from "@/components/betting/PlaceBetModal";
 import { cn } from "@/lib/utils";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
+import { PoolInfo } from "@/lib/aleo";
 
 
 const categoryColors = {
@@ -50,10 +51,12 @@ export default function MarketDetailPage() {
     betsPlaced: number;
     createdAt: string;
     resolutionSource: string;
+    closeBlock?: number;
   } | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [loadingMarket, setLoadingMarket] = useState(true);
-  const { fetchMarkets } = useAleoPrograms();
+  const [pool, setPool] = useState<PoolInfo | null>(null);
+  const { fetchMarkets, fetchPoolStats, currentHeight } = useAleoPrograms();
 
   useEffect(() => {
     const loadMarket = async () => {
@@ -63,47 +66,71 @@ export default function MarketDetailPage() {
         return;
       }
       setLoadingMarket(true);
-      const allMarkets = await fetchMarkets();
 
-      // Flexible matching: check against market.id OR market.transactionId
-      const cleanId = (sid: string) => (sid || "").replace("field", "").trim();
-      const currentId = cleanId(id);
+      try {
+        const [allMarkets, stats] = await Promise.all([
+          fetchMarkets(),
+          fetchPoolStats(id)
+        ]);
 
-      const found = allMarkets.find((chainMarket) =>
-        cleanId(chainMarket.id) === currentId || cleanId(chainMarket.transactionId ?? "") === currentId
-      );
+        setPool(stats);
 
-      if (found) {
-        const categoryRevMap: Record<number, keyof typeof categoryColors> = {
-          0: "Crypto",
-          1: "Finance",
-          2: "Sports",
-          3: "Politics",
-          4: "Entertainment",
-          5: "Tech",
-        };
+        // Flexible matching: check against market.id OR market.transactionId
+        const cleanId = (sid: string) => (sid || "").replace("field", "").trim();
+        const currentId = cleanId(id);
 
-        setMarket({
-          id: found.id,
-          title: found.title,
-          description: found.description,
-          category: categoryRevMap[found.category] || "Tech",
-          status: found.is_resolved ? "Settled" : "Open",
-          closingTime: `Block ${found.close_block}`,
-          closingDate: "On-chain block time",
-          betsPlaced: 0,
-          createdAt: "On-chain",
-          resolutionSource: found.source || "Creator",
-        });
-        setNotFound(false);
-      } else {
-        setNotFound(true);
+        const found = allMarkets.find((chainMarket) =>
+          cleanId(chainMarket.id) === currentId || cleanId(chainMarket.transactionId ?? "") === currentId
+        );
+
+        if (found) {
+          const categoryRevMap: Record<number, keyof typeof categoryColors> = {
+            0: "Crypto",
+            1: "Finance",
+            2: "Sports",
+            3: "Politics",
+            4: "Entertainment",
+            5: "Tech",
+          };
+
+          setMarket({
+            id: found.id,
+            title: found.title,
+            description: found.description,
+            category: categoryRevMap[found.category] || "Tech",
+            status: found.is_resolved ? "Settled" : "Open",
+            closingTime: `Block ${found.close_block}`,
+            closingDate: "On-chain block time",
+            betsPlaced: stats?.participant_count || 0,
+            createdAt: "On-chain",
+            resolutionSource: found.source || "Creator",
+            closeBlock: found.close_block,
+          });
+          setNotFound(false);
+        } else {
+          setNotFound(true);
+        }
+      } catch (error) {
+        console.error("Error loading market details:", error);
+      } finally {
+        setLoadingMarket(false);
       }
-
-      setLoadingMarket(false);
     };
     loadMarket();
-  }, [id, fetchMarkets]);
+  }, [id, fetchMarkets, fetchPoolStats]);
+
+  // Calculate stats
+  const totalVolume = pool ? (pool.total_yes + pool.total_no) / 1_000_000 : 0;
+  const yesPercent = pool && (pool.total_yes + pool.total_no) > 0
+    ? Math.round((pool.total_yes / (pool.total_yes + pool.total_no)) * 100)
+    : 50;
+  const noPercent = 100 - yesPercent;
+
+  // Countdown logic
+  const blocksRemaining = market?.closeBlock && currentHeight ? market.closeBlock - currentHeight : null;
+  const timeRemainingStr = blocksRemaining !== null && blocksRemaining > 0
+    ? `~${Math.round((blocksRemaining * 15) / 60)} mins remaining`
+    : blocksRemaining !== null && blocksRemaining <= 0 ? "Expired" : "Loading...";
 
   if (notFound) {
     return (
@@ -177,11 +204,13 @@ export default function MarketDetailPage() {
           <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-1.5">
               <Clock className="w-4 h-4" />
-              <span>Closes: {market.closingTime}</span>
+              <span className={cn(blocksRemaining !== null && blocksRemaining < 100 ? "text-warning" : "")}>
+                {timeRemainingStr} ({market.closingTime})
+              </span>
             </div>
             <div className="flex items-center gap-1.5">
               <Users className="w-4 h-4" />
-              <span>{market.betsPlaced} bets placed</span>
+              <span>{market.betsPlaced} participants</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Calendar className="w-4 h-4" />
@@ -189,6 +218,30 @@ export default function MarketDetailPage() {
             </div>
           </div>
         </motion.div>
+
+        {/* Analytics Overview (New) */}
+        <div className="grid grid-cols-2 gap-4 mb-8">
+          <div className="p-4 rounded-xl bg-card border border-border/50">
+            <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wider">Yes Ratio</p>
+            <div className="flex items-end justify-between">
+              <span className="text-2xl font-bold text-success">{yesPercent}%</span>
+              <span className="text-xs text-muted-foreground mb-1">Implied Probability</span>
+            </div>
+            <div className="mt-2 h-1.5 w-full bg-muted rounded-full overflow-hidden">
+              <div className="h-full bg-success" style={{ width: `${yesPercent}%` }} />
+            </div>
+          </div>
+          <div className="p-4 rounded-xl bg-card border border-border/50">
+            <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wider">No Ratio</p>
+            <div className="flex items-end justify-between">
+              <span className="text-2xl font-bold text-destructive">{noPercent}%</span>
+              <span className="text-xs text-muted-foreground mb-1">Implied Probability</span>
+            </div>
+            <div className="mt-2 h-1.5 w-full bg-muted rounded-full overflow-hidden">
+              <div className="h-full bg-destructive" style={{ width: `${noPercent}%` }} />
+            </div>
+          </div>
+        </div>
 
         {/* Main Content Grid */}
         <div className="grid lg:grid-cols-3 gap-6">
@@ -251,7 +304,7 @@ export default function MarketDetailPage() {
                 </div>
                 <div className="flex justify-between items-center py-3 border-b border-border/50">
                   <span className="text-muted-foreground">Total Volume</span>
-                  <span className="font-mono encrypted-text">•••••• ALEO</span>
+                  <span className="font-mono text-primary">{totalVolume.toLocaleString()} ALEO</span>
                 </div>
                 <div className="flex justify-between items-center py-3">
                   <span className="text-muted-foreground">Last Activity</span>
