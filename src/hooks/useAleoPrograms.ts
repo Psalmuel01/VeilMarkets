@@ -256,6 +256,31 @@ export const useAleoPrograms = () => {
     }
   }, [address, requestRecords]);
 
+  const fetchTokenBalance = useCallback(async (): Promise<number> => {
+    if (!address) return 0;
+    try {
+      const rawRecords = await requestRecords(TOKEN_PROGRAM_ID, true);
+      const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
+      const unspent = records.filter((record) => !record.spent);
+
+      // We only sum "Credits" records, not "EscrowedBet" records
+      const sum = unspent.reduce((acc, record) => {
+        const isCredits = (record.recordName === "Credits" || (record as any).name === "Credits");
+        if (isCredits) {
+          return acc + extractRecordAmount(record);
+        }
+        return acc;
+      }, 0);
+
+      const credits = sum / 1_000_000;
+      console.log(`[fetchTokenBalance] Total balance: ${credits} Credits (${sum} microcredits)`);
+      return credits;
+    } catch (error) {
+      console.error("Failed to fetch token balance:", error);
+      return 0;
+    }
+  }, [address, requestRecords]);
+
   const createMarket = async (
     title: string,
     description: string,
@@ -514,6 +539,7 @@ export const useAleoPrograms = () => {
     claimWinnings,
     fetchMarkets,
     fetchUserBets,
+    fetchTokenBalance,
     requestCredits,
     loading,
     publicKey,
