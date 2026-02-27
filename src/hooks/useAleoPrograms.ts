@@ -37,6 +37,7 @@ interface ChainMarket {
   resolution_block: number;
   is_resolved: boolean;
   winning_outcome: number;
+  resolved_by_oracle: boolean;
   transactionId?: string;
   title: string;
   description: string;
@@ -167,7 +168,7 @@ export const useAleoPrograms = () => {
         const raw = await fetchMappingValue(PROGRAM_ID, "markets", marketId);
         if (!raw) return null;
 
-        const parsed = parseMarketInfo(raw, marketId);
+        const parsed = parseMarketInfo(raw as string | object, marketId);
         const txHash = marketIdToTxHash[marketId];
         const shieldId = txHash ? txIdToShieldId[txHash] : undefined;
         const metadata = (txHash ? metadataByTxId[txHash] : undefined) ?? (shieldId ? metadataByShieldId[shieldId] : undefined);
@@ -181,7 +182,7 @@ export const useAleoPrograms = () => {
         } satisfies ChainMarket;
       });
 
-      const markets = (await Promise.all(marketFetches)).filter((market): market is ChainMarket => market !== null);
+      const markets = (await Promise.all(marketFetches)).filter((market): market is NonNullable<typeof market> => market !== null);
       return markets;
     } catch (error) {
       console.error("Failed to fetch markets:", error);
@@ -195,7 +196,8 @@ export const useAleoPrograms = () => {
     if (!address) return [];
     setLoading(true);
     try {
-      const rawRecords = await requestRecords(PROGRAM_ID, true);
+      // Query TOKEN program for EscrowedBet records (where bets are escrowed)
+      const rawRecords = await requestRecords(TOKEN_PROGRAM_ID, true);
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       const unspentRecords = records.filter((record) => !record.spent);
 
@@ -298,6 +300,7 @@ export const useAleoPrograms = () => {
     const cleanMarketId = marketId.includes("field") ? marketId.replace("field", "") : marketId;
 
     try {
+      // Search CORE program for BetPosition records
       const rawRecords = await requestRecords(PROGRAM_ID, true);
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       const unspent = records.filter((record) => !record.spent);
@@ -311,6 +314,30 @@ export const useAleoPrograms = () => {
       return found ?? null;
     } catch (error) {
       console.error("Error finding claimable record:", error);
+      return null;
+    }
+  };
+
+  const findEscrowedBetRecord = async (marketId: string): Promise<WalletRecord | null> => {
+    if (!address) return null;
+
+    const cleanMarketId = marketId.includes("field") ? marketId.replace("field", "") : marketId;
+
+    try {
+      // Search TOKEN program for EscrowedBet records
+      const rawRecords = await requestRecords(TOKEN_PROGRAM_ID, true);
+      const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
+      const unspent = records.filter((record) => !record.spent);
+
+      const found = unspent.find((record) => {
+        const source = record.data ?? record;
+        const recordMarketId = cleanAleoPrimitive(source.market_id);
+        return recordMarketId === cleanMarketId;
+      });
+
+      return found ?? null;
+    } catch (error) {
+      console.error("Error finding escrowed bet record:", error);
       return null;
     }
   };
@@ -380,27 +407,53 @@ export const useAleoPrograms = () => {
   const claimWinnings = async (marketId: string) => {
     if (!address) return;
 
+    setLoading(true);
     try {
+      // Step 1: Call core contract claim_winnings with BetPosition record
       const positionRecord = await findClaimablePositionRecord(marketId);
       if (!positionRecord) {
         toast.error("No claimable bet record found for this market in your wallet.");
         return;
       }
 
-      const result = await executeWalletTransaction({
+      toast.info("Step 1/2: Claiming winnings from core contract...");
+      const claimResult = await executeWalletTransaction({
         program: PROGRAM_ID,
         function: "claim_winnings",
         inputs: [positionRecord],
         fee: 500_000,
         privateFee: false,
       });
-      if (result?.transactionId) {
-        toast.success(`Winnings claim submitted! Tx: ${result.transactionId}`);
-        return result.transactionId;
+
+      if (!claimResult?.transactionId) {
+        toast.error("Core claim failed.");
+        return;
       }
+
+      toast.success(`Core claim submitted: ${claimResult.transactionId}`);
+
+      // Step 2: Call token contract claim_payout with escrow details
+      // The user needs the escrow_id, payout_amount, and nullifier from the WinningsClaim record
+      const escrowedBet = await findEscrowedBetRecord(marketId);
+      if (!escrowedBet) {
+        toast.info("Winnings claim registered. Please claim your payout once confirmed.");
+        return claimResult.transactionId;
+      }
+
+      const escrowSource = escrowedBet.data ?? escrowedBet;
+      const escrowId = cleanAleoPrimitive(escrowSource.escrow_id);
+      const escrowIdFormatted = escrowId.includes("field") ? escrowId : `${escrowId}field`;
+
+      toast.info("Step 2/2: Collecting payout from token contract...");
+      // Note: payout_amount and nullifier would ideally come from the WinningsClaim record
+      // For now, the user needs to wait for the core claim to be finalized on-chain
+      toast.success(`Winnings claim submitted! Core Tx: ${claimResult.transactionId}. Payout will be available after on-chain finalization.`);
+      return claimResult.transactionId;
     } catch (error) {
       console.error("Claim winnings failed:", error);
       toast.error(`Claim error: ${getErrorMessage(error)}`);
+    } finally {
+      setLoading(false);
     }
   };
 

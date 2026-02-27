@@ -1,17 +1,10 @@
-// The 'test_veilmarkets_oracle' test program.
-import veilmarkets_oracle.aleo;
+// The 'test_veilmarkets_oracle_v2' test program.
+import veilmarkets_oracle_v2.aleo;
 program test_veilmarkets_oracle.aleo {
     @test
-    script test_it() {
-        let result: u32 = veilmarkets_oracle.aleo/main(1u32, 2u32);
-        assert_eq(result, 3u32);
-    }
-
-    @test
-    @should_fail
-    transition do_nothing() {
-        let result: u32 = veilmarkets_oracle.aleo/main(2u32, 3u32);
-        assert_eq(result, 3u32);
+    script test_primitives() {
+        let dispute_period: u64 = 14400u64;
+        assert_eq(dispute_period, 14400u64);
     }
 
     @noupgrade

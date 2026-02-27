@@ -6,9 +6,10 @@
   "leo": "3.4.0",
   "dependencies": [
     {
-      "name": "veilmarkets_factory.aleo",
-      "location": "local",
-      "path": "../factory"
+      "name": "veilmarkets_factory_v2.aleo",
+      "location": "network",
+      "network": "testnet",
+      "path": null
     }
   ],
   "dev_dependencies": null

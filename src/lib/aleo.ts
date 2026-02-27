@@ -1,3 +1,5 @@
+import { PROGRAM_ID } from "./constants";
+
 const ALEO_API_URL = "https://api.explorer.provable.com/v2";
 const ALEO_NETWORK = "testnet";
 const ESTIMATED_BLOCK_TIME_SECONDS = 15;
@@ -181,7 +183,7 @@ export const extractMarketIdFromTx = (tx: AleoTransaction | null): string | null
     if (!Array.isArray(transitions)) return null;
 
     const createMarketTx = transitions.find(
-      (transition) => transition.function === "create_market" && transition.program === "veilmarkets.aleo",
+      (transition) => transition.function === "create_market" && transition.program === PROGRAM_ID,
     );
     if (!createMarketTx) return null;
 
