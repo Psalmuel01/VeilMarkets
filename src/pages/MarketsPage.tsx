@@ -4,9 +4,25 @@ import { MarketCard, Market } from "@/components/markets/MarketCard";
 import { MarketFilters } from "@/components/markets/MarketFilters";
 import { motion } from "framer-motion";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
-import { Badge } from "@/components/ui/badge";
-import { AlertCircle } from "lucide-react";
 
+const mapCategory = (value: number): Market["category"] => {
+  switch (value) {
+    case 0:
+      return "Crypto";
+    case 1:
+      return "Finance";
+    case 2:
+      return "Sports";
+    case 3:
+      return "Politics";
+    case 4:
+      return "Entertainment";
+    case 5:
+      return "Tech";
+    default:
+      return "Tech";
+  }
+};
 
 export default function MarketsPage() {
   const [activeCategory, setActiveCategory] = useState("all");
@@ -17,25 +33,15 @@ export default function MarketsPage() {
   useEffect(() => {
     const loadMarkets = async () => {
       const realMarkets = await fetchMarkets();
-
-      const categoryRevMap: Record<number, string> = {
-        0: "Crypto",
-        1: "Finance",
-        2: "Sports",
-        3: "Politics",
-        4: "Entertainment",
-        5: "Tech"
-      };
-
-      const mapped = realMarkets.map((m: any) => ({
-        id: m.id,
-        title: m.title,
-        description: m.description,
-        category: (categoryRevMap[m.category] || "General") as any,
-        status: (m.resolved ? "Settled" : "Open") as any,
-        closingTime: `Block ${m.close_block}`,
-        betsPlaced: 0, // Need to implement pool fetching for this
-        outcome: (m.resolved ? (m.winning_outcome === 1 ? "Yes" : "No") : undefined) as any,
+      const mapped: Market[] = realMarkets.map((market) => ({
+        id: market.id,
+        title: market.title,
+        description: market.description,
+        category: mapCategory(market.category),
+        status: market.is_resolved ? "Settled" : "Open",
+        closingTime: `Block ${market.close_block}`,
+        betsPlaced: 0, // TODO: map from pools mapping once exposed in API pipeline.
+        outcome: market.is_resolved ? (market.winning_outcome === 1 ? "Yes" : "No") : undefined,
       }));
 
       setMarkets(mapped);

@@ -1,330 +1,418 @@
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
-import { PROGRAM_ID, TOKEN_PROGRAM_ID } from "../lib/constants";
+import { ORACLE_PROGRAM_ID, PROGRAM_ID, TOKEN_PROGRAM_ID } from "../lib/constants";
 import { toast } from "sonner";
+import type { TxHistoryResult } from "@provablehq/aleo-types";
 import { fetchMappingValue, fetchTransaction, extractMarketIdFromTx, parseMarketInfo } from "../lib/aleo";
-import { saveMarketMetadata, getBatchMarketMetadata } from "../lib/metadata";
+import {
+  saveMarketMetadata,
+  getBatchMarketMetadata,
+  getAllMarketMetadata,
+  type MarketMetadata,
+} from "../lib/metadata";
 import { useState, useCallback } from "react";
 
+type TxHistoryTransaction = TxHistoryResult["transactions"][number];
+
+interface WalletRecord {
+  id?: string;
+  spent?: boolean;
+  data?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+interface ParsedBetRecord {
+  market_id: string;
+  outcome: string;
+  amount: string;
+  escrow_id: string;
+  spent: boolean;
+}
+
+interface ChainMarket {
+  id: string;
+  creator: string;
+  title_hash: string;
+  category: number;
+  close_block: number;
+  resolution_block: number;
+  is_resolved: boolean;
+  winning_outcome: number;
+  transactionId?: string;
+  title: string;
+  description: string;
+  source: string;
+}
+
+interface ExecuteWalletTransactionOptions {
+  program: string;
+  function: string;
+  inputs: unknown[];
+  fee: number;
+  privateFee: boolean;
+}
+
+const toObject = (value: unknown): Record<string, unknown> | null =>
+  typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+
+const cleanAleoPrimitive = (value: unknown): string => {
+  if (typeof value === "string") {
+    return value.replace(/u8|u64|field|address/g, "").trim();
+  }
+  return String(value ?? "");
+};
+
+const parseAleoAmount = (value: unknown): number => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number.parseInt(value.replace(/u64/g, "").trim(), 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+};
+
+const toMicrocredits = (credits: number): number => Math.max(1_000_000, Math.floor(credits * 1_000_000));
+
+const formatU64 = (value: number): string => `${Math.max(0, Math.floor(value))}u64`;
+const formatU8 = (value: number): string => `${Math.max(0, Math.floor(value))}u8`;
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  return "Unknown error";
+};
+
+const extractRecordAmount = (record: WalletRecord): number => {
+  const dataAmount = record.data?.amount;
+  if (typeof dataAmount === "number" || typeof dataAmount === "string") {
+    return parseAleoAmount(dataAmount);
+  }
+
+  if (typeof dataAmount === "object" && dataAmount !== null) {
+    const dataObj = dataAmount as Record<string, unknown>;
+    const nestedCandidate =
+      dataObj.value ??
+      dataObj.amount ??
+      (Object.keys(dataObj).length > 0 ? dataObj[Object.keys(dataObj)[0]] : undefined);
+    return parseAleoAmount(nestedCandidate);
+  }
+
+  return parseAleoAmount(record.amount);
+};
+
 export const useAleoPrograms = () => {
-    const { address, executeTransaction, requestRecords, requestTransactionHistory } = useWallet();
-    const publicKey = address;
-    const [loading, setLoading] = useState(false);
+  const { address, executeTransaction, requestRecords, requestTransactionHistory } = useWallet();
+  const publicKey = address;
+  const [loading, setLoading] = useState(false);
 
-    /**
-     * Fetch all markets by cross-referencing on-chain data with off-chain metadata.
-     * Uses the shield-specific ID for Supabase lookups.
-     */
-    const fetchMarkets = useCallback(async () => {
-        if (!requestTransactionHistory) return [];
-        setLoading(true);
-        try {
-            const historyResult = await requestTransactionHistory(PROGRAM_ID);
-            const transactions = (historyResult?.transactions || []).filter((t: any) => t.transactionId);
+  const executeWalletTransaction = useCallback(
+    async (options: ExecuteWalletTransactionOptions) =>
+      executeTransaction(options as unknown as Parameters<typeof executeTransaction>[0]),
+    [executeTransaction],
+  );
 
-            if (transactions.length === 0) return [];
+  /**
+   * Fetch all markets by cross-referencing on-chain data with off-chain metadata.
+   * Uses Supabase metadata as global source, and wallet tx history as supplementary source.
+   */
+  const fetchMarkets = useCallback(async (): Promise<ChainMarket[]> => {
+    setLoading(true);
+    try {
+      const txIdToShieldId: Record<string, string> = {};
+      const txCandidates = new Set<string>();
+      let historyTransactions: TxHistoryTransaction[] = [];
 
-            const txIds = transactions.map((t: any) => t.transactionId);
-            const txIdToShieldId: Record<string, string> = {};
-            transactions.forEach((t: any) => {
-                txIdToShieldId[t.transactionId] = t.id;
-            });
+      try {
+        const historyResult = await requestTransactionHistory(PROGRAM_ID);
+        historyTransactions = (historyResult?.transactions ?? []).filter((tx) => Boolean(tx.transactionId));
+      } catch (error) {
+        console.warn("Wallet transaction history unavailable; falling back to metadata index.", error);
+      }
 
-            // Extract market_id from each transaction
-            const marketIdSet = new Set<string>();
-            const marketIdToShieldId: Record<string, string> = {};
-            const marketIdToTxHash: Record<string, string> = {}; // Added for routing
-            const txFetches = txIds.map((txId) => fetchTransaction(txId));
-            const txData = await Promise.all(txFetches);
+      for (const tx of historyTransactions) {
+        txCandidates.add(tx.transactionId);
+        txIdToShieldId[tx.transactionId] = tx.id;
+      }
 
-            txData.forEach((tx, i) => {
-                if (!tx) return;
-                const marketId = extractMarketIdFromTx(tx);
-                if (marketId) {
-                    marketIdSet.add(marketId);
-                    const txId = txIds[i];
-                    marketIdToShieldId[marketId] = txIdToShieldId[txId];
-                    marketIdToTxHash[marketId] = txId; // The at1... hash
-                }
-            });
+      const metadataRows = await getAllMarketMetadata();
+      const metadataByTxId: Record<string, MarketMetadata> = {};
+      for (const row of metadataRows) {
+        txCandidates.add(row.transaction_id);
+        metadataByTxId[row.transaction_id] = {
+          title: row.title,
+          description: row.description,
+          source: row.source,
+        };
+      }
 
-            if (marketIdSet.size === 0) return [];
+      const shieldIds = historyTransactions.map((tx) => tx.id);
+      const metadataByShieldId = await getBatchMarketMetadata(shieldIds);
 
-            // Fetch MarketInfo from on-chain mapping
-            const marketIds = Array.from(marketIdSet);
-            const marketFetches = marketIds.map((id) =>
-                fetchMappingValue(PROGRAM_ID, "markets", id).then((raw) => {
-                    if (!raw) return null;
-                    return parseMarketInfo(raw, id);
-                })
-            );
+      if (txCandidates.size === 0) return [];
 
-            const validMarkets = (await Promise.all(marketFetches)).filter(Boolean);
+      const txIds = Array.from(txCandidates);
+      const marketIdToTxHash: Record<string, string> = {};
+      const marketIds = new Set<string>();
+      const txData = await Promise.all(txIds.map((txId) => fetchTransaction(txId)));
 
-            // Fetch metadata from Supabase in batch using shield IDs
-            const shieldIdsForMetadata = Object.values(marketIdToShieldId);
-            const metadataMap = await getBatchMarketMetadata(shieldIdsForMetadata);
+      txData.forEach((tx, index) => {
+        if (!tx) return;
+        const marketId = extractMarketIdFromTx(tx);
+        if (!marketId) return;
+        marketIds.add(marketId);
+        marketIdToTxHash[marketId] = txIds[index];
+      });
 
-            return validMarkets.map((market: any) => {
-                const shieldId = marketIdToShieldId[market.id];
-                const txHash = marketIdToTxHash[market.id];
-                const meta = shieldId ? metadataMap[shieldId] : null;
-                return {
-                    ...market,
-                    transactionId: txHash, // Explicitly include the hash
-                    title: meta?.title || `Market ${market.id.substring(0, 8)}...`,
-                    description: meta?.description || "Market metadata not found on the network.",
-                    source: meta?.source || "Creator",
-                };
-            });
-        } catch (error) {
-            console.error("Failed to fetch markets:", error);
-            return [];
-        } finally {
-            setLoading(false);
-        }
-    }, [requestTransactionHistory]);
+      if (marketIds.size === 0) return [];
 
-    const fetchUserBets = useCallback(async () => {
-        if (!address || !requestRecords) return [];
-        setLoading(true);
-        try {
-            const records = await requestRecords(PROGRAM_ID);
-            const unspent = (records as any[]).filter((r: any) => !r.spent);
+      const marketFetches = Array.from(marketIds).map(async (marketId) => {
+        const raw = await fetchMappingValue(PROGRAM_ID, "markets", marketId);
+        if (!raw) return null;
 
-            return unspent.map((r: any) => {
-                const rawData = r.data || r;
-                const clean = (val: string) =>
-                    typeof val === "string"
-                        ? val.replace(/u8|u64|field|address/g, "").trim()
-                        : val;
-                return {
-                    market_id: clean(rawData.market_id),
-                    outcome: clean(rawData.outcome),
-                    amount: clean(rawData.amount),
-                    spent: r.spent,
-                };
-            });
-        } catch (error) {
-            console.error("Failed to fetch user bets:", error);
-            return [];
-        } finally {
-            setLoading(false);
-        }
-    }, [address, requestRecords]);
+        const parsed = parseMarketInfo(raw, marketId);
+        const txHash = marketIdToTxHash[marketId];
+        const shieldId = txHash ? txIdToShieldId[txHash] : undefined;
+        const metadata = (txHash ? metadataByTxId[txHash] : undefined) ?? (shieldId ? metadataByShieldId[shieldId] : undefined);
 
-    const createMarket = async (
-        title: string,
-        description: string,
-        category: number,
-        closeBlock: number,
-        resolutionBlock: number,
-        resolutionSource: string
-    ) => {
-        if (!address) {
-            toast.error("Please connect your wallet first");
-            return;
-        }
+        return {
+          ...parsed,
+          transactionId: txHash,
+          title: metadata?.title || `Market ${marketId.slice(0, 8)}...`,
+          description: metadata?.description || "Market metadata not found on the network.",
+          source: metadata?.source || "Creator",
+        } satisfies ChainMarket;
+      });
 
-        const titleHashString = BigInt(Math.floor(Math.random() * 1000000000000)).toString();
-        const titleHash = `${titleHashString}field`;
+      const markets = (await Promise.all(marketFetches)).filter((market): market is ChainMarket => market !== null);
+      return markets;
+    } catch (error) {
+      console.error("Failed to fetch markets:", error);
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, [requestTransactionHistory]);
 
-        try {
-            const result = await executeTransaction({
-                program: PROGRAM_ID,
-                function: "create_market",
-                inputs: [titleHash, `${category}u8`, `${closeBlock}u64`, `${resolutionBlock}u64`],
-                fee: 2000000,
-                privateFee: false,
-            });
-            if (result?.transactionId) {
-                const shieldId = (result as any).id || result.transactionId;
-                await saveMarketMetadata(shieldId, titleHash, title, description, resolutionSource);
-                toast.success(`Market created! Tx: ${result.transactionId}`);
-                return result.transactionId;
-            }
-        } catch (error: any) {
-            console.error("Create market failed:", error);
-            toast.error(`Failed: ${error?.message || "Unknown error"}`);
-        }
-    };
+  const fetchUserBets = useCallback(async (): Promise<ParsedBetRecord[]> => {
+    if (!address) return [];
+    setLoading(true);
+    try {
+      const rawRecords = await requestRecords(PROGRAM_ID, true);
+      const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
+      const unspentRecords = records.filter((record) => !record.spent);
 
-    const requestCredits = async (amount: number) => {
-        if (!address) return;
-        try {
-            const result = await executeTransaction({
-                program: TOKEN_PROGRAM_ID,
-                function: "faucet",
-                inputs: [`${amount}u64`],
-                fee: 1000000,
-                privateFee: false,
-            });
-            if (result?.transactionId) {
-                toast.success(`Credits requested! Tx: ${result.transactionId}`);
-                return result.transactionId;
-            }
-        } catch (e: any) {
-            console.error("Faucet failed:", e);
-            toast.error(`Faucet error: ${e?.message || "Failed"}`);
-        }
-    };
+      return unspentRecords
+        .map((record) => {
+          const rawData = record.data ?? record;
+          return {
+            market_id: cleanAleoPrimitive(rawData.market_id),
+            outcome: cleanAleoPrimitive(rawData.outcome),
+            amount: cleanAleoPrimitive(rawData.amount),
+            escrow_id: cleanAleoPrimitive(rawData.escrow_id),
+            spent: Boolean(record.spent),
+          };
+        })
+        .filter((record) => Boolean(record.market_id));
+    } catch (error) {
+      console.error("Failed to fetch user bets:", error);
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, [address, requestRecords]);
 
-    const findCreditsRecord = async (amount: number) => {
-        if (!address || !requestRecords) return null;
-        console.log("Finding Credits record in", TOKEN_PROGRAM_ID, "for amount:", amount);
+  const createMarket = async (
+    title: string,
+    description: string,
+    category: number,
+    closeBlock: number,
+    resolutionBlock: number,
+    resolutionSource: string,
+  ) => {
+    if (!address) {
+      toast.error("Please connect your wallet first");
+      return;
+    }
 
-        try {
-            const records = await requestRecords(TOKEN_PROGRAM_ID);
-            console.log("Found records for token program:", records?.length || 0);
+    const randomSeed = crypto.getRandomValues(new Uint32Array(2));
+    const randomHash = (BigInt(randomSeed[0]) << 32n) + BigInt(randomSeed[1]);
+    const titleHash = `${randomHash}field`;
 
-            if (!records || records.length === 0) {
-                console.warn("No records returned from wallet for", TOKEN_PROGRAM_ID);
-                return null;
-            }
+    try {
+      const result = await executeWalletTransaction({
+        program: PROGRAM_ID,
+        function: "create_market",
+        inputs: [titleHash, formatU8(category), formatU64(closeBlock), formatU64(resolutionBlock)],
+        fee: 2_000_000,
+        privateFee: false,
+      });
 
-            const unspent = (records as any[]).filter((r: any) => !r.spent);
-            console.log("Unspent records:", unspent.length);
+      if (result?.transactionId) {
+        await saveMarketMetadata(result.transactionId, titleHash, title, description, resolutionSource);
+        toast.success(`Market created! Tx: ${result.transactionId}`);
+        return result.transactionId;
+      }
+    } catch (error) {
+      console.error("Create market failed:", error);
+      toast.error(`Failed: ${getErrorMessage(error)}`);
+    }
+  };
 
-            // Find a record with enough balance
-            const found = unspent.find((r: any) => {
-                // Handle different possible data structures from different wallet adapters
-                let val = r.data?.amount || r.amount;
+  const requestCredits = async (credits: number) => {
+    if (!address) return;
+    try {
+      const result = await executeWalletTransaction({
+        program: TOKEN_PROGRAM_ID,
+        function: "faucet",
+        inputs: [formatU64(toMicrocredits(credits))],
+        fee: 1_000_000,
+        privateFee: false,
+      });
+      if (result?.transactionId) {
+        toast.success(`Credits requested! Tx: ${result.transactionId}`);
+        return result.transactionId;
+      }
+    } catch (error) {
+      console.error("Faucet failed:", error);
+      toast.error(`Faucet error: ${getErrorMessage(error)}`);
+    }
+  };
 
-                // If val is an object, try to extract value
-                if (typeof val === 'object' && val !== null) {
-                    val = val.value || val.amount || Object.values(val)[0];
-                }
+  const findCreditsRecord = async (requiredAmountMicro: number): Promise<WalletRecord | null> => {
+    if (!address) return null;
 
-                if (!val) return false;
+    try {
+      const rawRecords = await requestRecords(TOKEN_PROGRAM_ID, true);
+      const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
+      const unspent = records.filter((record) => !record.spent);
 
-                const num = parseInt(typeof val === 'string' ? val.replace('u64', '') : val);
-                console.log("Checking record:", r.id, "amount:", num);
-                return !isNaN(num) && num >= amount;
-            });
+      const matchingRecord = unspent.find((record) => extractRecordAmount(record) >= requiredAmountMicro);
+      return matchingRecord ?? null;
+    } catch (error) {
+      console.error("Error in findCreditsRecord:", error);
+      return null;
+    }
+  };
 
-            if (found) {
-                console.log("Found suitable record:", found.id);
-            } else {
-                console.warn("No unspent record found with balance >=", amount);
-            }
+  const findClaimablePositionRecord = async (marketId: string): Promise<WalletRecord | null> => {
+    if (!address) return null;
 
-            return found;
-        } catch (error) {
-            console.error("Error in findCreditsRecord:", error);
-            return null;
-        }
-    };
+    const cleanMarketId = marketId.includes("field") ? marketId.replace("field", "") : marketId;
 
-    const placeBet = async (marketId: string, outcome: number, amount: number) => {
-        if (!address) {
-            toast.error("Please connect your wallet first");
-            return;
-        }
+    try {
+      const rawRecords = await requestRecords(PROGRAM_ID, true);
+      const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
+      const unspent = records.filter((record) => !record.spent);
 
-        setLoading(true);
-        const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+      const found = unspent.find((record) => {
+        const source = record.data ?? record;
+        const recordMarketId = cleanAleoPrimitive(source.market_id);
+        return recordMarketId === cleanMarketId;
+      });
 
-        try {
-            // STEP 1: Escrow funds in veilmarket_token
-            toast.info("Step 1/2: Escrowing funds...");
-            const creditsRecord = await findCreditsRecord(amount);
-            if (!creditsRecord) {
-                toast.error("No Credits record found with sufficient balance. Please deposit first.");
-                setLoading(false);
-                return;
-            }
+      return found ?? null;
+    } catch (error) {
+      console.error("Error finding claimable record:", error);
+      return null;
+    }
+  };
 
-            const escrowResult = await executeTransaction({
-                program: TOKEN_PROGRAM_ID,
-                function: "deposit_for_bet",
-                inputs: [
-                    creditsRecord,
-                    cleanMarketId,
-                    `${outcome}u8`,
-                    `${amount}u64`
-                ],
-                fee: 1000000,
-                privateFee: false,
-            });
+  const placeBet = async (marketId: string, outcome: number, amountCredits: number) => {
+    if (!address) {
+      toast.error("Please connect your wallet first");
+      return;
+    }
 
-            if (!escrowResult?.transactionId) {
-                throw new Error("Escrow transaction failed");
-            }
+    setLoading(true);
+    const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+    const amountMicro = toMicrocredits(amountCredits);
 
-            // STEP 2: Update pools in veilmarkets
-            toast.info("Step 2/2: Updating market pool...");
-            const betResult = await executeTransaction({
-                program: PROGRAM_ID,
-                function: "place_bet",
-                inputs: [cleanMarketId, `${outcome}u8`, `${amount}u64`],
-                fee: 1000000,
-                privateFee: false,
-            });
+    try {
+      toast.info("Placing private bet...");
 
-            if (betResult?.transactionId) {
-                toast.success(`Bet successfully placed!`);
-                return betResult.transactionId;
-            }
-        } catch (error: any) {
-            console.error("Place bet failed:", error);
-            toast.error(`Bet error: ${error?.message || "Failed"}`);
-        } finally {
-            setLoading(false);
-        }
-    };
+      const creditsRecord = await findCreditsRecord(amountMicro);
+      if (!creditsRecord) {
+        toast.error("No Credits record with sufficient balance. Request faucet credits first.");
+        return;
+      }
 
-    const resolveMarket = async (marketId: string, winningOutcome: number) => {
-        if (!address) return;
-        const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+      const betResult = await executeWalletTransaction({
+        program: TOKEN_PROGRAM_ID,
+        function: "place_bet",
+        inputs: [creditsRecord, cleanMarketId, formatU8(outcome), formatU64(amountMicro)],
+        fee: 1_000_000,
+        privateFee: false,
+      });
 
-        try {
-            const result = await executeTransaction({
-                program: PROGRAM_ID,
-                function: "resolve_market",
-                inputs: [cleanMarketId, `${winningOutcome}u8`],
-                fee: 500000,
-                privateFee: false,
-            });
-            if (result?.transactionId) {
-                toast.success(`Market resolved! Tx: ${result.transactionId}`);
-                return result.transactionId;
-            }
-        } catch (e: any) {
-            console.error("Resolve market failed:", e);
-            toast.error(`Resolve error: ${e?.message || "Failed"}`);
-        }
-    };
+      if (betResult?.transactionId) {
+        toast.success("Bet successfully placed!");
+        return betResult.transactionId;
+      }
+    } catch (error) {
+      console.error("Place bet failed:", error);
+      toast.error(`Bet error: ${getErrorMessage(error)}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const claimWinnings = async (marketId: string) => {
-        if (!address) return;
-        const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+  const resolveMarket = async (marketId: string, winningOutcome: number) => {
+    if (!address) return;
+    const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
 
-        try {
-            const result = await executeTransaction({
-                program: PROGRAM_ID,
-                function: "claim_winnings",
-                inputs: [cleanMarketId],
-                fee: 500000,
-                privateFee: false,
-            });
-            if (result?.transactionId) {
-                toast.success(`Winnings claimed! Tx: ${result.transactionId}`);
-                return result.transactionId;
-            }
-        } catch (e: any) {
-            console.error("Claim winnings failed:", e);
-            toast.error(`Claim error: ${e?.message || "Failed"}`);
-        }
-    };
+    try {
+      const result = await executeWalletTransaction({
+        program: ORACLE_PROGRAM_ID,
+        function: "finalize_resolution",
+        inputs: [cleanMarketId, formatU8(winningOutcome)],
+        fee: 500_000,
+        privateFee: false,
+      });
 
-    return {
-        createMarket,
-        placeBet,
-        resolveMarket,
-        claimWinnings,
-        fetchMarkets,
-        fetchUserBets,
-        requestCredits,
-        loading,
-        publicKey,
-    };
+      if (result?.transactionId) {
+        toast.success(`Resolution submitted! Tx: ${result.transactionId}`);
+        return result.transactionId;
+      }
+    } catch (error) {
+      console.error("Resolve market failed:", error);
+      toast.error(`Resolve error: ${getErrorMessage(error)}`);
+    }
+  };
+
+  const claimWinnings = async (marketId: string) => {
+    if (!address) return;
+
+    try {
+      const positionRecord = await findClaimablePositionRecord(marketId);
+      if (!positionRecord) {
+        toast.error("No claimable bet record found for this market in your wallet.");
+        return;
+      }
+
+      const result = await executeWalletTransaction({
+        program: PROGRAM_ID,
+        function: "claim_winnings",
+        inputs: [positionRecord],
+        fee: 500_000,
+        privateFee: false,
+      });
+      if (result?.transactionId) {
+        toast.success(`Winnings claim submitted! Tx: ${result.transactionId}`);
+        return result.transactionId;
+      }
+    } catch (error) {
+      console.error("Claim winnings failed:", error);
+      toast.error(`Claim error: ${getErrorMessage(error)}`);
+    }
+  };
+
+  return {
+    createMarket,
+    placeBet,
+    resolveMarket,
+    claimWinnings,
+    fetchMarkets,
+    fetchUserBets,
+    requestCredits,
+    loading,
+    publicKey,
+  };
 };

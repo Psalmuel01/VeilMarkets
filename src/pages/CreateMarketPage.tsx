@@ -12,6 +12,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
+import { estimateCloseBlockFromDate, fetchCurrentBlockHeight } from "@/lib/aleo";
 
 const categories = [
   { value: "crypto", label: "Crypto" },
@@ -58,11 +60,21 @@ export default function CreateMarketPage() {
 
   const handleCreate = async () => {
     setStep("creating");
+    const currentBlockHeight = await fetchCurrentBlockHeight();
+    if (currentBlockHeight === null) {
+      toast.error("Unable to fetch current block height. Please try again.");
+      setStep("form");
+      return;
+    }
 
-    // Convert date to a mock block height (e.g., blocks from now)
-    // In a real app, you'd fetch current block height
-    const closeBlock = 1000000;
-    const resolutionBlock = 1100000;
+    const closeBlock = estimateCloseBlockFromDate(formData.closingDate, currentBlockHeight);
+    if (!closeBlock || closeBlock <= currentBlockHeight) {
+      toast.error("Closing date must be in the future.");
+      setStep("form");
+      return;
+    }
+
+    const resolutionBlock = closeBlock + 1_440; // ~6 hours after close on ~15s block time.
 
     // Map category string to u8
     const categoryMap: Record<string, number> = {

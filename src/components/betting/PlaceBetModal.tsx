@@ -19,11 +19,12 @@ interface PlaceBetModalProps {
   onClose: () => void;
   marketTitle: string;
   marketId: string;
+  onBetPlaced?: () => void;
 }
 
 type Step = "select" | "confirm" | "processing" | "success";
 
-export function PlaceBetModal({ open, onClose, marketTitle, marketId }: PlaceBetModalProps) {
+export function PlaceBetModal({ open, onClose, marketTitle, marketId, onBetPlaced }: PlaceBetModalProps) {
   const [step, setStep] = useState<Step>("select");
   const [selectedOutcome, setSelectedOutcome] = useState<"Yes" | "No" | null>(null);
   const [wagerAmount, setWagerAmount] = useState(50);
@@ -42,6 +43,7 @@ export function PlaceBetModal({ open, onClose, marketTitle, marketId }: PlaceBet
     if (result) {
       setTxId(result);
       setStep("success");
+      onBetPlaced?.();
     } else {
       setStep("confirm");
     }

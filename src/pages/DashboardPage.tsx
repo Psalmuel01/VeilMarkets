@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Wallet, TrendingUp, Clock, Trophy, CheckCircle2, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { BetCard, UserBet } from "@/components/dashboard/BetCard";
 import { ZKBadge } from "@/components/ui/ZKBadge";
@@ -78,31 +79,40 @@ const stats = [
 
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("all");
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [claimStep, setClaimStep] = useState<"confirm" | "processing" | "success">("confirm");
   const [userBets, setUserBets] = useState<UserBet[]>([]);
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
-  const [myMarkets, setMyMarkets] = useState<any[]>([]);
-  const { fetchUserBets, fetchMarkets, loading, publicKey } = useAleoPrograms();
+  const [myMarkets, setMyMarkets] = useState<
+    Array<{
+      id: string;
+      title: string;
+      description: string;
+      title_hash: string;
+      is_resolved: boolean;
+    }>
+  >([]);
+  const { fetchUserBets, fetchMarkets, loading, publicKey, claimWinnings } = useAleoPrograms();
 
   useEffect(() => {
     const loadBets = async () => {
       if (!publicKey) return;
       const records = await fetchUserBets();
 
-      const mapped: UserBet[] = records.map((r: any) => ({
-        id: r.market_id,
-        marketId: r.market_id,
-        marketTitle: `Market ${r.market_id.substring(0, 8)}...`,
+      const mapped: UserBet[] = records.map((record) => ({
+        id: record.market_id,
+        marketId: record.market_id,
+        marketTitle: `Market ${record.market_id.substring(0, 8)}...`,
         category: "Private",
         status: "Pending" as const,
-        outcome: r.outcome === "1" ? "Yes" : "No", // Cleaned u8 suffix
+        outcome: record.outcome === "1" ? "Yes" : "No",
         placedAt: "Recently",
         canClaim: false,
       }));
 
-      setUserBets(mapped.length > 0 ? mapped : mockBets);
+      setUserBets(mapped);
     };
 
     const loadCreatedMarkets = async () => {
@@ -110,10 +120,18 @@ export default function DashboardPage() {
       const all = await fetchMarkets();
       // On-chain address might need cleaning if it contains "address" suffix
       const currentAddr = publicKey.toString().replace(/address/g, "").trim();
-      const filtered = all.filter((m: any) =>
-        m.creator && m.creator.replace(/address/g, "").trim() === currentAddr
+      const filtered = all.filter((market) =>
+        market.creator && market.creator.replace(/address/g, "").trim() === currentAddr
       );
-      setMyMarkets(filtered);
+      setMyMarkets(
+        filtered.map((market) => ({
+          id: market.id,
+          title: market.title,
+          description: market.description,
+          title_hash: market.title_hash,
+          is_resolved: market.is_resolved,
+        })),
+      );
     };
 
     loadBets();
@@ -128,7 +146,6 @@ export default function DashboardPage() {
     return true;
   });
 
-  const { claimWinnings, resolveMarket } = useAleoPrograms();
   const [txId, setTxId] = useState<string | null>(null);
 
   const handleClaim = (marketId: string) => {
@@ -232,27 +249,14 @@ export default function DashboardPage() {
                       <p className="text-sm text-muted-foreground">{m.description || `Market ID: ${m.id}`}</p>
                       <p className="text-xs text-muted-foreground">Title Hash: {m.title_hash}</p>
                     </div>
-                    <Badge variant="outline" className={m.resolved ? "bg-primary/10 text-primary" : "bg-success/10 text-success"}>
-                      {m.resolved ? "Settled" : "Open"}
+                    <Badge variant="outline" className={m.is_resolved ? "bg-primary/10 text-primary" : "bg-success/10 text-success"}>
+                      {m.is_resolved ? "Settled" : "Open"}
                     </Badge>
                   </div>
-                  {!m.resolved && (
-                    <div className="flex gap-3">
-                      <Button
-                        onClick={() => resolveMarket(m.id, 1)}
-                        className="flex-1 bg-success/20 hover:bg-success/30 text-success border-success/30"
-                        variant="outline"
-                      >
-                        Resolve YES
-                      </Button>
-                      <Button
-                        onClick={() => resolveMarket(m.id, 0)}
-                        className="flex-1 bg-destructive/20 hover:bg-destructive/30 text-destructive border-destructive/30"
-                        variant="outline"
-                      >
-                        Resolve NO
-                      </Button>
-                    </div>
+                  {!m.is_resolved && (
+                    <p className="text-sm text-muted-foreground">
+                      Resolution is oracle-driven. Finalization is only available after oracle proposal and voting.
+                    </p>
                   )}
                   <p className="text-xs text-muted-foreground mt-4 italic">
                     * Final resolution for on-chain state.
@@ -265,7 +269,7 @@ export default function DashboardPage() {
                 <Button
                   variant="link"
                   className="mt-2 text-primary"
-                  onClick={() => window.location.href = '/market/new'}
+                  onClick={() => navigate("/create")}
                 >
                   Create your first market
                 </Button>

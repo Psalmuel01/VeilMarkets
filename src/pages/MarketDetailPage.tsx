@@ -39,32 +39,56 @@ export default function MarketDetailPage() {
   const { id } = useParams();
   const [showBetModal, setShowBetModal] = useState(false);
   const [hasUserBet, setHasUserBet] = useState(false);
-  const [market, setMarket] = useState<any>(null);
+  const [market, setMarket] = useState<{
+    id: string;
+    title: string;
+    description: string;
+    category: keyof typeof categoryColors;
+    status: keyof typeof statusColors;
+    closingTime: string;
+    closingDate: string;
+    betsPlaced: number;
+    createdAt: string;
+    resolutionSource: string;
+  } | null>(null);
   const [notFound, setNotFound] = useState(false);
-  const { fetchMarkets, loading: aleoLoading } = useAleoPrograms();
+  const [loadingMarket, setLoadingMarket] = useState(true);
+  const { fetchMarkets } = useAleoPrograms();
 
   useEffect(() => {
     const loadMarket = async () => {
-      if (!id) return;
+      if (!id) {
+        setNotFound(true);
+        setLoadingMarket(false);
+        return;
+      }
+      setLoadingMarket(true);
       const allMarkets = await fetchMarkets();
 
       // Flexible matching: check against market.id OR market.transactionId
       const cleanId = (sid: string) => (sid || "").replace("field", "").trim();
       const currentId = cleanId(id);
 
-      const found = allMarkets.find((m: any) =>
-        cleanId(m.id) === currentId || cleanId(m.transactionId) === currentId
+      const found = allMarkets.find((chainMarket) =>
+        cleanId(chainMarket.id) === currentId || cleanId(chainMarket.transactionId ?? "") === currentId
       );
 
       if (found) {
-        const categoryRevMap: Record<number, string> = {
-          0: "Crypto", 1: "Finance", 2: "Sports", 3: "Politics", 4: "Entertainment", 5: "Tech"
+        const categoryRevMap: Record<number, keyof typeof categoryColors> = {
+          0: "Crypto",
+          1: "Finance",
+          2: "Sports",
+          3: "Politics",
+          4: "Entertainment",
+          5: "Tech",
         };
 
         setMarket({
-          ...found,
-          category: categoryRevMap[found.category] || "General",
-          status: found.resolved ? "Settled" : "Open",
+          id: found.id,
+          title: found.title,
+          description: found.description,
+          category: categoryRevMap[found.category] || "Tech",
+          status: found.is_resolved ? "Settled" : "Open",
           closingTime: `Block ${found.close_block}`,
           closingDate: "On-chain block time",
           betsPlaced: 0,
@@ -72,9 +96,11 @@ export default function MarketDetailPage() {
           resolutionSource: found.source || "Creator",
         });
         setNotFound(false);
-      } else if (allMarkets.length > 0) {
+      } else {
         setNotFound(true);
       }
+
+      setLoadingMarket(false);
     };
     loadMarket();
   }, [id, fetchMarkets]);
@@ -99,7 +125,7 @@ export default function MarketDetailPage() {
     );
   }
 
-  if (aleoLoading || !market) {
+  if (loadingMarket) {
     return (
       <MainLayout requireWallet={true}>
         <div className="max-w-4xl mx-auto py-16 text-center">
@@ -109,6 +135,8 @@ export default function MarketDetailPage() {
       </MainLayout>
     );
   }
+
+  if (!market) return null;
 
   return (
     <MainLayout requireWallet={true}>
@@ -305,10 +333,8 @@ export default function MarketDetailPage() {
 
       <PlaceBetModal
         open={showBetModal}
-        onClose={() => {
-          setShowBetModal(false);
-          setHasUserBet(true);
-        }}
+        onClose={() => setShowBetModal(false)}
+        onBetPlaced={() => setHasUserBet(true)}
         marketTitle={market.title}
         marketId={market.id}
       />
