@@ -49,21 +49,36 @@ const sections = [
     ],
   },
   {
-    id: "markets",
-    title: "Markets",
+    id: "analytics",
+    title: "Market Analytics",
     icon: Zap,
     content: [
       {
-        title: "Market types",
-        description: "VeilMarkets supports binary outcome markets across various categories including Crypto, Finance, Sports, Politics, Entertainment and Tech. Each market has a clear resolution criteria and closing date.",
+        title: "Real-time Ratios",
+        description: "Each market now features real-time analytics. You can see the 'Yes' and 'No' ratios calculated directly from the on-chain pools, giving you the current implied probability of each outcome before placing a bet.",
       },
       {
-        title: "Creating a market",
-        description: "Anyone can create a market by defining a yes/no question, providing resolution criteria, setting a closing date, and optionally specifying a resolution source. Market creators remain anonymous.",
+        title: "Participant Tracking",
+        description: "We now track and display the actual number of participants in each market by querying the contract mappings, providing social proof of market activity.",
       },
       {
-        title: "Resolution process",
-        description: "Markets are resolved based on their defined criteria after the closing date. The resolution is recorded on-chain with a ZK proof, allowing winners to claim their winnings privately.",
+        title: "Time Estimations",
+        description: "Markets show a countdown timer estimated from block height, providing a clear window for when betting ends and resolution begins.",
+      },
+    ],
+  },
+  {
+    id: "credits",
+    title: "Credits & Wagers",
+    icon: Lock,
+    content: [
+      {
+        title: "Aleo Credits",
+        description: "VEIL uses Aleo Credits for betting. You can track your shielded balance directly in the sidebar and dashboard. If you need credits, use our integrated Testnet Faucet.",
+      },
+      {
+        title: "Wager Limits",
+        description: "Users can choose their wager amount using a simple slider. The potential return is estimated in real-time based on the current pool distribution.",
       },
     ],
   },

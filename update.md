@@ -32,14 +32,21 @@
 - **Aleo Build Readiness**: Resolved all syntax, type, and cross-contract communication errors to achieve a 100% successful build across all programs.
 - **Two-Step Betting Flow**: Implemented a secure funds escrow system where money is locked in `veilmarkets_token.aleo` before the bet is recorded in the core contract.
 - **Supabase Metadata Sync**: Developed a robust off-chain sync using Transaction (Shield) IDs to link rich metadata (titles, descriptions, sources) with on-chain market data.
-- **Resolution Source Integration**: Added a "Resolution Source" field throughout the market lifecycle to enhance transparency and resolution accuracy.
-- **Dynamic Network Stats**: Live fetching of "Active Market" counts and network activity directly from the Aleo blockchain.
-- **Wallet-Level Protection**: Integrated `WalletGuard` across all dashboard pages to prevent leaks of private data when the wallet is disconnected.
+- **Robust Aleo Record Parsing**: Implemented a defensive parsing engine that handles varying record formats (plaintext, objects, fields) across different wallet adapters.
+- **Real-Time Pool Analytics**: Integrated live `PoolState` fetching to display Yes/No ratios, implied probabilities, and participant counts directly from the substrate mappings.
+- **Dynamic On-Chain Dashboards**: Replaced static placeholders with real-timeJoined market metadata and private history.
+- **Shielded Balance Tracking**: Integrated real-time tracking of Aleo Credits (Shielded) to provide clear feedback before and after betting.
 - **Testnet Faucet**: Added a built-in credit faucet to the UI for immediate testnet participation.
 
 **Feedback Incorporated**:
+- **ID Standardization**: Resolved market-bet matching issues caused by Aleo "field" suffixes through unified normalization.
 - Refined the redirection flow to use transaction hashes for reliable deep-linking immediately after market creation.
 - Improved error handling for wallet authorization failures and transaction discovery.
+
+### 5. Progress Status
+- [x] **Wave 1**: Architecture & Core Logic
+- [x] **Wave 2**: UI/UX & Integration
+- [/] **Wave 3**: Market Metrics & Analytics (Active)
 
 ### 5. Future Roadmap
 

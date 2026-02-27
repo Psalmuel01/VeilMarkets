@@ -44,12 +44,15 @@ This leads to **manipulation, MEV, exposure of high-value bettors, and friction 
 
 ## Features
 
-- Binary outcome markets (Yes/No)
+- Binary outcome markets (Yes/No) with V2 pari-mutuel logic
+- Real-time **Pool Analytics**: Automated Yes/No ratios and implied probability
+- Live **Participant Tracking**: Transparent on-chain engagement metrics
+- **Block-based Countdown**: Precise market closing estimations
 - Private bet submission and encrypted storage
 - Market resolution via oracle with zero-knowledge proofs
 - Settlement and winnings claim with verifiable privacy
-- User dashboard (“My Bets”) showing only private, personal information
-- Privacy-first UI and proof visualization
+- **Aleo Credit Tracking**: Integrated balance display for shielded credits
+- User dashboard (“My Bets”) showing joined market metadata and private history
 
 ---
 
@@ -116,8 +119,9 @@ VITE_ALEO_NETWORK=testnet
 4. Deploy contracts to Aleo Testnet (requires Aleo SDK):
 ```bash
 # Order of deployment
-# 1. factory, 2. veilmarkets, 3. veilmarkets_token, 4. veilmarkets_oracle
-cd leo/factory && leo deploy
+# 1. factory, 2. veilmarkets_v2, 3. veilmarkets_token_v2, 4. veilmarkets_oracle_v2
+cd leo/veilmarkets_factory && leo deploy
+# Repeat for each program in order
 ```
 
 5. Run the frontend locally:
