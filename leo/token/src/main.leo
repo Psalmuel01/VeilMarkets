@@ -39,8 +39,8 @@ program veilmarkets_token_v2.aleo {
     mapping platform_fees: u8 => u64;              // Fee treasury
 
     // Constants
-    const CORE_CONTRACT: address = aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc; // Set at deployment
-    const ORACLE_CONTRACT: address = aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc;
+    const CORE_CONTRACT: address = aleo162we9fnh9fugzsfn7m4hg96k075vttmgz2rjgqms5l4pftnkavxq7thcn8;
+    const ORACLE_CONTRACT: address = aleo184d0frw6hten3rruus4n8qnurmp4pmg06q2ezymn07g7rxg9xg8ss6ek7k;
     const PLATFORM_FEE_BPS: u64 = 100u64; // 1%
     const MIN_BET: u64 = 1000000u64; // 1 credit minimum
 

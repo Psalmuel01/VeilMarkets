@@ -65,7 +65,7 @@ program veilmarkets_oracle_v2.aleo {
     const DISPUTE_PERIOD: u64 = 14400u64; // ~1 day in blocks
     const VOTE_THRESHOLD_NUM: u64 = 2u64; // 2/3 threshold
     const VOTE_THRESHOLD_DEN: u64 = 3u64;
-    const CORE_CONTRACT: address = aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc; // Simplified
+    const CORE_CONTRACT: address = aleo162we9fnh9fugzsfn7m4hg96k075vttmgz2rjgqms5l4pftnkavxq7thcn8;
 
     // Initialize
     @admin(address="aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc")
