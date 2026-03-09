@@ -46,12 +46,7 @@ export function Sidebar() {
   }, [fetchMarkets, fetchTokenBalance, publicKey]);
 
   const handleRequestCredits = async (amount: number) => {
-    const tx = await requestCredits(amount);
-    if (tx) {
-      // Refresh balance after a short delay to allow for the tx to be detected locally if possible
-      // or just wait for next poll
-      setTimeout(() => fetchTokenBalance().then(setTokenBalance), 5000);
-    }
+    await requestCredits(amount);
   };
 
   return (
@@ -118,7 +113,7 @@ export function Sidebar() {
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Your Balance</span>
                 <span className="font-medium text-primary">
-                  {tokenBalance !== null ? `${tokenBalance.toLocaleString()} Credits` : "..."}
+                  {tokenBalance !== null ? `${tokenBalance.toLocaleString()} Aleo Credits` : "..."}
                 </span>
               </div>
             </div>

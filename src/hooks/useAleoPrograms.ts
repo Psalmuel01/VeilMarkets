@@ -125,8 +125,12 @@ const parseRecordField = (record: WalletRecord, field: string): string => {
 };
 
 const extractRecordAmount = (record: WalletRecord): number => {
-  const val = parseRecordField(record, "amount");
-  return val ? Number.parseInt(val, 10) : 0;
+  // Check both "microcredits" (native) and "amount" (custom/legacy)
+  const native = parseRecordField(record, "microcredits");
+  if (native) return Number.parseInt(native, 10);
+  
+  const custom = parseRecordField(record, "amount");
+  return custom ? Number.parseInt(custom, 10) : 0;
 };
 
 export const useAleoPrograms = () => {
@@ -308,21 +312,16 @@ export const useAleoPrograms = () => {
   const fetchTokenBalance = useCallback(async (): Promise<number> => {
     if (!address) return 0;
     try {
-      const rawRecords = await requestRecords(TOKEN_PROGRAM_ID, true);
+      // Query native credits.aleo
+      const rawRecords = await requestRecords("credits.aleo", true);
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       const unspent = records.filter((record) => !record.spent);
 
-      // We only sum "Credits" records, not "EscrowedBet" records
-      const sum = unspent.reduce((acc, record) => {
-        const isCredits = (record.recordName === "Credits" || (record as any).name === "Credits");
-        if (isCredits) {
-          return acc + extractRecordAmount(record);
-        }
-        return acc;
-      }, 0);
+      // Sum microcredits
+      const sum = unspent.reduce((acc, record) => acc + extractRecordAmount(record), 0);
 
       const credits = sum / 1_000_000;
-      console.log(`[fetchTokenBalance] Total balance: ${credits} Credits (${sum} microcredits)`);
+      console.log(`[fetchTokenBalance] Native balance: ${credits} Credits (${sum} microcredits)`);
       return credits;
     } catch (error) {
       console.error("Failed to fetch token balance:", error);
@@ -370,34 +369,19 @@ export const useAleoPrograms = () => {
   };
 
   const requestCredits = async (credits: number) => {
-    if (!address) return;
-    try {
-      const result = await executeWalletTransaction({
-        program: TOKEN_PROGRAM_ID,
-        function: "faucet",
-        inputs: [formatU64(toMicrocredits(credits))],
-        fee: 1_000_000,
-        privateFee: false,
-      });
-      if (result?.transactionId) {
-        toast.success(`Credits requested! Tx: ${result.transactionId}`);
-        return result.transactionId;
-      }
-    } catch (error) {
-      console.error("Faucet failed:", error);
-      toast.error(`Faucet error: ${getErrorMessage(error)}`);
-    }
+    toast.info("Please use the Aleo Faucet to get native credits for betting.");
+    window.open("https://faucet.aleo.org/", "_blank");
   };
 
   const findCreditsRecord = async (requiredAmountMicro: number): Promise<WalletRecord | null> => {
     if (!address) return null;
 
     try {
-      const rawRecords = await requestRecords(TOKEN_PROGRAM_ID, true);
+      const rawRecords = await requestRecords("credits.aleo", true);
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       const unspent = records.filter((record) => !record.spent);
 
-      console.log(`[findCreditsRecord] Found ${unspent.length} unspent records from ${TOKEN_PROGRAM_ID}`);
+      console.log(`[findCreditsRecord] Found ${unspent.length} unspent records from credits.aleo`);
 
       // Log all unspent records for debugging
       for (const record of unspent) {
@@ -488,7 +472,12 @@ export const useAleoPrograms = () => {
       const betResult = await executeWalletTransaction({
         program: TOKEN_PROGRAM_ID,
         function: "place_bet",
-        inputs: [creditsRecord, cleanMarketId, formatU8(outcome), formatU64(amountMicro)],
+        inputs: [
+          creditsRecord.recordPlaintext || creditsRecord.plaintext, // Pass the actual record string
+          marketId,
+          formatU8(outcome), // Assuming outcome is the correct variable, not outcomeIndex as in the snippet
+          formatU64(amountMicro),
+        ],
         fee: 1_500_000,
         privateFee: false,
       });

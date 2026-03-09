@@ -1,7 +1,8 @@
-// VeilMarkets Oracle
+// VeilMarkets Oracle (Native Credits Edition)
 // Decentralized resolution with dispute mechanism
 // Integrated with core contract for finalization
 
+import credits.aleo;
 import veilmarkets_v2.aleo;
 import veilmarkets_factory_v2.aleo;
 
@@ -44,11 +45,6 @@ program veilmarkets_oracle_v2.aleo {
         evidence_hash: field,
         stake_amount: u64,
         filed_at: u64,
-    }
-    
-    record Credits {
-        owner: address,
-        amount: u64,
         nonce: group,
     }
 
@@ -73,31 +69,32 @@ program veilmarkets_oracle_v2.aleo {
 
     // Register as oracle with stake
     async transition register_oracle(
-        stake: Credits,
-    ) -> (OracleCredential, Credits, Future) {
-        assert(stake.amount >= MIN_ORACLE_STAKE);
+        stake_credits: credits.aleo/credits,
+        stake_amount: u64,
+    ) -> (OracleCredential, credits.aleo/credits, Future) {
+        assert(stake_amount >= MIN_ORACLE_STAKE);
         
+        let (change, transfer_future): (credits.aleo/credits, Future) = credits.aleo/transfer_private_to_public(
+            stake_credits,
+            self.address,
+            stake_amount
+        );
+
         let credential: OracleCredential = OracleCredential {
             owner: self.caller,
             oracle_id: BHP256::hash_to_field(self.caller),
             reputation_score: 100u64, // Starting reputation
-            staked_amount: stake.amount,
+            staked_amount: stake_amount,
             active: true,
         };
 
-        let f: Future = finalize_register_oracle(self.caller, stake.amount);
+        let f: Future = finalize_register_oracle(self.caller, stake_amount, transfer_future);
         
-        // Return change record
-        let change: Credits = Credits {
-            owner: self.caller,
-            amount: 0u64,
-            nonce: stake.nonce, // Keep same nonce or generate new
-        };
-
         return (credential, change, f);
     }
 
-    async function finalize_register_oracle(oracle: address, amount: u64) {
+    async function finalize_register_oracle(oracle: address, amount: u64, transfer_future: Future) {
+        transfer_future.await();
         Mapping::set(oracles, oracle, true);
         Mapping::set(oracle_stakes, oracle, amount);
     }
@@ -208,7 +205,7 @@ program veilmarkets_oracle_v2.aleo {
         let core_future: Future = veilmarkets_v2.aleo/resolve_market(
             market_id,
             outcome,
-            self.caller // In transition, self.caller is the caller of this transition
+            self.caller
         );
 
         return finalize_finalize_resolution(market_id, outcome, core_future);
@@ -253,28 +250,30 @@ program veilmarkets_oracle_v2.aleo {
 
     // File dispute
     async transition file_dispute(
-        stake: Credits,
+        stake_credits: credits.aleo/credits,
+        stake_amount: u64,
         public market_id: field,
         public disputed_outcome: u8,
         public evidence_hash: field,
-    ) -> (Credits, Dispute, Future) {
+    ) -> (credits.aleo/credits, Dispute, Future) {
+        let (change, transfer_future): (credits.aleo/credits, Future) = credits.aleo/transfer_private_to_public(
+            stake_credits,
+            self.address,
+            stake_amount
+        );
+
         // Dispute record returned to user
         let dispute: Dispute = Dispute {
             owner: self.caller,
             market_id: market_id,
             disputed_outcome: disputed_outcome,
             evidence_hash: evidence_hash,
-            stake_amount: stake.amount,
-            filed_at: 0u64, // Placeholder, set in finalize or ignored for record
+            stake_amount: stake_amount,
+            filed_at: 0u64,
+            nonce: BHP256::hash_to_group(evidence_hash),
         };
 
-        let change: Credits = Credits {
-            owner: self.caller,
-            amount: 0u64, 
-            nonce: stake.nonce,
-        };
-
-        let f: Future = finalize_file_dispute(market_id, self.caller, disputed_outcome, evidence_hash, stake.amount);
+        let f: Future = finalize_file_dispute(market_id, self.caller, disputed_outcome, evidence_hash, stake_amount, transfer_future);
         
         return (change, dispute, f);
     }
@@ -285,7 +284,9 @@ program veilmarkets_oracle_v2.aleo {
         disputed_outcome: u8,
         evidence_hash: field,
         stake_amount: u64,
+        transfer_future: Future,
     ) {
+        transfer_future.await();
         let deadline: u64 = Mapping::get(dispute_deadlines, market_id);
         assert(block.height as u64 < deadline);
 
@@ -312,14 +313,7 @@ program veilmarkets_oracle_v2.aleo {
         assert(credential.active);
         assert(credential.reputation_score >= 500u64); 
         
-        let f: Future = finalize_resolve_dispute(
-            market_id,
-            dispute_valid,
-            correct_outcome,
-            credential.owner
-        );
-        
-        // Update reputation (in transition for demo, better in finalize)
+        // Update reputation
         let updated_cred: OracleCredential = OracleCredential {
             owner: credential.owner,
             oracle_id: credential.oracle_id,
@@ -327,6 +321,13 @@ program veilmarkets_oracle_v2.aleo {
             staked_amount: credential.staked_amount,
             active: credential.active,
         };
+
+        let f: Future = finalize_resolve_dispute(
+            market_id,
+            dispute_valid,
+            correct_outcome,
+            credential.owner
+        );
         
         return (updated_cred, f);
     }
@@ -361,19 +362,19 @@ program veilmarkets_oracle_v2.aleo {
     // Unregister oracle
     async transition unregister_oracle(
         credential: OracleCredential,
-    ) -> (Credits, Future) {
+    ) -> (credits.aleo/credits, Future) {
         assert(credential.active);
         
-        let returned_stake: Credits = Credits {
-            owner: credential.owner,
-            amount: credential.staked_amount,
-            nonce: BHP256::hash_to_group(credential.oracle_id),
-        };
+        let (refund_credits, payout_future): (credits.aleo/credits, Future) = credits.aleo/transfer_public_to_private(
+            self.caller,
+            credential.staked_amount
+        );
         
-        return (returned_stake, finalize_unregister_oracle(credential.owner));
+        return (refund_credits, finalize_unregister_oracle(credential.owner, payout_future));
     }
 
-    async function finalize_unregister_oracle(oracle: address) {
+    async function finalize_unregister_oracle(oracle: address, payout_future: Future) {
+        payout_future.await();
         Mapping::set(oracles, oracle, false);
         Mapping::set(oracle_stakes, oracle, 0u64);
     }

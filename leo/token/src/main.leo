@@ -1,7 +1,8 @@
-// VeilMarkets Token
-// Integrated escrow with cross-contract validation
-// Handles credits, escrow, payouts with nullifier tracking
+// VeilMarkets Token (Native Credits Edition)
+// Integrated escrow with native credits.aleo integration
+// Handles betting and pro-rata payouts using global credits.aleo
 
+import credits.aleo;
 import veilmarkets_v2.aleo;
 import veilmarkets_factory_v2.aleo;
 
@@ -17,11 +18,7 @@ program veilmarkets_token_v2.aleo {
     }
 
     // Records
-    record Credits {
-        owner: address,
-        amount: u64,
-        nonce: group,
-    }
+    // Using native credits.aleo/credits for entry/exit
     
     record EscrowedBet {
         owner: address,
@@ -53,35 +50,29 @@ program veilmarkets_token_v2.aleo {
         assert(self.caller == CORE_CONTRACT || self.caller == ORACLE_CONTRACT);
     }
 
-    // Faucet for testing
-    async transition faucet(public amount: u64) -> (Credits, Future) {
-        assert(amount <= 1000000000000u64); // Max 1M credits
-        
-        let c: Credits = Credits {
-            owner: self.caller,
-            amount: amount,
-            nonce: BHP256::hash_to_group(self.caller),
-        };
-        return (c, finalize_faucet());
-    }
-
-    async function finalize_faucet() {}
-
-    // Deposit and place bet - ATOMIC operation
+    // Deposit and place bet - ATOMIC operation using native credits
     async transition place_bet(
-        credits: Credits,
+        input_credits: credits.aleo/credits,
         public market_id: field,
         public outcome: u8,
         public bet_amount: u64,
-    ) -> (Credits, EscrowedBet, Future) {
+    ) -> (credits.aleo/credits, EscrowedBet, Future) {
         // Validate
-        assert(credits.amount >= bet_amount);
+        assert(input_credits.microcredits >= bet_amount);
         assert(bet_amount >= MIN_BET);
         assert(outcome == 0u8 || outcome == 1u8);
 
-        // Generate unique escrow ID using credits nonce for uniqueness
-        let caller_hash: field = BHP256::hash_to_field(self.caller);
-        let escrow_id: field = BHP256::hash_to_field(caller_hash + market_id + bet_amount as field + credits.nonce as field);
+        // Move funds to contract (publicly tracked for pro-rata payouts)
+        // Recipient is this program's address: veilmarkets_token_v2.aleo
+        let (change, transfer_future): (credits.aleo/credits, Future) = credits.aleo/transfer_private_to_public(
+            input_credits,
+            self.address,
+            bet_amount
+        );
+
+        // Generate unique escrow ID
+        // BH256 or BHP256 for nonces is not directly available on external records easily without hashing
+        let escrow_id: field = BHP256::hash_to_field(input_credits.owner as field + market_id + bet_amount as field);
 
         let escrowed: EscrowedBet = EscrowedBet {
             owner: self.caller,
@@ -90,12 +81,6 @@ program veilmarkets_token_v2.aleo {
             outcome: outcome,
             escrow_id: escrow_id,
             nonce: BHP256::hash_to_group(escrow_id),
-        };
-
-        let change: Credits = Credits {
-            owner: self.caller,
-            amount: credits.amount - bet_amount,
-            nonce: BHP256::hash_to_group(credits.amount - bet_amount),
         };
 
         // Call core contract to register bet
@@ -113,6 +98,7 @@ program veilmarkets_token_v2.aleo {
             escrow_id,
             self.caller,
             outcome,
+            transfer_future,
             core_future
         );
 
@@ -125,13 +111,18 @@ program veilmarkets_token_v2.aleo {
         escrow_id: field,
         bettor: address,
         outcome: u8,
+        transfer_future: Future,
         core_future: Future,
     ) {
+        // Await transfers
+        transfer_future.await();
+        core_future.await();
+
         // Update escrow total
         let current_escrow: u64 = Mapping::get_or_use(market_escrow, market_id, 0u64);
         Mapping::set(market_escrow, market_id, current_escrow + amount);
 
-        // Store escrow details (as struct)
+        // Store escrow details
         let info: EscrowInfo = EscrowInfo {
             holder: bettor,
             market_id: market_id,
@@ -140,9 +131,6 @@ program veilmarkets_token_v2.aleo {
             escrow_id: escrow_id,
         };
         Mapping::set(escrow_details, escrow_id, info);
-
-        // Await core future
-        core_future.await();
     }
 
     // Claim payout - verifies with core contract first
@@ -150,35 +138,46 @@ program veilmarkets_token_v2.aleo {
         public escrow_id: field,
         public payout_amount: u64,
         public nullifier: field,
-    ) -> (Credits, Future) {
+    ) -> (credits.aleo/credits, Future) {
         // Call core contract to verify win and amount
         let core_result: Future = veilmarkets_v2.aleo/verify_claim(
             nullifier,
             payout_amount
         );
 
+        // Deduct fee and payout to user publicly then to private
+        let fee: u64 = (payout_amount * PLATFORM_FEE_BPS) / 10000u64;
+        let final_payout: u64 = payout_amount - fee;
+
+        let (payout_record, payout_future): (credits.aleo/credits, Future) = credits.aleo/transfer_public_to_private(
+            self.caller,
+            final_payout
+        );
+
         let f: Future = finalize_claim_payout(
             escrow_id,
             payout_amount,
+            fee,
             self.caller,
-            core_result
+            core_result,
+            payout_future
         );
 
-        let payout: Credits = Credits {
-            owner: self.caller,
-            amount: payout_amount, 
-            nonce: BHP256::hash_to_group(nullifier),
-        };
-
-        return (payout, f);
+        return (payout_record, f);
     }
 
     async function finalize_claim_payout(
         escrow_id: field,
         payout_amount: u64,
+        fee: u64,
         claimant: address,
         core_result: Future,
+        payout_future: Future,
     ) {
+        // Await results
+        core_result.await();
+        payout_future.await();
+
         // Verify escrow not already spent
         let is_spent: bool = Mapping::get_or_use(spent_escrow, escrow_id, false);
         assert(!is_spent);
@@ -188,10 +187,6 @@ program veilmarkets_token_v2.aleo {
         let escrow: EscrowInfo = Mapping::get(escrow_details, escrow_id);
         assert_eq(escrow.holder, claimant);
 
-        // Calculate platform fee
-        let fee: u64 = (payout_amount * PLATFORM_FEE_BPS) / 10000u64;
-        let final_payout: u64 = payout_amount - fee;
-
         // Update escrow tracking
         let current_escrow: u64 = Mapping::get(market_escrow, escrow.market_id);
         assert(current_escrow >= payout_amount);
@@ -200,9 +195,6 @@ program veilmarkets_token_v2.aleo {
         // Collect fees
         let total_fees: u64 = Mapping::get_or_use(platform_fees, 0u8, 0u64);
         Mapping::set(platform_fees, 0u8, total_fees + fee);
-
-        // Await core result
-        core_result.await();
     }
 
     // Refund for cancelled markets
@@ -210,21 +202,21 @@ program veilmarkets_token_v2.aleo {
         public escrow_id: field,
         public market_id: field,
         public amount: u64,
-    ) -> (Credits, Future) {
+    ) -> (credits.aleo/credits, Future) {
+        let (refund_record, payout_future): (credits.aleo/credits, Future) = credits.aleo/transfer_public_to_private(
+            self.caller,
+            amount
+        );
+
         let f: Future = finalize_refund_bet(
             market_id,
             escrow_id,
             amount,
-            self.caller
+            self.caller,
+            payout_future
         );
 
-        let refund: Credits = Credits {
-            owner: self.caller,
-            amount: amount,
-            nonce: BHP256::hash_to_group(escrow_id),
-        };
-
-        return (refund, f);
+        return (refund_record, f);
     }
 
     async function finalize_refund_bet(
@@ -232,7 +224,10 @@ program veilmarkets_token_v2.aleo {
         escrow_id: field,
         amount: u64,
         owner: address,
+        payout_future: Future,
     ) {
+        payout_future.await();
+
         let info: EscrowInfo = Mapping::get(escrow_details, escrow_id);
         assert_eq(info.holder, owner);
         assert_eq(info.market_id, market_id);
@@ -241,8 +236,6 @@ program veilmarkets_token_v2.aleo {
         let is_spent: bool = Mapping::get_or_use(spent_escrow, escrow_id, false);
         assert(!is_spent);
         Mapping::set(spent_escrow, escrow_id, true);
-        
-        // Verify cancellation? (Token contract trusts core resolution in production)
 
         let current_escrow: u64 = Mapping::get(market_escrow, market_id);
         Mapping::set(market_escrow, market_id, current_escrow - amount);
@@ -251,42 +244,19 @@ program veilmarkets_token_v2.aleo {
     // Admin: Withdraw fees
     async transition withdraw_fees(
         public amount: u64,
-    ) -> (Credits, Future) {
-        let f: Future = finalize_withdraw_fees(amount, self.caller);
-        
-        let withdrawal: Credits = Credits {
-            owner: self.caller,
-            amount: amount,
-            nonce: BHP256::hash_to_group(amount),
-        };
-        
-        return (withdrawal, f);
+    ) -> (credits.aleo/credits, Future) {
+        let (withdrawal_record, f): (credits.aleo/credits, Future) = credits.aleo/transfer_public_to_private(self.caller, amount);
+        let final_future: Future = finalize_withdraw_fees(amount, self.caller, f);
+        return (withdrawal_record, final_future);
     }
 
-    async function finalize_withdraw_fees(amount: u64, recipient: address) {
+    async function finalize_withdraw_fees(amount: u64, recipient: address, f: Future) {
+        f.await();
         // Verify admin
         assert_eq(recipient, aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc);
         
         let total_fees: u64 = Mapping::get(platform_fees, 0u8);
         assert(total_fees >= amount);
         Mapping::set(platform_fees, 0u8, total_fees - amount);
-    }
-
-    // Utilities
-    transition combine_credits(c1: Credits, c2: Credits) -> Credits {
-        assert_eq(c1.owner, c2.owner);
-        return Credits {
-            owner: c1.owner,
-            amount: c1.amount + c2.amount,
-            nonce: BHP256::hash_to_group(c1.amount + c2.amount),
-        };
-    }
-
-    transition split_credits(credits: Credits, amount: u64) -> (Credits, Credits) {
-        assert(credits.amount >= amount);
-        return (
-            Credits { owner: credits.owner, amount: amount, nonce: BHP256::hash_to_group(amount) },
-            Credits { owner: credits.owner, amount: credits.amount - amount, nonce: BHP256::hash_to_group(credits.amount - amount) }
-        );
     }
 }

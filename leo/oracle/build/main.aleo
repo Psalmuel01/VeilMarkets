@@ -1,5 +1,6 @@
 import veilmarkets_factory_v2.aleo;
 import veilmarkets_v2.aleo;
+import credits.aleo;
 program veilmarkets_oracle_v2.aleo;
 
 record OracleCredential:
@@ -16,10 +17,6 @@ record Dispute:
     evidence_hash as field.private;
     stake_amount as u64.private;
     filed_at as u64.private;
-
-record Credits:
-    owner as address.private;
-    amount as u64.private;
     nonce as group.private;
 
 struct ResolutionProposal:
@@ -65,20 +62,23 @@ mapping resolution_outcomes:
     value as u8.public;
 
 function register_oracle:
-    input r0 as Credits.record;
-    gte r0.amount 100000000000u64 into r1;
-    assert.eq r1 true;
-    hash.bhp256 self.caller into r2 as field;
-    cast self.caller r2 100u64 r0.amount true into r3 as OracleCredential.record;
-    async register_oracle self.caller r0.amount into r4;
-    cast self.caller 0u64 r0.nonce into r5 as Credits.record;
-    output r3 as OracleCredential.record;
-    output r5 as Credits.record;
-    output r4 as veilmarkets_oracle_v2.aleo/register_oracle.future;
+    input r0 as credits.aleo/credits.record;
+    input r1 as u64.private;
+    gte r1 100000000000u64 into r2;
+    assert.eq r2 true;
+    call credits.aleo/transfer_private_to_public r0 veilmarkets_oracle_v2.aleo r1 into r3 r4;
+    hash.bhp256 self.caller into r5 as field;
+    cast self.caller r5 100u64 r1 true into r6 as OracleCredential.record;
+    async register_oracle self.caller r1 r4 into r7;
+    output r6 as OracleCredential.record;
+    output r3 as credits.aleo/credits.record;
+    output r7 as veilmarkets_oracle_v2.aleo/register_oracle.future;
 
 finalize register_oracle:
     input r0 as address.public;
     input r1 as u64.public;
+    input r2 as credits.aleo/transfer_private_to_public.future;
+    await r2;
     set true into oracles[r0];
     set r1 into oracle_stakes[r0];
 
@@ -182,16 +182,18 @@ finalize finalize_resolution:
     await r2;
 
 function file_dispute:
-    input r0 as Credits.record;
-    input r1 as field.public;
-    input r2 as u8.public;
-    input r3 as field.public;
-    cast self.caller r1 r2 r3 r0.amount 0u64 into r4 as Dispute.record;
-    cast self.caller 0u64 r0.nonce into r5 as Credits.record;
-    async file_dispute r1 self.caller r2 r3 r0.amount into r6;
-    output r5 as Credits.record;
-    output r4 as Dispute.record;
-    output r6 as veilmarkets_oracle_v2.aleo/file_dispute.future;
+    input r0 as credits.aleo/credits.record;
+    input r1 as u64.private;
+    input r2 as field.public;
+    input r3 as u8.public;
+    input r4 as field.public;
+    call credits.aleo/transfer_private_to_public r0 veilmarkets_oracle_v2.aleo r1 into r5 r6;
+    hash.bhp256 r4 into r7 as group;
+    cast self.caller r2 r3 r4 r1 0u64 r7 into r8 as Dispute.record;
+    async file_dispute r2 self.caller r3 r4 r1 r6 into r9;
+    output r5 as credits.aleo/credits.record;
+    output r8 as Dispute.record;
+    output r9 as veilmarkets_oracle_v2.aleo/file_dispute.future;
 
 finalize file_dispute:
     input r0 as field.public;
@@ -199,16 +201,18 @@ finalize file_dispute:
     input r2 as u8.public;
     input r3 as field.public;
     input r4 as u64.public;
-    get dispute_deadlines[r0] into r5;
-    cast block.height into r6 as u64;
-    lt r6 r5 into r7;
-    assert.eq r7 true;
-    cast block.height into r8 as u64;
-    cast r1 r0 r2 r3 r4 r8 into r9 as DisputeInfo;
-    set r9 into disputes[r0];
-    cast block.height into r10 as u64;
-    add r10 14400u64 into r11;
-    set r11 into dispute_deadlines[r0];
+    input r5 as credits.aleo/transfer_private_to_public.future;
+    await r5;
+    get dispute_deadlines[r0] into r6;
+    cast block.height into r7 as u64;
+    lt r7 r6 into r8;
+    assert.eq r8 true;
+    cast block.height into r9 as u64;
+    cast r1 r0 r2 r3 r4 r9 into r10 as DisputeInfo;
+    set r10 into disputes[r0];
+    cast block.height into r11 as u64;
+    add r11 14400u64 into r12;
+    set r12 into dispute_deadlines[r0];
 
 function resolve_dispute:
     input r0 as OracleCredential.record;
@@ -218,12 +222,12 @@ function resolve_dispute:
     assert.eq r0.active true;
     gte r0.reputation_score 500u64 into r4;
     assert.eq r4 true;
-    async resolve_dispute r1 r2 r3 r0.owner into r5;
-    ternary r2 50u64 0u64 into r6;
-    add r0.reputation_score r6 into r7;
-    cast r0.owner r0.oracle_id r7 r0.staked_amount r0.active into r8 as OracleCredential.record;
-    output r8 as OracleCredential.record;
-    output r5 as veilmarkets_oracle_v2.aleo/resolve_dispute.future;
+    ternary r2 50u64 0u64 into r5;
+    add r0.reputation_score r5 into r6;
+    cast r0.owner r0.oracle_id r6 r0.staked_amount r0.active into r7 as OracleCredential.record;
+    async resolve_dispute r1 r2 r3 r0.owner into r8;
+    output r7 as OracleCredential.record;
+    output r8 as veilmarkets_oracle_v2.aleo/resolve_dispute.future;
 
 finalize resolve_dispute:
     input r0 as field.public;
@@ -248,14 +252,15 @@ finalize resolve_dispute:
 function unregister_oracle:
     input r0 as OracleCredential.record;
     assert.eq r0.active true;
-    hash.bhp256 r0.oracle_id into r1 as group;
-    cast r0.owner r0.staked_amount r1 into r2 as Credits.record;
-    async unregister_oracle r0.owner into r3;
-    output r2 as Credits.record;
+    call credits.aleo/transfer_public_to_private self.caller r0.staked_amount into r1 r2;
+    async unregister_oracle r0.owner r2 into r3;
+    output r1 as credits.aleo/credits.record;
     output r3 as veilmarkets_oracle_v2.aleo/unregister_oracle.future;
 
 finalize unregister_oracle:
     input r0 as address.public;
+    input r1 as credits.aleo/transfer_public_to_private.future;
+    await r1;
     set false into oracles[r0];
     set 0u64 into oracle_stakes[r0];
 

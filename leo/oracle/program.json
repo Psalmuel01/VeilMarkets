@@ -16,6 +16,12 @@
       "location": "network",
       "network": "testnet",
       "path": null
+    },
+    {
+      "name": "credits.aleo",
+      "location": "network",
+      "network": "testnet",
+      "path": null
     }
   ],
   "dev_dependencies": null
