@@ -1,5 +1,5 @@
-// The 'test_veilmarkets_oracle_v2' test program.
-import veilmarkets_oracle_v2.aleo;
+// The 'test_veilmarkets_oracle_v3' test program.
+import veilmarkets_oracle_v3.aleo;
 program test_veilmarkets_oracle.aleo {
     @test
     script test_primitives() {

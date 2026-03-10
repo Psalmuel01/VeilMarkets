@@ -1,6 +1,6 @@
-import veilmarkets_factory_v2.aleo;
+import veilmarkets_factory_v3.aleo;
 
-program veilmarkets_v2.aleo;
+program veilmarkets_v3.aleo;
 
 record BetPosition:
     owner as address.private;
@@ -64,7 +64,7 @@ function create_market:
     hash.bhp256 r5 into r6 as field;
     async create_market r6 self.caller r0 r1 r2 r3 into r7;
     output r6 as field.private;
-    output r7 as veilmarkets_v2.aleo/create_market.future;
+    output r7 as veilmarkets_v3.aleo/create_market.future;
 
 finalize create_market:
     input r0 as field.public;
@@ -92,7 +92,7 @@ function place_bet:
     input r2 as u64.public;
     input r3 as field.public;
     input r4 as address.public;
-    call veilmarkets_factory_v2.aleo/verify_is_registered 1u8 self.caller into r5;
+    call veilmarkets_factory_v3.aleo/verify_is_registered 1u8 self.caller into r5;
     is.eq r1 0u8 into r6;
     is.eq r1 1u8 into r7;
     or r6 r7 into r8;
@@ -104,7 +104,7 @@ function place_bet:
     add r11 r3 into r12;
     hash.bhp256 r12 into r13 as field;
     async place_bet r0 r1 r2 r3 r13 r5 into r14;
-    output r14 as veilmarkets_v2.aleo/place_bet.future;
+    output r14 as veilmarkets_v3.aleo/place_bet.future;
 
 finalize place_bet:
     input r0 as field.public;
@@ -112,7 +112,7 @@ finalize place_bet:
     input r2 as u64.public;
     input r3 as field.public;
     input r4 as field.public;
-    input r5 as veilmarkets_factory_v2.aleo/verify_is_registered.future;
+    input r5 as veilmarkets_factory_v3.aleo/verify_is_registered.future;
     await r5;
     get markets[r0] into r6;
     cast block.height into r7 as u64;
@@ -151,18 +151,18 @@ function resolve_market:
     input r0 as field.public;
     input r1 as u8.public;
     input r2 as address.public;
-    call veilmarkets_factory_v2.aleo/verify_is_registered 2u8 self.caller into r3;
+    call veilmarkets_factory_v3.aleo/verify_is_registered 2u8 self.caller into r3;
     is.eq r1 0u8 into r4;
     is.eq r1 1u8 into r5;
     or r4 r5 into r6;
     assert.eq r6 true;
     async resolve_market r0 r1 r3 into r7;
-    output r7 as veilmarkets_v2.aleo/resolve_market.future;
+    output r7 as veilmarkets_v3.aleo/resolve_market.future;
 
 finalize resolve_market:
     input r0 as field.public;
     input r1 as u8.public;
-    input r2 as veilmarkets_factory_v2.aleo/verify_is_registered.future;
+    input r2 as veilmarkets_factory_v3.aleo/verify_is_registered.future;
     await r2;
     get markets[r0] into r3;
     cast block.height into r4 as u64;
@@ -193,7 +193,7 @@ function claim_winnings:
     hash.bhp256 r11 into r13 as group;
     cast r0.owner r0.market_id 0u64 r11 r13 into r14 as WinningsClaim.record;
     output r14 as WinningsClaim.record;
-    output r12 as veilmarkets_v2.aleo/claim_winnings.future;
+    output r12 as veilmarkets_v3.aleo/claim_winnings.future;
 
 finalize claim_winnings:
     input r0 as field.public;
@@ -224,14 +224,14 @@ finalize claim_winnings:
 function verify_claim:
     input r0 as field.public;
     input r1 as u64.public;
-    call veilmarkets_factory_v2.aleo/verify_is_registered 1u8 self.caller into r2;
+    call veilmarkets_factory_v3.aleo/verify_is_registered 1u8 self.caller into r2;
     async verify_claim r0 r1 r2 into r3;
-    output r3 as veilmarkets_v2.aleo/verify_claim.future;
+    output r3 as veilmarkets_v3.aleo/verify_claim.future;
 
 finalize verify_claim:
     input r0 as field.public;
     input r1 as u64.public;
-    input r2 as veilmarkets_factory_v2.aleo/verify_is_registered.future;
+    input r2 as veilmarkets_factory_v3.aleo/verify_is_registered.future;
     await r2;
     get pending_payouts[r0] into r3;
     assert.eq r3 r1;
@@ -239,7 +239,7 @@ finalize verify_claim:
 function cancel_market:
     input r0 as field.public;
     async cancel_market r0 self.caller into r1;
-    output r1 as veilmarkets_v2.aleo/cancel_market.future;
+    output r1 as veilmarkets_v3.aleo/cancel_market.future;
 
 finalize cancel_market:
     input r0 as field.public;

@@ -73,9 +73,9 @@ VeilMarkets uses a modular **4-program architecture** to ensure scalability, sec
 
 ```mermaid
 graph TD
-    Factory[veilmarkets_factory_v2.aleo] --> Core[veilmarkets_v2.aleo]
-    Factory --> Token[veilmarkets_token_v2.aleo]
-    Factory --> Oracle[veilmarkets_oracle_v2.aleo]
+    Factory[veilmarkets_factory_v3.aleo] --> Core[veilmarkets_v3.aleo]
+    Factory --> Token[veilmarkets_token_v3.aleo]
+    Factory --> Oracle[veilmarkets_oracle_v3.aleo]
     
     User[User Wallet] --> Token
     Token --> Core
@@ -86,10 +86,10 @@ graph TD
     Frontend --> Aleo[Aleo Network]
 ```
 
-- **veilmarkets_factory_v2.aleo**: System registry and permission management.
-- **veilmarkets_v2.aleo**: Core logic for market creation, pool accounting, and pro-rata winnings calculation.
-- **veilmarkets_token_v2.aleo**: Integrated pari-mutuel escrow vault. Handles deposits, bet funding, and secure payouts.
-- **veilmarkets_oracle_v2.aleo**: Decentralized resolution governance with built-in dispute mechanisms.
+- **veilmarkets_factory_v3.aleo**: System registry and permission management.
+- **veilmarkets_v3.aleo**: Core logic for market creation, pool accounting, and pro-rata winnings calculation.
+- **veilmarkets_token_v3.aleo**: Integrated pari-mutuel escrow vault. Handles deposits, bet funding, and secure payouts.
+- **veilmarkets_oracle_v3.aleo**: Decentralized resolution governance with built-in dispute mechanisms.
 
 ---
 
@@ -119,7 +119,7 @@ VITE_ALEO_NETWORK=testnet
 4. Deploy contracts to Aleo Testnet (requires Aleo SDK):
 ```bash
 # Order of deployment
-# 1. veilmarkets_factory_v2, 2. veilmarkets_v2, 3. veilmarkets_token_v2, 4. veilmarkets_oracle_v2
+# 1. veilmarkets_factory_v3, 2. veilmarkets_v3, 3. veilmarkets_token_v3, 4. veilmarkets_oracle_v3
 cd leo/factory && leo deploy
 # Repeat for each program in order (veilmarkets, veilmarkets_token, veilmarkets_oracle)
 ```

@@ -1,9 +1,9 @@
 // VeilMarkets Core
 // Private Binary Prediction Markets with full cross-contract integration
 
-import veilmarkets_factory_v2.aleo;
+import veilmarkets_factory_v3.aleo;
 
-program veilmarkets_v2.aleo {
+program veilmarkets_v3.aleo {
 
     // Records & Structs
 
@@ -128,7 +128,7 @@ program veilmarkets_v2.aleo {
         public bettor: address,      // Original bettor (not self.caller)
     ) -> Future {
         // Must be called by the registered token contract via factory registry.
-        let auth_future: Future = veilmarkets_factory_v2.aleo/verify_is_registered(
+        let auth_future: Future = veilmarkets_factory_v3.aleo/verify_is_registered(
             TOKEN_CONTRACT_TYPE,
             self.caller
         );
@@ -213,7 +213,7 @@ program veilmarkets_v2.aleo {
         public resolver: address,    // Oracle contract verifies this
     ) -> Future {
         // Must be called by the registered oracle contract via factory registry.
-        let auth_future: Future = veilmarkets_factory_v2.aleo/verify_is_registered(
+        let auth_future: Future = veilmarkets_factory_v3.aleo/verify_is_registered(
             ORACLE_CONTRACT_TYPE,
             self.caller
         );
@@ -327,7 +327,7 @@ program veilmarkets_v2.aleo {
         public nullifier: field,
         public payout_amount: u64,
     ) -> Future {
-        let auth_future: Future = veilmarkets_factory_v2.aleo/verify_is_registered(
+        let auth_future: Future = veilmarkets_factory_v3.aleo/verify_is_registered(
             TOKEN_CONTRACT_TYPE,
             self.caller
         );
