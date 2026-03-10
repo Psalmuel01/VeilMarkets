@@ -3,10 +3,10 @@
 // Integrated with core contract for finalization
 
 import credits.aleo;
-import veilmarkets_v2.aleo;
-import veilmarkets_factory_v2.aleo;
+import veilmarkets_v3.aleo;
+import veilmarkets_factory_v3.aleo;
 
-program veilmarkets_oracle_v2.aleo {
+program veilmarkets_oracle_v3.aleo {
 
     // Structs & Records
     
@@ -202,7 +202,7 @@ program veilmarkets_oracle_v2.aleo {
         public outcome: u8,
     ) -> Future {
         // Call core contract to execute resolution
-        let core_future: Future = veilmarkets_v2.aleo/resolve_market(
+        let core_future: Future = veilmarkets_v3.aleo/resolve_market(
             market_id,
             outcome,
             self.caller

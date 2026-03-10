@@ -1,18 +1,18 @@
 {
-  "program": "veilmarkets_token_v2.aleo",
+  "program": "veilmarkets_token_v3.aleo",
   "version": "0.1.0",
   "description": "",
   "license": "MIT",
   "leo": "3.4.0",
   "dependencies": [
     {
-      "name": "veilmarkets_v2.aleo",
+      "name": "veilmarkets_v3.aleo",
       "location": "network",
       "path": null,
       "edition": null
     },
     {
-      "name": "veilmarkets_factory_v2.aleo",
+      "name": "veilmarkets_factory_v3.aleo",
       "location": "network",
       "path": null,
       "edition": null

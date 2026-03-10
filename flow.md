@@ -42,7 +42,7 @@ A creator sets a title, category, and two blocks:
 ### Step 2: Placing a Bet
 When you place a bet:
 1. One of your **Native Credits** records is spent.
-2. The funds are moved to the `veilmarkets_token_v2.aleo` public balance (Escrow).
+2. The funds are moved to the `veilmarkets_token_v3.aleo` public balance (Escrow).
 3. You receive a **BetPosition** record (private to you).
 
 ### Step 3: Resolution (Oracles)

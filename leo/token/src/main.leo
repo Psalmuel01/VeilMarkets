@@ -3,10 +3,10 @@
 // Handles betting and pro-rata payouts using global credits.aleo
 
 import credits.aleo;
-import veilmarkets_v2.aleo;
-import veilmarkets_factory_v2.aleo;
+import veilmarkets_v3.aleo;
+import veilmarkets_factory_v3.aleo;
 
-program veilmarkets_token_v2.aleo {
+program veilmarkets_token_v3.aleo {
 
     // Structs
     struct EscrowInfo {
@@ -63,7 +63,7 @@ program veilmarkets_token_v2.aleo {
         assert(outcome == 0u8 || outcome == 1u8);
 
         // Move funds to contract (publicly tracked for pro-rata payouts)
-        // Recipient is this program's address: veilmarkets_token_v2.aleo
+        // Recipient is this program's address: veilmarkets_token_v3.aleo
         let (change, transfer_future): (credits.aleo/credits, Future) = credits.aleo/transfer_private_to_public(
             input_credits,
             self.address,
@@ -84,7 +84,7 @@ program veilmarkets_token_v2.aleo {
         };
 
         // Call core contract to register bet
-        let core_future: Future = veilmarkets_v2.aleo/place_bet(
+        let core_future: Future = veilmarkets_v3.aleo/place_bet(
             market_id,
             outcome,
             bet_amount,
@@ -140,7 +140,7 @@ program veilmarkets_token_v2.aleo {
         public nullifier: field,
     ) -> (credits.aleo/credits, Future) {
         // Call core contract to verify win and amount
-        let core_result: Future = veilmarkets_v2.aleo/verify_claim(
+        let core_result: Future = veilmarkets_v3.aleo/verify_claim(
             nullifier,
             payout_amount
         );

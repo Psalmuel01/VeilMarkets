@@ -1,7 +1,7 @@
-import veilmarkets_factory_v2.aleo;
-import veilmarkets_v2.aleo;
+import veilmarkets_factory_v3.aleo;
+import veilmarkets_v3.aleo;
 import credits.aleo;
-program veilmarkets_oracle_v2.aleo;
+program veilmarkets_oracle_v3.aleo;
 
 record OracleCredential:
     owner as address.private;
@@ -66,13 +66,13 @@ function register_oracle:
     input r1 as u64.private;
     gte r1 100000000000u64 into r2;
     assert.eq r2 true;
-    call credits.aleo/transfer_private_to_public r0 veilmarkets_oracle_v2.aleo r1 into r3 r4;
+    call credits.aleo/transfer_private_to_public r0 veilmarkets_oracle_v3.aleo r1 into r3 r4;
     hash.bhp256 self.caller into r5 as field;
     cast self.caller r5 100u64 r1 true into r6 as OracleCredential.record;
     async register_oracle self.caller r1 r4 into r7;
     output r6 as OracleCredential.record;
     output r3 as credits.aleo/credits.record;
-    output r7 as veilmarkets_oracle_v2.aleo/register_oracle.future;
+    output r7 as veilmarkets_oracle_v3.aleo/register_oracle.future;
 
 finalize register_oracle:
     input r0 as address.public;
@@ -97,7 +97,7 @@ function propose_resolution:
     async propose_resolution r1 r2 r0.owner r3 into r8;
     cast r0.owner r0.oracle_id r0.reputation_score r0.staked_amount r0.active into r9 as OracleCredential.record;
     output r9 as OracleCredential.record;
-    output r8 as veilmarkets_oracle_v2.aleo/propose_resolution.future;
+    output r8 as veilmarkets_oracle_v3.aleo/propose_resolution.future;
 
 finalize propose_resolution:
     input r0 as field.public;
@@ -122,7 +122,7 @@ function vote_on_resolution:
     async vote_on_resolution r1 r2 r0.owner r0.staked_amount into r3;
     cast r0.owner r0.oracle_id r0.reputation_score r0.staked_amount r0.active into r4 as OracleCredential.record;
     output r4 as OracleCredential.record;
-    output r3 as veilmarkets_oracle_v2.aleo/vote_on_resolution.future;
+    output r3 as veilmarkets_oracle_v3.aleo/vote_on_resolution.future;
 
 finalize vote_on_resolution:
     input r0 as field.public;
@@ -150,14 +150,14 @@ finalize vote_on_resolution:
 function finalize_resolution:
     input r0 as field.public;
     input r1 as u8.public;
-    call veilmarkets_v2.aleo/resolve_market r0 r1 self.caller into r2;
+    call veilmarkets_v3.aleo/resolve_market r0 r1 self.caller into r2;
     async finalize_resolution r0 r1 r2 into r3;
-    output r3 as veilmarkets_oracle_v2.aleo/finalize_resolution.future;
+    output r3 as veilmarkets_oracle_v3.aleo/finalize_resolution.future;
 
 finalize finalize_resolution:
     input r0 as field.public;
     input r1 as u8.public;
-    input r2 as veilmarkets_v2.aleo/resolve_market.future;
+    input r2 as veilmarkets_v3.aleo/resolve_market.future;
     get proposals[r0] into r3;
     not r3.resolved into r4;
     assert.eq r4 true;
@@ -187,13 +187,13 @@ function file_dispute:
     input r2 as field.public;
     input r3 as u8.public;
     input r4 as field.public;
-    call credits.aleo/transfer_private_to_public r0 veilmarkets_oracle_v2.aleo r1 into r5 r6;
+    call credits.aleo/transfer_private_to_public r0 veilmarkets_oracle_v3.aleo r1 into r5 r6;
     hash.bhp256 r4 into r7 as group;
     cast self.caller r2 r3 r4 r1 0u64 r7 into r8 as Dispute.record;
     async file_dispute r2 self.caller r3 r4 r1 r6 into r9;
     output r5 as credits.aleo/credits.record;
     output r8 as Dispute.record;
-    output r9 as veilmarkets_oracle_v2.aleo/file_dispute.future;
+    output r9 as veilmarkets_oracle_v3.aleo/file_dispute.future;
 
 finalize file_dispute:
     input r0 as field.public;
@@ -227,7 +227,7 @@ function resolve_dispute:
     cast r0.owner r0.oracle_id r6 r0.staked_amount r0.active into r7 as OracleCredential.record;
     async resolve_dispute r1 r2 r3 r0.owner into r8;
     output r7 as OracleCredential.record;
-    output r8 as veilmarkets_oracle_v2.aleo/resolve_dispute.future;
+    output r8 as veilmarkets_oracle_v3.aleo/resolve_dispute.future;
 
 finalize resolve_dispute:
     input r0 as field.public;
@@ -255,7 +255,7 @@ function unregister_oracle:
     call credits.aleo/transfer_public_to_private self.caller r0.staked_amount into r1 r2;
     async unregister_oracle r0.owner r2 into r3;
     output r1 as credits.aleo/credits.record;
-    output r3 as veilmarkets_oracle_v2.aleo/unregister_oracle.future;
+    output r3 as veilmarkets_oracle_v3.aleo/unregister_oracle.future;
 
 finalize unregister_oracle:
     input r0 as address.public;
