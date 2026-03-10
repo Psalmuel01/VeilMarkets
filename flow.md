@@ -45,11 +45,13 @@ When you place a bet:
 2. The funds are moved to the `veilmarkets_token_v3.aleo` public balance (Escrow).
 3. You receive a **BetPosition** record (private to you).
 
-### Step 3: Resolution (Oracles)
-For now, the platform uses a **Multi-Oracle System**:
-- **Proposals**: An authorized oracle proposes the outcome (Yes or No).
-- **Voting**: Other oracles must vote to confirm the result (Fixed 2/3 threshold).
-- **Finalization**: Once the "Dispute Period" passes without a challenge, the result is locked into the Core contract.
+### Step 3: Resolution (Optimistic Oracle)
+VeilMarkets uses an **Optimistic Oracle** system (similar to Polymarket):
+- **Proposed Outcome**: Any registered oracle can propose the result of a market.
+- **24-Hour Window**: After a proposal, there is a 24-hour "Dispute Period."
+- **Disputing**: If you believe the oracle lied, you can file a dispute by putting up a bond.
+- **Consensus Fallback**: Only if a dispute is filed do other oracles step in to vote.
+- **Finalization**: If no one disputes for 24 hours, the proposal is automatically accepted, and winners can claim payments.
 
 ### Step 4: Claiming Winnings
 If you won:

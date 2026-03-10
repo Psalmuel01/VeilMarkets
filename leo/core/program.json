@@ -1,16 +1,16 @@
 {
-    "program": "veilmarkets_v3.aleo",
-    "version": "0.1.0",
-    "description": "",
-    "license": "MIT",
-    "leo": "3.4.0",
-    "dependencies": [
-        {
-            "name": "veilmarkets_factory_v3.aleo",
-            "location": "network",
-            "network": "testnet",
-            "path": null
-        }
-    ],
-    "dev_dependencies": null
+  "program": "veilmarkets_v3.aleo",
+  "version": "0.1.0",
+  "description": "",
+  "license": "MIT",
+  "leo": "3.4.0",
+  "dependencies": [
+    {
+      "name": "veilmarkets_factory_v3.aleo",
+      "location": "network",
+      "network": "testnet",
+      "path": null
+    }
+  ],
+  "dev_dependencies": null
 }
