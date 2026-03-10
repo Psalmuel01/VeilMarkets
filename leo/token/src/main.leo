@@ -43,7 +43,7 @@ program veilmarkets_token_v3.aleo {
     const MIN_BET: u64 = 1000000u64; // 1 credit minimum
 
     // Initialize
-    @admin(address="aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc")
+    @admin(address="aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n")
     async constructor() {}
 
     // Verify caller is oracle contract

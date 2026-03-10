@@ -91,7 +91,7 @@ function place_bet:
     input r2 as u64.public;
     input r3 as field.public;
     input r4 as address.public;
-    assert.eq self.caller aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc;
+    assert.eq self.caller aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
     is.eq r1 0u8 into r5;
     is.eq r1 1u8 into r6;
     or r5 r6 into r7;
@@ -148,7 +148,7 @@ function resolve_market:
     input r0 as field.public;
     input r1 as u8.public;
     input r2 as address.public;
-    assert.eq self.caller aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc;
+    assert.eq self.caller aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
     is.eq r1 0u8 into r3;
     is.eq r1 1u8 into r4;
     or r3 r4 into r5;
@@ -250,4 +250,4 @@ finalize cancel_market:
     set r8 into pools[r0];
 
 constructor:
-    assert.eq program_owner aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc;
+    assert.eq program_owner aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;

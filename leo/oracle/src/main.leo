@@ -42,7 +42,7 @@ program veilmarkets_oracle_v3.aleo {
     const CORE_CONTRACT_TYPE: u8 = 3u8;
 
     // Initialize
-    @admin(address="aleo138cz6wwjdqg7ehltt7tp9k8canht4gspl3flsexcu9hmdmyyhspse9lmxc")
+    @admin(address="aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n")
     async constructor() {}
 
     // Register as an Oracle (Staking)

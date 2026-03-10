@@ -20,8 +20,8 @@
     {
       "name": "credits.aleo",
       "location": "network",
-      "network": "testnet",
-      "path": null
+      "path": null,
+      "edition": null
     }
   ],
   "dev_dependencies": null
