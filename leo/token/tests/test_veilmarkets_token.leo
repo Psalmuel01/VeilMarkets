@@ -1,5 +1,5 @@
-// The 'test_veilmarkets_token_v3' test program.
-import veilmarkets_token_v3.aleo;
+// The 'test_veilmarkets_token_v4' test program.
+import veilmarkets_token_v4.aleo;
 program test_veilmarkets_token.aleo {
     @test
     script test_primitives() {
