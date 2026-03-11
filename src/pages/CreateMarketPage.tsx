@@ -385,7 +385,7 @@ export default function CreateMarketPage() {
               >
                 View All Markets
               </Button>
-              {/* <Button
+              <Button
                 onClick={() => {
                   console.log("Navigating to market with ID:", txId);
                   navigate(`/market/${txId}`);
@@ -393,7 +393,7 @@ export default function CreateMarketPage() {
                 className="flex-1 btn-glow-primary"
               >
                 View Your Market
-              </Button> */}
+              </Button>
             </div>
           </motion.div>
         )}

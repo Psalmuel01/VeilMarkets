@@ -155,11 +155,24 @@ export default function MarketDetailPage() {
   const noPercent = 100 - yesPercent;
 
   // Countdown logic
-  const blocksRemaining = market?.closeBlock && currentHeight ? market.closeBlock - currentHeight : null;
-  const timeRemainingStr = blocksRemaining !== null && blocksRemaining > 0
-    ? `~${Math.round((blocksRemaining * 15) / 60)} mins remaining`
-    : blocksRemaining !== null && blocksRemaining <= 0 ? "Expired" : "Loading...";
+  const blocksRemaining = market?.closeBlock && currentHeight
+    ? market.closeBlock - currentHeight
+    : null;
 
+  const timeRemainingStr = (() => {
+    if (blocksRemaining === null) return "Loading...";
+    if (blocksRemaining <= 0) return "Expired";
+
+    const totalSeconds = blocksRemaining * 15;
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+
+    if (days > 0) return `~${days}d ${hours}h remaining`;
+    if (hours > 0) return `~${hours}h ${mins}m remaining`;
+    return `~${mins}m remaining`;
+  })();
+  
   if (notFound) {
     return (
       <MainLayout requireWallet={true}>
@@ -223,9 +236,9 @@ export default function MarketDetailPage() {
                 variant="outline"
                 className={cn(
                   "px-3 py-1 text-xs font-bold tracking-wider uppercase border-none bg-opacity-20",
-                  marketStatus === "Open" ? "bg-success text-success-foreground" : 
-                  marketStatus === "Closed" ? "bg-warning text-warning-foreground" : 
-                  "bg-muted text-muted-foreground"
+                  marketStatus === "Open" ? "bg-success text-success-foreground" :
+                    marketStatus === "Closed" ? "bg-warning text-warning-foreground" :
+                      "bg-muted text-muted-foreground"
                 )}
               >
                 {marketStatus}
@@ -241,7 +254,7 @@ export default function MarketDetailPage() {
             <div className="flex items-center gap-1.5">
               <Clock className="w-4 h-4" />
               <span className={cn(blocksRemaining !== null && blocksRemaining < 100 ? "text-warning" : "")}>
-                {timeRemainingStr} ({market.closingTime})
+                {timeRemainingStr}
               </span>
             </div>
             <div className="flex items-center gap-1.5">
@@ -402,7 +415,7 @@ export default function MarketDetailPage() {
                   <h2 className="text-lg font-semibold">Resolution</h2>
                   <ZKBadge variant="verified" size="sm" />
                 </div>
-                
+
                 <div className="space-y-3">
                   {proposal ? (
                     <div className="p-3 rounded-lg bg-muted/20 border border-border/50 text-sm">
@@ -425,7 +438,7 @@ export default function MarketDetailPage() {
                     </p>
                   )}
 
-                  <Button 
+                  <Button
                     onClick={() => setShowResolutionModal(true)}
                     className="w-full btn-glow-primary"
                     variant={proposal ? "outline" : "default"}
@@ -468,7 +481,7 @@ export default function MarketDetailPage() {
         marketTitle={market.title}
         marketId={market.id}
       />
-      
+
       <ResolutionModal
         isOpen={showResolutionModal}
         onClose={() => setShowResolutionModal(false)}

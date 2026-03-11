@@ -13,10 +13,8 @@ import {
 } from "@/lib/aleo";
 import {
   saveMarketMetadata,
-  getBatchMarketMetadata,
   getAllMarketMetadata,
-  updateMarketTxId,
-  type MarketMetadata,
+  type MarketMetadataRow,
 } from "../lib/metadata";
 import { useState, useCallback, useEffect } from "react";
 
@@ -170,52 +168,51 @@ export const useAleoPrograms = () => {
    * Fetch all markets by cross-referencing on-chain data with off-chain metadata.
    * Uses Supabase metadata as global source, and wallet tx history as supplementary source.
    */
+
   const fetchMarkets = useCallback(async (): Promise<ChainMarket[]> => {
     setLoading(true);
     try {
       const metadataRows = await getAllMarketMetadata();
-      console.log('[fetchMarkets] All metadata rows from Supabase:', metadataRows);
+      console.log('[fetchMarkets] Rows from Supabase:', metadataRows);
 
-      if (metadataRows.length === 0) {
-        console.warn('[fetchMarkets] No metadata rows found in Supabase.');
-        return [];
-      }
+      if (metadataRows.length === 0) return [];
 
-      const marketFetches = metadataRows.map(async (row) => {
+      const marketFetches = metadataRows.map(async (row: MarketMetadataRow) => {
+        if (!row.market_id || row.market_id === 'pending') {
+          console.warn('[fetchMarkets] Skipping invalid market_id:', row);
+          return null;
+        }
+
         try {
-          // Ensure field suffix
           const cleanId = row.market_id.replace(/field$/i, '').trim();
           const fieldId = `${cleanId}field`;
 
-          console.log(`[fetchMarkets] Fetching on-chain state for market_id: ${fieldId} (raw: ${row.market_id})`);
-
           const raw = await fetchMappingValue(PROGRAM_ID, "markets", fieldId);
-          console.log(`[fetchMarkets] Raw on-chain value for ${fieldId}:`, raw);
+          // console.log(`[fetchMarkets] On-chain data for ${fieldId}:`, raw);
 
           if (!raw) {
-            console.warn(`[fetchMarkets] No on-chain data for ${fieldId} — may not be finalized yet.`);
+            console.warn(`[fetchMarkets] No on-chain data for ${fieldId}`);
             return null;
           }
 
           const parsed = parseMarketInfo(raw as string | object, fieldId);
-          console.log(`[fetchMarkets] Parsed market:`, parsed);
 
           return {
             ...parsed,
             transactionId: row.transaction_id,
             title: row.title || `Market ${row.market_id.slice(0, 8)}...`,
-            description: row.description || "Market metadata not found.",
-            source: row.source || "Creator",
+            description: row.description || 'No description.',
+            source: row.source || 'Creator',
           } satisfies ChainMarket;
         } catch (err) {
-          console.error(`[fetchMarkets] Failed to fetch on-chain state for ${row.market_id}:`, err);
+          console.error(`[fetchMarkets] Failed for market_id ${row.market_id}:`, err);
           return null;
         }
       });
 
       const results = await Promise.all(marketFetches);
-      const markets = results.filter((m): m is ChainMarket => m !== null);
-      console.log(`[fetchMarkets] Final markets list (${markets.length}):`, markets);
+      const markets = results.filter((m) => m !== null);
+      // console.log(`[fetchMarkets] Loaded ${markets.length} markets`);
       return markets;
     } catch (error) {
       console.error("[fetchMarkets] Fatal error:", error);
@@ -225,9 +222,10 @@ export const useAleoPrograms = () => {
     }
   }, []);
 
+  // Poll for current height
+
   const [currentHeight, setCurrentHeight] = useState<number | null>(null);
 
-  // Poll for current height
   useEffect(() => {
     const updateHeight = async () => {
       const h = await fetchCurrentBlockHeight();
@@ -259,7 +257,7 @@ export const useAleoPrograms = () => {
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       const unspentRecords = records.filter((record) => !record.spent);
 
-      console.log(`[fetchUserBets] Found ${records.length} total records from ${TOKEN_PROGRAM_ID}, ${unspentRecords.length} are unspent.`);
+      // console.log(`[fetchUserBets] Found ${records.length} total records from ${TOKEN_PROGRAM_ID}, ${unspentRecords.length} are unspent.`);
 
       const results = unspentRecords
         .map((record) => {
@@ -282,7 +280,7 @@ export const useAleoPrograms = () => {
         })
         .filter((record) => Boolean(record.market_id));
 
-      console.log(`[fetchUserBets] Returning ${results.length} valid bet records.`);
+      // console.log(`[fetchUserBets] Returning ${results.length} valid bet records.`);
       return results;
     } catch (error) {
       console.error("Failed to fetch user bets:", error);
@@ -327,6 +325,7 @@ export const useAleoPrograms = () => {
     return balances.total;
   }, [fetchBalances]);
 
+
   const createMarket = async (
     title: string,
     description: string,
@@ -353,51 +352,63 @@ export const useAleoPrograms = () => {
         privateFee: false,
       });
 
-      console.log(result);
+      console.log('[createMarket] Raw wallet result:', result);
 
       if (result?.transactionId) {
-        console.log('[createMarket] Transaction result:', result);
-        console.log('[createMarket] transactionId:', result.transactionId);
+        toast.success('Transaction submitted! Waiting for confirmation...');
 
+        let actualTxId: string | undefined;
         let marketId: string | undefined;
 
-        try {
-          for (let i = 0; i < 5; i++) {
-            const txData = await fetchTransaction(result.transactionId);
-            console.log(`[createMarket] Attempt ${i + 1} txData:`, JSON.stringify(txData, null, 2));
+        for (let i = 0; i < 15; i++) {
+          await new Promise(r => setTimeout(r, 4000));
+          console.log(`[createMarket] Poll attempt ${i + 1}...`);
 
-            if (txData) {
-              marketId = extractMarketIdFromTx(txData) ?? undefined;
-              console.log(`[createMarket] Extracted marketId attempt ${i + 1}:`, marketId);
-              if (marketId) break;
+          try {
+            const history = await requestTransactionHistory(PROGRAM_ID);
+            const transactions: Array<{ id: string; transactionId: string }> = history?.transactions ?? [];
+
+            for (const tx of transactions.slice().reverse()) {
+              const atTxId = tx.transactionId;
+              if (!atTxId?.startsWith('at1')) continue;
+
+              const txData = await fetchTransaction(atTxId);
+              if (!txData) continue;
+
+              const transitions = txData?.execution?.transitions ?? [];
+              const createTx = transitions.find(
+                (t: any) => t.function === 'create_market' && t.program === PROGRAM_ID,
+              );
+              if (!createTx) continue;
+
+              const futureOutput = createTx?.outputs?.find((o: any) => o.type === 'future');
+              if (!futureOutput?.value) continue;
+
+              const match = String(futureOutput.value).match(/arguments:\s*\[\s*(\d+field)/);
+              if (!match) continue;
+
+              actualTxId = atTxId;
+              marketId = match[1];
+              console.log('[createMarket] Found — txId:', actualTxId, 'marketId:', marketId);
+              break;
             }
-            await new Promise(r => setTimeout(r, 2000));
+          } catch (e) {
+            console.warn(`[createMarket] Poll attempt ${i + 1} failed:`, e);
           }
-        } catch (e) {
-          console.warn('[createMarket] Could not extract market ID:', e);
+
+          if (actualTxId && marketId) break;
         }
 
-        console.log('[createMarket] Final marketId before save:', marketId);
-        console.log('[createMarket] titleHash:', titleHash);
-        console.log('[createMarket] title:', title);
+        console.log('[createMarket] FINAL — txId:', actualTxId, 'marketId:', marketId);
 
-        if (!marketId || marketId === 'pending') {
-          console.error('[createMarket] marketId is missing or pending — Supabase row will be unreliable for other wallets.');
-          toast.warning('Market created but ID not yet resolved. It may not appear for other wallets until confirmed.');
+        if (actualTxId && marketId) {
+          await saveMarketMetadata(actualTxId, marketId, title, description, resolutionSource);
+          toast.success(`Market created! ID: ${marketId}`);
+        } else {
+          toast.warning('Market submitted but not yet confirmed. Please sync markets in a moment.');
         }
 
-        await saveMarketMetadata(
-          result.transactionId,
-          marketId || "pending",
-          titleHash,
-          title,
-          description,
-          resolutionSource
-        );
-
-        console.log('[createMarket] Saved to Supabase with marketId:', marketId || 'pending');
-        toast.success(`Market created! Tx: ${result.transactionId}`);
-        return result.transactionId;
+        return actualTxId || result.transactionId;
       }
     } catch (error) {
       console.error("Create market failed:", error);
