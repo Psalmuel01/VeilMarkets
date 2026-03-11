@@ -125,12 +125,17 @@ const parseRecordField = (record: WalletRecord, field: string): string => {
 };
 
 const extractRecordAmount = (record: WalletRecord): number => {
-  // Check both "microcredits" (native) and "amount" (custom/legacy)
-  const native = parseRecordField(record, "microcredits");
-  if (native) return Number.parseInt(native, 10);
-  
-  const custom = parseRecordField(record, "amount");
-  return custom ? Number.parseInt(custom, 10) : 0;
+  // 1. Try common field names
+  const possibleFields = ["microcredits", "amount", "value"];
+  for (const field of possibleFields) {
+    const raw = parseRecordField(record, field);
+    if (raw) {
+      const val = typeof raw === "string" ? raw.replace(/u64|u32|field|group|address|\.private|\.public/g, "").trim() : String(raw);
+      const parsed = Number.parseInt(val, 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+  }
+  return 0;
 };
 
 export const useAleoPrograms = () => {
@@ -251,7 +256,7 @@ export const useAleoPrograms = () => {
       if (h) setCurrentHeight(h);
     };
     updateHeight();
-    const interval = setInterval(updateHeight, 30000);
+    const interval = setInterval(updateHeight, 60000); // 60s
     return () => clearInterval(interval);
   }, []);
 
@@ -309,25 +314,40 @@ export const useAleoPrograms = () => {
     }
   }, [address, requestRecords]);
 
-  const fetchTokenBalance = useCallback(async (): Promise<number> => {
-    if (!address) return 0;
+  const fetchBalances = useCallback(async () => {
+    if (!address) return { private: 0, public: 0, total: 0 };
+    
+    let privateMicro = 0;
     try {
-      // Query native credits.aleo
       const rawRecords = await requestRecords("credits.aleo", true);
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
-      const unspent = records.filter((record) => !record.spent);
-
-      // Sum microcredits
-      const sum = unspent.reduce((acc, record) => acc + extractRecordAmount(record), 0);
-
-      const credits = sum / 1_000_000;
-      console.log(`[fetchTokenBalance] Native balance: ${credits} Credits (${sum} microcredits)`);
-      return credits;
-    } catch (error) {
-      console.error("Failed to fetch token balance:", error);
-      return 0;
+      privateMicro = records.filter(r => !r.spent).reduce((acc, r) => acc + extractRecordAmount(r), 0);
+    } catch (e) {
+      console.warn("[Balances] Private fetch failed");
     }
+
+    let publicMicro = 0;
+    try {
+      const rawValue = await fetchMappingValue("credits.aleo", "account", address);
+      if (rawValue) {
+        const clean = String(rawValue).replace(/u64/g, "").trim();
+        publicMicro = Number.parseInt(clean, 10) || 0;
+      }
+    } catch (e) {
+      console.warn("[Balances] Public fetch failed");
+    }
+
+    return {
+      private: privateMicro / 1_000_000,
+      public: publicMicro / 1_000_000,
+      total: (privateMicro + publicMicro) / 1_000_000
+    };
   }, [address, requestRecords]);
+
+  const fetchTokenBalance = useCallback(async (): Promise<number> => {
+    const balances = await fetchBalances();
+    return balances.total;
+  }, [fetchBalances]);
 
   const createMarket = async (
     title: string,
@@ -368,7 +388,7 @@ export const useAleoPrograms = () => {
     }
   };
 
-  const requestCredits = async (credits: number) => {
+  const requestCredits = async () => {
     toast.info("Please use the Aleo Faucet to get native credits for betting.");
     window.open("https://faucet.aleo.org/", "_blank");
   };
@@ -377,7 +397,19 @@ export const useAleoPrograms = () => {
     if (!address) return null;
 
     try {
-      const rawRecords = await requestRecords("credits.aleo", true);
+      // NOTE: Some wallets block "credits.aleo" requestRecords for security.
+      // If this fails, we ask the user to ensure they have enough unspent credits in a single record.
+      let rawRecords: any[] = [];
+      try {
+        rawRecords = await requestRecords("credits.aleo", true);
+      } catch (walletError: any) {
+        console.error("[findCreditsRecord] Wallet Error:", walletError);
+        if (walletError.message?.includes("Program not allowed")) {
+           toast.error("Wallet blocked access to Credits. Please ensure your wallet allows 'credits.aleo' access or try a different wallet.");
+        }
+        throw walletError;
+      }
+      
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       const unspent = records.filter((record) => !record.spent);
 
@@ -464,8 +496,15 @@ export const useAleoPrograms = () => {
       toast.info("Placing private bet...");
 
       const creditsRecord = await findCreditsRecord(amountMicro);
+      
       if (!creditsRecord) {
-        toast.error("No Credits record with sufficient balance. Request faucet credits first.");
+        // Double check if they have public funds
+        const balance = await fetchTokenBalance();
+        if (balance >= amountCredits) {
+          toast.error("Your credits are PUBLIC. You must convert them to PRIVATE first to place a bet.");
+        } else {
+          toast.error("Insufficient balance. Total: " + balance + " Credits");
+        }
         return;
       }
 
@@ -474,7 +513,7 @@ export const useAleoPrograms = () => {
         function: "place_bet",
         inputs: [
           creditsRecord.recordPlaintext || creditsRecord.plaintext, // Pass the actual record string
-          marketId,
+          cleanMarketId,
           formatU8(outcome), // Assuming outcome is the correct variable, not outcomeIndex as in the snippet
           formatU64(amountMicro),
         ],
@@ -514,6 +553,33 @@ export const useAleoPrograms = () => {
     } catch (error) {
       console.error("Resolve market failed:", error);
       toast.error(`Resolve error: ${getErrorMessage(error)}`);
+    }
+  };
+
+  const shieldCredits = async (amountCredits: number) => {
+    if (!address) return;
+    setLoading(true);
+    const amountMicro = toMicrocredits(amountCredits);
+    
+    try {
+      toast.info(`Shielding ${amountCredits} Credits...`);
+      const result = await executeWalletTransaction({
+        program: "credits.aleo",
+        function: "transfer_public_to_private",
+        inputs: [address, formatU64(amountMicro)],
+        fee: 100_000,
+        privateFee: false,
+      });
+
+      if (result?.transactionId) {
+        toast.success("Credits shielded successfully! They will appear in your private balance shortly.");
+        return result.transactionId;
+      }
+    } catch (error) {
+      console.error("Shield credits failed:", error);
+      toast.error(`Shield error: ${getErrorMessage(error)}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -575,6 +641,8 @@ export const useAleoPrograms = () => {
     placeBet,
     resolveMarket,
     claimWinnings,
+    shieldCredits,
+    fetchBalances,
     fetchMarkets,
     fetchUserBets,
     fetchTokenBalance,

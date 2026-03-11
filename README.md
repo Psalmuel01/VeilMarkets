@@ -149,9 +149,9 @@ cd leo/factory && leo deploy
 After deployment, you must link the contracts in the Factory registry so they can communicate:
 ```bash
 # 1. Register Token Contract
-leo run register_contract 1u8 <token_contract_address> --program veilmarkets_factory_v3.aleo
+leo execute <factory_contract_address>/register_contract 1u8 <token_contract_address> --broadcast --network testnet
 # 2. Register Oracle Contract
-leo run register_contract 2u8 <oracle_contract_address> --program veilmarkets_factory_v3.aleo
+leo execute <factory_contract_address>/register_contract 2u8 <oracle_contract_address> --broadcast --network testnet
 ```
 
 6. Run the frontend locally:

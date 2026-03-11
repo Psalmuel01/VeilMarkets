@@ -13,16 +13,16 @@ interface WagerSliderProps {
 export function WagerSlider({
   value,
   onChange,
-  max = 100,
+  max = 20,
   disabled = false
 }: WagerSliderProps) {
   const percentage = (value / max) * 100;
 
   // Abstract labels instead of actual amounts
   const getWagerLevel = (val: number) => {
-    if (val < 25) return { label: "Conservative", color: "text-success" };
-    if (val < 50) return { label: "Moderate", color: "text-primary" };
-    if (val < 75) return { label: "Confident", color: "text-warning" };
+    if (val < 5) return { label: "Conservative", color: "text-success" };
+    if (val < 10) return { label: "Moderate", color: "text-primary" };
+    if (val < 15) return { label: "Confident", color: "text-warning" };
     return { label: "Maximum", color: "text-destructive" };
   };
 
@@ -70,7 +70,7 @@ export function WagerSlider({
         </div>
       </div>
 
-      {value > 75 && (
+      {value > 15 && (
         <div className="flex items-start gap-2 p-3 rounded-lg bg-warning/10 border border-warning/30">
           <AlertCircle className="w-4 h-4 text-warning mt-0.5" />
           <p className="text-xs text-warning">

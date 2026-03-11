@@ -5,9 +5,9 @@ const ALEO_NETWORK = "testnet";
 const ESTIMATED_BLOCK_TIME_SECONDS = 15;
 
 const BLOCK_HEIGHT_ENDPOINTS = [
-  `${ALEO_API_URL}/${ALEO_NETWORK}/latest/height`,
-  `${ALEO_API_URL}/${ALEO_NETWORK}/block/height/latest`,
-  `${ALEO_API_URL}/${ALEO_NETWORK}/block/latest`,
+  `https://api.explorer.aleo.org/v1/testnet/latest/height`,
+  `https://vm.provable.network/v1/testnet/latest/height`,
+  `https://api.explorer.provable.com/v2/testnet/latest/height`
 ];
 
 interface AleoTransitionOutput {
@@ -135,7 +135,7 @@ export const fetchTransaction = async (transactionId: string): Promise<AleoTrans
 export const fetchCurrentBlockHeight = async (): Promise<number | null> => {
   for (const endpoint of BLOCK_HEIGHT_ENDPOINTS) {
     try {
-      const response = await fetch(endpoint);
+      const response = await fetch(endpoint, { signal: AbortSignal.timeout(3000) });
       if (!response.ok) continue;
 
       const rawText = await response.text();

@@ -25,29 +25,25 @@ const navItems = [
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
-  const { requestCredits, fetchMarkets, fetchTokenBalance, publicKey } = useAleoPrograms();
+  const { requestCredits, fetchMarkets, fetchBalances, shieldCredits, publicKey } = useAleoPrograms();
   const [activeMarketsCount, setActiveMarketsCount] = useState<number | null>(null);
-  const [tokenBalance, setTokenBalance] = useState<number | null>(null);
+  const [balances, setBalances] = useState<{ private: number; public: number } | null>(null);
 
   useEffect(() => {
     const loadStats = async () => {
       try {
-        const [markets, balance] = await Promise.all([
+        const [markets, bal] = await Promise.all([
           fetchMarkets(),
-          fetchTokenBalance()
+          fetchBalances()
         ]);
         setActiveMarketsCount(markets.length);
-        setTokenBalance(balance);
+        setBalances(bal);
       } catch (error) {
         console.error("Failed to fetch sidebar stats:", error);
       }
     };
     loadStats();
-  }, [fetchMarkets, fetchTokenBalance, publicKey]);
-
-  const handleRequestCredits = async (amount: number) => {
-    await requestCredits(amount);
-  };
+  }, [fetchMarkets, fetchBalances, publicKey]);
 
   return (
     <aside
@@ -110,11 +106,19 @@ export function Sidebar() {
                   {activeMarketsCount !== null ? activeMarketsCount : "..."}
                 </span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Your Balance</span>
-                <span className="font-medium text-primary">
-                  {tokenBalance !== null ? `${tokenBalance.toLocaleString()} Aleo Credits` : "..."}
-                </span>
+              <div className="space-y-2 pt-2 border-t border-border/10">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Betting Balance</span>
+                  <span className="font-bold text-primary">
+                    {balances !== null ? `${balances.private.toLocaleString()} Credits` : "..."}
+                  </span>
+                </div>
+                {balances && balances.public > 0 && (
+                  <div className="flex justify-between text-[10px] text-muted-foreground/60">
+                    <span>Available to Shield</span>
+                    <span>{balances.public.toLocaleString()} Credits</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -127,11 +131,16 @@ export function Sidebar() {
           <Button
             variant="outline"
             size="sm"
-            className="w-full border-primary/30 hover:border-primary/50 text-xs"
-            onClick={() => handleRequestCredits(500)}
+            className={cn(
+              "w-full text-xs transition-all duration-200",
+              balances && balances.public > 0 
+                ? "border-amber-500/30 hover:bg-amber-500/10 text-amber-500" 
+                : "border-primary/30 hover:border-primary/50 text-primary"
+            )}
+            onClick={() => balances && balances.public > 0 ? shieldCredits(balances.public) : requestCredits()}
           >
-            <Shield className="w-3.5 h-3.5 mr-2 text-primary" />
-            Request 500 Credits
+            <Shield className="w-3.5 h-3.5" />
+            {balances && balances.public > 0 ? "Shield for Betting" : "Request faucet credits"}
           </Button>
         )}
         <ConnectWalletButton className={collapsed ? "w-10 px-0 justify-center" : "w-full"} />
