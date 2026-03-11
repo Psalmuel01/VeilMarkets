@@ -8,6 +8,7 @@ export interface MarketMetadata {
 
 export interface MarketMetadataRow extends MarketMetadata {
   transaction_id: string;
+  market_id: string; // The stable on-chain key
   title_hash?: string;
 }
 
@@ -17,6 +18,7 @@ export interface MarketMetadataRow extends MarketMetadata {
  */
 export const saveMarketMetadata = async (
   transactionId: string,
+  marketId: string,
   titleHash: string,
   title: string,
   description: string,
@@ -26,18 +28,34 @@ export const saveMarketMetadata = async (
     const { error } = await supabase.from("markets_alt").insert([
       {
         transaction_id: transactionId,
+        market_id: marketId,
         title_hash: titleHash,
         title,
         description,
-        source,
+        source: source || "Creator",
       },
     ]);
 
-    if (error) {
-      console.error("Supabase Insert Error:", error.message);
-    }
+    if (error) console.error("Supabase Save Error:", error.message);
   } catch (e) {
     console.error("Failed to save metadata", e);
+  }
+};
+
+/**
+ * Updates an existing Supabase row's transaction_id.
+ * Used to replace temporary shield_... IDs with real on-chain at1... IDs.
+ */
+export const updateMarketTxId = async (oldId: string, newId: string) => {
+  try {
+    const { error } = await supabase
+      .from("markets_alt")
+      .update({ transaction_id: newId })
+      .eq("transaction_id", oldId);
+    
+    if (error) console.error("UpdateTxId Error:", error.message);
+  } catch (e) {
+    console.error("Failed to update tx id", e);
   }
 };
 
@@ -112,19 +130,20 @@ export const getAllMarketMetadata = async (): Promise<MarketMetadataRow[]> => {
   try {
     const { data, error } = await supabase
       .from("markets_alt")
-      .select("transaction_id, title_hash, title, description, source");
+      .select("transaction_id, market_id, title_hash, title, description, source");
 
     if (error) {
-      console.error("Supabase Full Select Error:", error.message);
+      console.error("Supabase Fetch Error:", error.message);
       return [];
     }
 
     return (data ?? []).map((row) => ({
       transaction_id: row.transaction_id,
+      market_id: row.market_id,
       title_hash: row.title_hash,
       title: row.title,
       description: row.description,
-      source: row.source ?? undefined,
+      source: row.source || "Creator",
     }));
   } catch (error) {
     console.error("Failed to load all metadata", error);

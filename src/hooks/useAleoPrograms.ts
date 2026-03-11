@@ -15,6 +15,7 @@ import {
   saveMarketMetadata,
   getBatchMarketMetadata,
   getAllMarketMetadata,
+  updateMarketTxId,
   type MarketMetadata,
 } from "../lib/metadata";
 import { useState, useCallback, useEffect } from "react";
@@ -172,80 +173,57 @@ export const useAleoPrograms = () => {
   const fetchMarkets = useCallback(async (): Promise<ChainMarket[]> => {
     setLoading(true);
     try {
-      const txIdToShieldId: Record<string, string> = {};
-      const txCandidates = new Set<string>();
-      let historyTransactions: TxHistoryTransaction[] = [];
-
-      try {
-        const historyResult = await requestTransactionHistory(PROGRAM_ID);
-        historyTransactions = (historyResult?.transactions ?? []).filter((tx) => Boolean(tx.transactionId));
-      } catch (error) {
-        console.warn("Wallet transaction history unavailable; falling back to metadata index.", error);
-      }
-
-      for (const tx of historyTransactions) {
-        txCandidates.add(tx.transactionId);
-        txIdToShieldId[tx.transactionId] = tx.id;
-      }
-
       const metadataRows = await getAllMarketMetadata();
-      const metadataByTxId: Record<string, MarketMetadata> = {};
-      for (const row of metadataRows) {
-        txCandidates.add(row.transaction_id);
-        metadataByTxId[row.transaction_id] = {
-          title: row.title,
-          description: row.description,
-          source: row.source,
-        };
+      console.log('[fetchMarkets] All metadata rows from Supabase:', metadataRows);
+
+      if (metadataRows.length === 0) {
+        console.warn('[fetchMarkets] No metadata rows found in Supabase.');
+        return [];
       }
 
-      const shieldIds = historyTransactions.map((tx) => tx.id);
-      const metadataByShieldId = await getBatchMarketMetadata(shieldIds);
+      const marketFetches = metadataRows.map(async (row) => {
+        try {
+          // Ensure field suffix
+          const cleanId = row.market_id.replace(/field$/i, '').trim();
+          const fieldId = `${cleanId}field`;
 
-      if (txCandidates.size === 0) return [];
+          console.log(`[fetchMarkets] Fetching on-chain state for market_id: ${fieldId} (raw: ${row.market_id})`);
 
-      const txIds = Array.from(txCandidates);
-      const marketIdToTxHash: Record<string, string> = {};
-      const marketIds = new Set<string>();
-      const txData = await Promise.all(txIds.map((txId) => fetchTransaction(txId)));
+          const raw = await fetchMappingValue(PROGRAM_ID, "markets", fieldId);
+          console.log(`[fetchMarkets] Raw on-chain value for ${fieldId}:`, raw);
 
-      txData.forEach((tx, index) => {
-        if (!tx) return;
-        const marketId = extractMarketIdFromTx(tx);
-        if (!marketId) return;
-        marketIds.add(marketId);
-        marketIdToTxHash[marketId] = txIds[index];
+          if (!raw) {
+            console.warn(`[fetchMarkets] No on-chain data for ${fieldId} — may not be finalized yet.`);
+            return null;
+          }
+
+          const parsed = parseMarketInfo(raw as string | object, fieldId);
+          console.log(`[fetchMarkets] Parsed market:`, parsed);
+
+          return {
+            ...parsed,
+            transactionId: row.transaction_id,
+            title: row.title || `Market ${row.market_id.slice(0, 8)}...`,
+            description: row.description || "Market metadata not found.",
+            source: row.source || "Creator",
+          } satisfies ChainMarket;
+        } catch (err) {
+          console.error(`[fetchMarkets] Failed to fetch on-chain state for ${row.market_id}:`, err);
+          return null;
+        }
       });
 
-      if (marketIds.size === 0) return [];
-
-      const marketFetches = Array.from(marketIds).map(async (marketId) => {
-        const raw = await fetchMappingValue(PROGRAM_ID, "markets", marketId);
-        if (!raw) return null;
-
-        const parsed = parseMarketInfo(raw as string | object, marketId);
-        const txHash = marketIdToTxHash[marketId];
-        const shieldId = txHash ? txIdToShieldId[txHash] : undefined;
-        const metadata = (txHash ? metadataByTxId[txHash] : undefined) ?? (shieldId ? metadataByShieldId[shieldId] : undefined);
-
-        return {
-          ...parsed,
-          transactionId: txHash,
-          title: metadata?.title || `Market ${marketId.slice(0, 8)}...`,
-          description: metadata?.description || "Market metadata not found on the network.",
-          source: metadata?.source || "Creator",
-        } satisfies ChainMarket;
-      });
-
-      const markets = (await Promise.all(marketFetches)).filter((market): market is NonNullable<typeof market> => market !== null);
+      const results = await Promise.all(marketFetches);
+      const markets = results.filter((m): m is ChainMarket => m !== null);
+      console.log(`[fetchMarkets] Final markets list (${markets.length}):`, markets);
       return markets;
     } catch (error) {
-      console.error("Failed to fetch markets:", error);
+      console.error("[fetchMarkets] Fatal error:", error);
       return [];
     } finally {
       setLoading(false);
     }
-  }, [requestTransactionHistory]);
+  }, []);
 
   const [currentHeight, setCurrentHeight] = useState<number | null>(null);
 
@@ -316,7 +294,7 @@ export const useAleoPrograms = () => {
 
   const fetchBalances = useCallback(async () => {
     if (!address) return { private: 0, public: 0, total: 0 };
-    
+
     let privateMicro = 0;
     try {
       const rawRecords = await requestRecords("credits.aleo", true);
@@ -378,7 +356,46 @@ export const useAleoPrograms = () => {
       console.log(result);
 
       if (result?.transactionId) {
-        await saveMarketMetadata(result.transactionId, titleHash, title, description, resolutionSource);
+        console.log('[createMarket] Transaction result:', result);
+        console.log('[createMarket] transactionId:', result.transactionId);
+
+        let marketId: string | undefined;
+
+        try {
+          for (let i = 0; i < 5; i++) {
+            const txData = await fetchTransaction(result.transactionId);
+            console.log(`[createMarket] Attempt ${i + 1} txData:`, JSON.stringify(txData, null, 2));
+
+            if (txData) {
+              marketId = extractMarketIdFromTx(txData) ?? undefined;
+              console.log(`[createMarket] Extracted marketId attempt ${i + 1}:`, marketId);
+              if (marketId) break;
+            }
+            await new Promise(r => setTimeout(r, 2000));
+          }
+        } catch (e) {
+          console.warn('[createMarket] Could not extract market ID:', e);
+        }
+
+        console.log('[createMarket] Final marketId before save:', marketId);
+        console.log('[createMarket] titleHash:', titleHash);
+        console.log('[createMarket] title:', title);
+
+        if (!marketId || marketId === 'pending') {
+          console.error('[createMarket] marketId is missing or pending — Supabase row will be unreliable for other wallets.');
+          toast.warning('Market created but ID not yet resolved. It may not appear for other wallets until confirmed.');
+        }
+
+        await saveMarketMetadata(
+          result.transactionId,
+          marketId || "pending",
+          titleHash,
+          title,
+          description,
+          resolutionSource
+        );
+
+        console.log('[createMarket] Saved to Supabase with marketId:', marketId || 'pending');
         toast.success(`Market created! Tx: ${result.transactionId}`);
         return result.transactionId;
       }
@@ -405,11 +422,11 @@ export const useAleoPrograms = () => {
       } catch (walletError: any) {
         console.error("[findCreditsRecord] Wallet Error:", walletError);
         if (walletError.message?.includes("Program not allowed")) {
-           toast.error("Wallet blocked access to Credits. Please ensure your wallet allows 'credits.aleo' access or try a different wallet.");
+          toast.error("Wallet blocked access to Credits. Please ensure your wallet allows 'credits.aleo' access or try a different wallet.");
         }
         throw walletError;
       }
-      
+
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       const unspent = records.filter((record) => !record.spent);
 
@@ -496,7 +513,7 @@ export const useAleoPrograms = () => {
       toast.info("Placing private bet...");
 
       const creditsRecord = await findCreditsRecord(amountMicro);
-      
+
       if (!creditsRecord) {
         // Double check if they have public funds
         const balance = await fetchTokenBalance();
@@ -649,7 +666,7 @@ export const useAleoPrograms = () => {
     if (!address) return;
     setLoading(true);
     const amountMicro = toMicrocredits(amountCredits);
-    
+
     try {
       toast.info(`Shielding ${amountCredits} Credits...`);
       const result = await executeWalletTransaction({
@@ -741,9 +758,9 @@ export const useAleoPrograms = () => {
       const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
       const raw = await fetchMappingValue(ORACLE_PROGRAM_ID, "proposals", cleanMarketId);
       if (!raw) return null;
-      
+
       const data = typeof raw === "string" ? JSON.parse(raw.replace(/field|u8|u64|address/g, '').replace(/([a-zA-Z0-9_]+):/g, '"$1":')) : raw;
-      
+
       return {
         market_id: cleanAleoPrimitive(data.market_id),
         proposed_outcome: Number(cleanAleoPrimitive(data.proposed_outcome)),

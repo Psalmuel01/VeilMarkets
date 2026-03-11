@@ -40,7 +40,7 @@ mapping disputes:
 function register_oracle:
     input r0 as credits.aleo/credits.record;
     input r1 as u64.public;
-    gte r1 100000000u64 into r2;
+    gte r1 30000000u64 into r2;
     assert.eq r2 true;
     call credits.aleo/transfer_private_to_public r0 veilmarkets_oracle_v3.aleo r1 into r3 r4;
     cast self.caller into r5 as field;
@@ -71,13 +71,13 @@ finalize propose_resolution:
     input r1 as u8.public;
     input r2 as address.public;
     get active_oracles[r2] into r3;
-    gte r3 100000000u64 into r4;
+    gte r3 30000000u64 into r4;
     assert.eq r4 true;
     contains proposals[r0] into r5;
     not r5 into r6;
     assert.eq r6 true;
     cast block.height into r7 as u64;
-    add r7 5u64 into r8;
+    add r7 20u64 into r8;
     cast r0 r1 r8 false r2 into r9 as ResolutionProposal;
     set r9 into proposals[r0];
 
@@ -85,7 +85,7 @@ function dispute_resolution:
     input r0 as credits.aleo/credits.record;
     input r1 as field.public;
     input r2 as u64.public;
-    gte r2 100000000u64 into r3;
+    gte r2 30000000u64 into r3;
     assert.eq r3 true;
     call credits.aleo/transfer_private_to_public r0 veilmarkets_oracle_v3.aleo r2 into r4 r5;
     async dispute_resolution r1 self.caller r2 r5 into r6;

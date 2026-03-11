@@ -37,8 +37,8 @@ program veilmarkets_oracle_v3.aleo {
     mapping disputes: field => Dispute;
 
     // Constants
-    const MIN_ORACLE_STAKE: u64 = 100000000u64; // 100 Credits
-    const DISPUTE_WINDOW: u64 = 5u64;          // ~1.25 minutes (for testing)
+    const MIN_ORACLE_STAKE: u64 = 30000000u64; // 30 Credits (for testing)
+    const DISPUTE_WINDOW: u64 = 20u64;          // ~5 minutes (for testing)
     const CORE_CONTRACT_TYPE: u8 = 3u8;
 
     // Initialize
