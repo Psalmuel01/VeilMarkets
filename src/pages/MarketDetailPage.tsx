@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { OutcomeCard } from "@/components/betting/OutcomeCard";
 import { PlaceBetModal } from "@/components/betting/PlaceBetModal";
+import { ResolutionModal } from "@/components/resolution/ResolutionModal";
 import { cn } from "@/lib/utils";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { PoolInfo } from "@/lib/aleo";
@@ -39,7 +40,14 @@ const statusColors = {
 export default function MarketDetailPage() {
   const { id } = useParams();
   const [showBetModal, setShowBetModal] = useState(false);
+  const [showResolutionModal, setShowResolutionModal] = useState(false);
   const [hasUserBet, setHasUserBet] = useState(false);
+  const [proposal, setProposal] = useState<{
+    proposed_outcome: number;
+    challenge_deadline: number;
+    is_disputed: boolean;
+    proposer: string;
+  } | null>(null);
   const [market, setMarket] = useState<{
     id: string;
     title: string;
@@ -56,7 +64,7 @@ export default function MarketDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [loadingMarket, setLoadingMarket] = useState(true);
   const [pool, setPool] = useState<PoolInfo | null>(null);
-  const { fetchMarkets, fetchPoolStats, currentHeight } = useAleoPrograms();
+  const { fetchMarkets, fetchPoolStats, fetchResolutionProposal, currentHeight } = useAleoPrograms();
 
   useEffect(() => {
     const loadMarket = async () => {
@@ -116,8 +124,16 @@ export default function MarketDetailPage() {
         setLoadingMarket(false);
       }
     };
+
+    const loadProposal = async () => {
+      if (!id) return;
+      const p = await fetchResolutionProposal(id);
+      setProposal(p);
+    };
+
     loadMarket();
-  }, [id, fetchMarkets, fetchPoolStats]);
+    loadProposal();
+  }, [id, fetchMarkets, fetchPoolStats, fetchResolutionProposal]);
 
   // Calculate stats
   const totalVolume = pool ? (pool.total_yes + pool.total_no) / 1_000_000 : 0;
@@ -359,6 +375,47 @@ export default function MarketDetailPage() {
               )}
             </div>
 
+            {/* Resolution Control (Propose/Dispute/Finalize) */}
+            {(market.status !== "Open" || (proposal && !proposal.is_disputed)) && (
+              <div className="p-6 rounded-xl bg-card border border-border/50">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold">Resolution</h2>
+                  <ZKBadge variant="verified" size="sm" />
+                </div>
+                
+                <div className="space-y-3">
+                  {proposal ? (
+                    <div className="p-3 rounded-lg bg-muted/20 border border-border/50 text-sm">
+                      <div className="flex justify-between mb-2">
+                        <span className="text-muted-foreground">Proposed Outcome</span>
+                        <span className={cn("font-bold", proposal.proposed_outcome === 1 ? "text-success" : "text-destructive")}>
+                          {proposal.proposed_outcome === 1 ? "YES" : "NO"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Challenge Window</span>
+                        <span className="text-amber-500 font-medium">
+                          {proposal.is_disputed ? "Disputed" : (currentHeight && currentHeight >= proposal.challenge_deadline) ? "Ended" : "Active"}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      This market is entering its resolution phase. Oracles can now propose the true outcome.
+                    </p>
+                  )}
+
+                  <Button 
+                    onClick={() => setShowResolutionModal(true)}
+                    className="w-full btn-glow-primary"
+                    variant={proposal ? "outline" : "default"}
+                  >
+                    {proposal ? "Manage Resolution" : "Propose Resolution"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* Privacy Info */}
             <div className="p-6 rounded-xl bg-muted/20 border border-border/50">
               <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
@@ -390,6 +447,24 @@ export default function MarketDetailPage() {
         onBetPlaced={() => setHasUserBet(true)}
         marketTitle={market.title}
         marketId={market.id}
+      />
+      
+      <ResolutionModal
+        isOpen={showResolutionModal}
+        onClose={() => setShowResolutionModal(false)}
+        market={{
+          id: market.id,
+          title: market.title,
+          close_block: market.closeBlock || 0,
+          resolution_block: 0,
+        }}
+        proposal={proposal}
+        currentHeight={currentHeight || 0}
+        onUpdate={async () => {
+          if (!id) return;
+          const p = await fetchResolutionProposal(id);
+          setProposal(p);
+        }}
       />
     </MainLayout>
   );

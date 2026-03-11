@@ -222,4 +222,26 @@ program veilmarkets_oracle_v3.aleo {
             assert_eq(outcome, proposal.proposed_outcome);
         }
     }
+
+    // UNSTAKE: Oracles can withdraw their credits
+    async transition unstake_credits(
+        public amount: u64
+    ) -> (credits.aleo/credits, Future) {
+        let (output_credits, transfer_future): (credits.aleo/credits, Future) = credits.aleo/transfer_public_to_private(
+            self.caller,
+            amount
+        );
+        return (output_credits, finalize_unstake_credits(self.caller, amount, transfer_future));
+    }
+
+    async function finalize_unstake_credits(
+        oracle: address,
+        amount: u64,
+        transfer_future: Future
+    ) {
+        transfer_future.await();
+        let current_stake: u64 = Mapping::get(active_oracles, oracle);
+        assert(current_stake >= amount);
+        Mapping::set(active_oracles, oracle, current_stake - amount);
+    }
 }

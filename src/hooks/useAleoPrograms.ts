@@ -533,26 +533,115 @@ export const useAleoPrograms = () => {
     }
   };
 
-  const resolveMarket = async (marketId: string, winningOutcome: number) => {
+  const proposeResolution = async (marketId: string, outcome: number) => {
     if (!address) return;
     const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
 
     try {
       const result = await executeWalletTransaction({
         program: ORACLE_PROGRAM_ID,
-        function: "finalize_resolution",
-        inputs: [cleanMarketId, formatU8(winningOutcome)],
+        function: "propose_resolution",
+        inputs: [cleanMarketId, formatU8(outcome)],
         fee: 500_000,
         privateFee: false,
       });
 
       if (result?.transactionId) {
-        toast.success(`Resolution submitted! Tx: ${result.transactionId}`);
+        toast.success(`Resolution proposed! Tx: ${result.transactionId}`);
         return result.transactionId;
       }
     } catch (error) {
-      console.error("Resolve market failed:", error);
-      toast.error(`Resolve error: ${getErrorMessage(error)}`);
+      console.error("Propose resolution failed:", error);
+      toast.error(`Propose error: ${getErrorMessage(error)}`);
+    }
+  };
+
+  const disputeResolution = async (marketId: string, amountCredits: number) => {
+    if (!address) return;
+    const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+    const amountMicro = toMicrocredits(amountCredits);
+
+    try {
+      const creditsRecord = await findCreditsRecord(amountMicro);
+      if (!creditsRecord) {
+        toast.error("Insufficient private balance for dispute bond.");
+        return;
+      }
+
+      const result = await executeWalletTransaction({
+        program: ORACLE_PROGRAM_ID,
+        function: "dispute_resolution",
+        inputs: [
+          creditsRecord.recordPlaintext || creditsRecord.plaintext,
+          cleanMarketId,
+          formatU64(amountMicro)
+        ],
+        fee: 1_000_000,
+        privateFee: false,
+      });
+
+      if (result?.transactionId) {
+        toast.success(`Dispute submitted! Tx: ${result.transactionId}`);
+        return result.transactionId;
+      }
+    } catch (error) {
+      console.error("Dispute failed:", error);
+      toast.error(`Dispute error: ${getErrorMessage(error)}`);
+    }
+  };
+
+  const resolveMarketOnCore = async (marketId: string, outcome: number) => {
+    if (!address) return;
+    const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+
+    try {
+      const result = await executeWalletTransaction({
+        program: ORACLE_PROGRAM_ID,
+        function: "resolve_on_core",
+        inputs: [cleanMarketId, formatU8(outcome)],
+        fee: 1_000_000,
+        privateFee: false,
+      });
+
+      if (result?.transactionId) {
+        toast.success(`Market settled on core! Tx: ${result.transactionId}`);
+        return result.transactionId;
+      }
+    } catch (error) {
+      console.error("Final resolution failed:", error);
+      toast.error(`Resolution error: ${getErrorMessage(error)}`);
+    }
+  };
+
+  const registerAsOracle = async (amountCredits: number) => {
+    if (!address) return;
+    const amountMicro = toMicrocredits(amountCredits);
+
+    try {
+      const creditsRecord = await findCreditsRecord(amountMicro);
+      if (!creditsRecord) {
+        toast.error("Insufficient private balance to stake.");
+        return;
+      }
+
+      const result = await executeWalletTransaction({
+        program: ORACLE_PROGRAM_ID,
+        function: "register_oracle",
+        inputs: [
+          creditsRecord.recordPlaintext || creditsRecord.plaintext,
+          formatU64(amountMicro)
+        ],
+        fee: 1_000_000,
+        privateFee: false,
+      });
+
+      if (result?.transactionId) {
+        toast.success(`Registered as Oracle! Tx: ${result.transactionId}`);
+        return result.transactionId;
+      }
+    } catch (error) {
+      console.error("Oracle registration failed:", error);
+      toast.error(`Registration error: ${getErrorMessage(error)}`);
     }
   };
 
@@ -636,10 +725,37 @@ export const useAleoPrograms = () => {
     }
   };
 
+  const fetchResolutionProposal = useCallback(async (marketId: string) => {
+    try {
+      const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+      const raw = await fetchMappingValue(ORACLE_PROGRAM_ID, "proposals", cleanMarketId);
+      if (!raw) return null;
+      
+      // The raw mapping value needs parsing. Let's assume it's an object from fetchMappingValue
+      // or a string we can parse.
+      const data = typeof raw === "string" ? JSON.parse(raw.replace(/field|u8|u64|address/g, '').replace(/([a-zA-Z0-9_]+):/g, '"$1":')) : raw;
+      
+      return {
+        market_id: cleanAleoPrimitive(data.market_id),
+        proposed_outcome: Number(cleanAleoPrimitive(data.proposed_outcome)),
+        challenge_deadline: Number(cleanAleoPrimitive(data.challenge_deadline)),
+        is_disputed: Boolean(data.is_disputed),
+        proposer: cleanAleoPrimitive(data.proposer),
+      };
+    } catch (error) {
+      console.error("Failed to fetch resolution proposal:", error);
+      return null;
+    }
+  }, []);
+
   return {
     createMarket,
     placeBet,
-    resolveMarket,
+    resolveMarket: resolveMarketOnCore,
+    proposeResolution,
+    disputeResolution,
+    registerAsOracle,
+    fetchResolutionProposal,
     claimWinnings,
     shieldCredits,
     fetchBalances,

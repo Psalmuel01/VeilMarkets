@@ -168,5 +168,23 @@ finalize resolve_on_core:
     assert.eq r1 r3.proposed_outcome;
     position end_otherwise_0_1;
 
+function unstake_credits:
+    input r0 as u64.public;
+    call credits.aleo/transfer_public_to_private self.caller r0 into r1 r2;
+    async unstake_credits self.caller r0 r2 into r3;
+    output r1 as credits.aleo/credits.record;
+    output r3 as veilmarkets_oracle_v3.aleo/unstake_credits.future;
+
+finalize unstake_credits:
+    input r0 as address.public;
+    input r1 as u64.public;
+    input r2 as credits.aleo/transfer_public_to_private.future;
+    await r2;
+    get active_oracles[r0] into r3;
+    gte r3 r1 into r4;
+    assert.eq r4 true;
+    sub r3 r1 into r5;
+    set r5 into active_oracles[r0];
+
 constructor:
     assert.eq program_owner aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
