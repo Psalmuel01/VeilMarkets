@@ -77,7 +77,7 @@ finalize propose_resolution:
     not r5 into r6;
     assert.eq r6 true;
     cast block.height into r7 as u64;
-    add r7 14400u64 into r8;
+    add r7 5u64 into r8;
     cast r0 r1 r8 false r2 into r9 as ResolutionProposal;
     set r9 into proposals[r0];
 

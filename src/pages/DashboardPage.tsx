@@ -272,7 +272,7 @@ export default function DashboardPage() {
                 <Wallet className="w-6 h-6 text-primary" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Available Balance (Private)</p>
+                <p className="text-sm text-muted-foreground">Available Balance</p>
                 <p className="text-2xl font-bold font-mono">
                   {tokenBalance !== null ? `${tokenBalance.toLocaleString()} ALEO` : "•••••••• ALEO"}
                 </p>

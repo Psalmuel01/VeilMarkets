@@ -725,14 +725,23 @@ export const useAleoPrograms = () => {
     }
   };
 
+  const isOracleRegistered = useCallback(async (): Promise<boolean> => {
+    if (!publicKey) return false;
+    try {
+      const raw = await fetchMappingValue(ORACLE_PROGRAM_ID, "active_oracles", publicKey);
+      return raw !== null;
+    } catch (error) {
+      console.error("Failed to check oracle registration:", error);
+      return false;
+    }
+  }, [publicKey]);
+
   const fetchResolutionProposal = useCallback(async (marketId: string) => {
     try {
       const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
       const raw = await fetchMappingValue(ORACLE_PROGRAM_ID, "proposals", cleanMarketId);
       if (!raw) return null;
       
-      // The raw mapping value needs parsing. Let's assume it's an object from fetchMappingValue
-      // or a string we can parse.
       const data = typeof raw === "string" ? JSON.parse(raw.replace(/field|u8|u64|address/g, '').replace(/([a-zA-Z0-9_]+):/g, '"$1":')) : raw;
       
       return {
@@ -763,6 +772,7 @@ export const useAleoPrograms = () => {
     fetchUserBets,
     fetchTokenBalance,
     fetchPoolStats,
+    isOracleRegistered,
     requestCredits,
     loading,
     currentHeight,

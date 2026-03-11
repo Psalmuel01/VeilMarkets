@@ -163,14 +163,18 @@ export const fetchCurrentBlockHeight = async (): Promise<number | null> => {
 export const estimateCloseBlockFromDate = (
   closingDate: string,
   currentBlockHeight: number,
+  closingTime?: string, // e.g. "14:30"
 ): number | null => {
-  const closeAt = new Date(`${closingDate}T23:59:59`);
+  const timeStr = closingTime || "23:59:59";
+  const closeAt = new Date(`${closingDate}T${timeStr}`);
+  
   if (Number.isNaN(closeAt.getTime())) return null;
 
   const deltaSeconds = Math.floor((closeAt.getTime() - Date.now()) / 1000);
-  if (deltaSeconds <= 0) return null;
+  // Allow for very short deadlines if testing (e.g. 10 blocks)
+  if (deltaSeconds <= -60) return null; // Allow ~1 min grace for recent "now" selections
 
-  const blocksUntilClose = Math.ceil(deltaSeconds / ESTIMATED_BLOCK_TIME_SECONDS);
+  const blocksUntilClose = Math.max(1, Math.ceil(deltaSeconds / ESTIMATED_BLOCK_TIME_SECONDS));
   return currentBlockHeight + blocksUntilClose;
 };
 

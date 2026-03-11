@@ -28,27 +28,29 @@ export default function MarketsPage() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [markets, setMarkets] = useState<Market[]>([]);
-  const { fetchMarkets, fetchPoolStats, loading } = useAleoPrograms();
+  const { fetchMarkets, fetchPoolStats, loading, currentHeight } = useAleoPrograms();
 
   useEffect(() => {
     const loadMarkets = async () => {
       const realMarkets = await fetchMarkets();
 
       // Initially map with 0 bets
-      const initialMapped: Market[] = realMarkets.map((market) => ({
-        id: market.id,
-        title: market.title,
-        description: market.description,
-        category: (market.category === 0 ? "Crypto" :
-          market.category === 1 ? "Finance" :
-            market.category === 2 ? "Sports" :
-              market.category === 3 ? "Politics" :
-                market.category === 4 ? "Entertainment" : "Tech"),
-        status: market.is_resolved ? "Settled" : "Open",
-        closingTime: `Block ${market.close_block}`,
-        betsPlaced: 0,
-        outcome: market.is_resolved ? (market.winning_outcome === 1 ? "Yes" : "No") : undefined,
-      }));
+      const initialMapped: Market[] = realMarkets.map((market) => {
+        const isSettled = market.is_resolved;
+        const isClosed = !isSettled && currentHeight && currentHeight >= market.close_block;
+        const status = isSettled ? "Settled" : isClosed ? "Closed" : "Open";
+
+        return {
+          id: market.id,
+          title: market.title,
+          description: market.description,
+          category: mapCategory(market.category),
+          status: status,
+          closingTime: `Block ${market.close_block}`,
+          betsPlaced: 0,
+          outcome: market.is_resolved ? (market.winning_outcome === 1 ? "Yes" : "No") : undefined,
+        };
+      });
 
       setMarkets(initialMapped);
 
@@ -68,7 +70,7 @@ export default function MarketsPage() {
       }
     };
     loadMarkets();
-  }, [fetchMarkets, fetchPoolStats]);
+  }, [fetchMarkets, fetchPoolStats, currentHeight]);
 
   const filteredMarkets = markets.filter((market) => {
     const matchesCategory = activeCategory === "all" || market.category === activeCategory;

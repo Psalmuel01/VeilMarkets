@@ -47,6 +47,7 @@ export default function CreateMarketPage() {
     description: "",
     category: "",
     closingDate: "",
+    closingTime: "23:59",
     resolutionSource: "",
   });
 
@@ -67,14 +68,16 @@ export default function CreateMarketPage() {
       return;
     }
 
-    const closeBlock = estimateCloseBlockFromDate(formData.closingDate, currentBlockHeight);
+    const closeBlock = estimateCloseBlockFromDate(formData.closingDate, currentBlockHeight, formData.closingTime);
     if (!closeBlock || closeBlock <= currentBlockHeight) {
-      toast.error("Closing date must be in the future.");
+      toast.error("Closing date and time must be in the future.");
       setStep("form");
       return;
     }
 
-    const resolutionBlock = closeBlock + 1_440; // ~6 hours after close on ~15s block time.
+    // For testing, we use a much smaller resolution offset (2 blocks = ~30s)
+    // In production this would be 1,440 (6 hours)
+    const resolutionBlock = closeBlock + 2; 
 
     // Map category string to u8
     const categoryMap: Record<string, number> = {
@@ -181,15 +184,24 @@ export default function CreateMarketPage() {
               <div className="space-y-2">
                 <Label htmlFor="closingDate" className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-primary" />
-                  Closing Date
+                  Closing Date & Time
                 </Label>
-                <Input
-                  id="closingDate"
-                  type="date"
-                  value={formData.closingDate}
-                  onChange={(e) => setFormData({ ...formData, closingDate: e.target.value })}
-                  className="bg-muted/50 border-border/50 focus:border-primary/50"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="closingDate"
+                    type="date"
+                    value={formData.closingDate}
+                    onChange={(e) => setFormData({ ...formData, closingDate: e.target.value })}
+                    className="flex-3 bg-muted/50 border-border/50 focus:border-primary/50"
+                  />
+                  <Input
+                    id="closingTime"
+                    type="time"
+                    value={formData.closingTime}
+                    onChange={(e) => setFormData({ ...formData, closingTime: e.target.value })}
+                    className="flex-2 bg-muted/50 border-border/50 focus:border-primary/50"
+                  />
+                </div>
               </div>
             </div>
 
@@ -257,7 +269,7 @@ export default function CreateMarketPage() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Closes</p>
-                    <p className="font-medium">{formData.closingDate}</p>
+                    <p className="font-medium">{formData.closingDate} at {formData.closingTime}</p>
                   </div>
                 </div>
                 {formData.resolutionSource && (

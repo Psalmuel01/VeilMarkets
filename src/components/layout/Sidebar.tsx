@@ -25,25 +25,28 @@ const navItems = [
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
-  const { requestCredits, fetchMarkets, fetchBalances, shieldCredits, publicKey } = useAleoPrograms();
+  const { requestCredits, fetchMarkets, fetchBalances, shieldCredits, publicKey, isOracleRegistered, registerAsOracle } = useAleoPrograms();
   const [activeMarketsCount, setActiveMarketsCount] = useState<number | null>(null);
   const [balances, setBalances] = useState<{ private: number; public: number } | null>(null);
+  const [isOracle, setIsOracle] = useState<boolean | null>(null);
 
   useEffect(() => {
     const loadStats = async () => {
       try {
-        const [markets, bal] = await Promise.all([
+        const [markets, bal, oracleStatus] = await Promise.all([
           fetchMarkets(),
-          fetchBalances()
+          fetchBalances(),
+          isOracleRegistered()
         ]);
         setActiveMarketsCount(markets.length);
         setBalances(bal);
+        setIsOracle(oracleStatus);
       } catch (error) {
         console.error("Failed to fetch sidebar stats:", error);
       }
     };
     loadStats();
-  }, [fetchMarkets, fetchBalances, publicKey]);
+  }, [fetchMarkets, fetchBalances, isOracleRegistered, publicKey]);
 
   return (
     <aside
@@ -141,6 +144,19 @@ export function Sidebar() {
           >
             <Shield className="w-3.5 h-3.5" />
             {balances && balances.public > 0 ? "Shield for Betting" : "Request faucet credits"}
+          </Button>
+        )}
+        
+        {!collapsed && isOracle === false && publicKey && (
+          <Button
+            variant="default"
+            size="sm"
+            className="w-full text-xs bg-amber-500 hover:bg-amber-600 text-white border-none shadow-lg shadow-amber-500/20"
+            onClick={() => registerAsOracle(100)} // Default stake 100
+            disabled
+          >
+            <Shield className="w-3.5 h-3.5 mr-2" />
+            Become an Oracle
           </Button>
         )}
         <ConnectWalletButton className={collapsed ? "w-10 px-0 justify-center" : "w-full"} />

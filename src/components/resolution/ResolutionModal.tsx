@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { AlertTriangle, CheckCircle2, Gavel, Timer } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Gavel, Timer, Shield } from "lucide-react";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { toast } from "sonner";
 
@@ -29,6 +29,7 @@ interface ResolutionModalProps {
     proposer: string;
   } | null;
   currentHeight: number;
+  isOracle: boolean;
   onUpdate: () => void;
 }
 
@@ -38,10 +39,11 @@ export function ResolutionModal({
   market,
   proposal,
   currentHeight,
+  isOracle,
   onUpdate,
 }: ResolutionModalProps) {
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
-  const { proposeResolution, disputeResolution, resolveMarket, loading } = useAleoPrograms();
+  const { proposeResolution, disputeResolution, resolveMarket, registerAsOracle, loading } = useAleoPrograms();
 
   const handlePropose = async () => {
     if (selectedOutcome === null) {
@@ -76,7 +78,7 @@ export function ResolutionModal({
 
   const isWindowActive = proposal && currentHeight < proposal.challenge_deadline && !proposal.is_disputed;
   const isFinalizable = proposal && currentHeight >= proposal.challenge_deadline && !proposal.is_disputed;
-  const canPropose = !proposal && currentHeight >= market.close_block;
+  const canPropose = !proposal && currentHeight >= market.resolution_block;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -137,13 +139,14 @@ export function ResolutionModal({
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-sm text-amber-200/80 flex gap-3">
+              {/* <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-sm text-amber-200/80 flex gap-3">
                 <AlertTriangle className="w-5 h-5 flex-shrink-0" />
                 <p>
-                  This market is closed. Registered oracles can now propose the finalized outcome. 
-                  A 24h challenge window will follow.
+                  {canPropose 
+                    ? "This market is closed. Registered oracles can now propose the finalized outcome. A 24h challenge window will follow."
+                    : `This market is closed. Awaiting resolution block (${market.resolution_block}). Only ${market.resolution_block - currentHeight} blocks left.`}
                 </p>
-              </div>
+              </div> */}
 
               <RadioGroup value={selectedOutcome?.toString()} onValueChange={(v) => setSelectedOutcome(parseInt(v))}>
                 <div className="grid grid-cols-2 gap-4">
@@ -172,26 +175,59 @@ export function ResolutionModal({
 
           <div className="space-y-3 pt-2">
             {canPropose && (
-              <Button 
-                className="w-full btn-glow-primary" 
-                onClick={handlePropose}
-                disabled={loading || selectedOutcome === null}
-              >
-                Propose Outcome
-              </Button>
+              <div className="space-y-3 pt-2">
+                {!isOracle ? (
+                  <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-3">
+                    <div className="flex items-center gap-2 text-amber-500">
+                      <Shield className="w-4 h-4" />
+                      <span className="text-sm font-semibold">Oracle Credentials Required</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      You must be a registered Oracle to propose outcomes. This ensures high-quality resolutions via economic stake.
+                    </p>
+                    <Button 
+                      className="w-full bg-amber-500 hover:bg-amber-600 text-white" 
+                      onClick={() => registerAsOracle(100)}
+                      disabled={loading}
+                    >
+                      Stake 100 Credits & Register
+                    </Button>
+                  </div>
+                ) : (
+                  <Button 
+                    className="w-full btn-glow-primary" 
+                    onClick={handlePropose}
+                    disabled={loading || selectedOutcome === null}
+                  >
+                    Propose Outcome
+                  </Button>
+                )}
+              </div>
             )}
 
             {isWindowActive && (
               <div className="space-y-3">
-                <Button 
-                  variant="outline"
-                  className="w-full border-destructive/30 hover:bg-destructive/10 text-destructive"
-                  onClick={handleDispute}
-                  disabled={loading}
-                >
-                  <AlertTriangle className="w-4 h-4 mr-2" />
-                  Dispute Proposal (Stake 100 Credits)
-                </Button>
+                {!isOracle ? (
+                   <Button 
+                    variant="outline"
+                    className="w-full border-amber-500/30 hover:bg-amber-500/10 text-amber-500"
+                    onClick={() => registerAsOracle(100)}
+                    disabled={loading}
+                  >
+                    <Shield className="w-4 h-4 mr-2" />
+                    Register as Oracle to Dispute
+                  </Button>
+                ) : (
+                  <Button 
+                    variant="outline"
+                    className="w-full border-destructive/30 hover:bg-destructive/10 text-destructive"
+                    onClick={handleDispute}
+                    disabled={loading}
+                  >
+                    <AlertTriangle className="w-4 h-4 mr-2" />
+                    Dispute Proposal (Stake 100 Credits)
+                  </Button>
+                )}
                 <p className="text-[10px] text-center text-muted-foreground">
                   Challenger gets proposer's bond if the dispute is successful.
                 </p>
