@@ -71,11 +71,32 @@ This leads to **manipulation, MEV, exposure of high-value bettors, and friction 
 
 VeilMarkets uses a modular **4-program architecture** to ensure scalability, security, and Aleo compliance:
 
+## Frontend Integration (v3)
+
+### Transaction Flow Changes
+1. **Placing a Bet**:
+   - Program: `veilmarkets_token_v3.aleo`
+   - Transition: `place_bet`
+   - **Returns**: `(credits.aleo/credits, EscrowedBet, Future)`
+   - > [!IMPORTANT]
+     > Ensure the frontend uses the first returned record (`credits`) for wallet balance and the second record (`EscrowedBet`) is stored/minted as the user's position!
+
+2. **Resolving a Market**:
+   - **Step 1**: Call `propose_resolution` (Oracle Contract).
+   - **Step 2**: Wait 24 hours (Dispute window).
+   - **Step 3**: Call `resolve_on_core` (Oracle Contract) to finalize.
+
+### Troubleshooting
+- **Error: 'Credits' expected 2 entries, found 5 entries**:
+  - **Cause**: You are likely passing an `EscrowedBet` record from the token contract instead of a `credits.aleo/credits` record.
+  - **Fix**: Check your wallet filtering logic. Ensure input records for `place_bet` or `register_oracle` are specifically from the `credits.aleo` program.
+
+## Architecture Diagram (v3)
 ```mermaid
 graph TD
-    Factory[veilmarkets_factory_v2.aleo] --> Core[veilmarkets_v2.aleo]
-    Factory --> Token[veilmarkets_token_v2.aleo]
-    Factory --> Oracle[veilmarkets_oracle_v2.aleo]
+    Factory[veilmarkets_factory_v3.aleo] --> Core[veilmarkets_v3.aleo]
+    Factory --> Token[veilmarkets_token_v3.aleo]
+    Factory --> Oracle[veilmarkets_oracle_v3.aleo]
     
     User[User Wallet] --> Token
     Token --> Core
@@ -86,10 +107,10 @@ graph TD
     Frontend --> Aleo[Aleo Network]
 ```
 
-- **veilmarkets_factory_v2.aleo**: System registry and permission management.
-- **veilmarkets_v2.aleo**: Core logic for market creation, pool accounting, and pro-rata winnings calculation.
-- **veilmarkets_token_v2.aleo**: Integrated pari-mutuel escrow vault. Handles deposits, bet funding, and secure payouts.
-- **veilmarkets_oracle_v2.aleo**: Decentralized resolution governance with built-in dispute mechanisms.
+- **veilmarkets_factory_v3.aleo**: System registry and permission management.
+- **veilmarkets_v3.aleo**: Core logic for market creation, pool accounting, and pro-rata winnings calculation.
+- **veilmarkets_token_v3.aleo**: Integrated pari-mutuel escrow vault. Handles deposits, bet funding, and secure payouts.
+- **veilmarkets_oracle_v3.aleo**: Optimistic resolution governance with built-in 24h dispute window and escalation.
 
 ---
 
@@ -119,12 +140,21 @@ VITE_ALEO_NETWORK=testnet
 4. Deploy contracts to Aleo Testnet (requires Aleo SDK):
 ```bash
 # Order of deployment
-# 1. veilmarkets_factory_v2, 2. veilmarkets_v2, 3. veilmarkets_token_v2, 4. veilmarkets_oracle_v2
+# 1. veilmarkets_factory_v3, 2. veilmarkets_v3, 3. veilmarkets_token_v3, 4. veilmarkets_oracle_v3
 cd leo/factory && leo deploy
 # Repeat for each program in order (veilmarkets, veilmarkets_token, veilmarkets_oracle)
 ```
 
-5. Run the frontend locally:
+5. **Register Contracts in Factory** (CRITICAL):
+After deployment, you must link the contracts in the Factory registry so they can communicate:
+```bash
+# 1. Register Token Contract
+leo execute <factory_contract_address>/register_contract 1u8 <token_contract_address> --broadcast --network testnet
+# 2. Register Oracle Contract
+leo execute <factory_contract_address>/register_contract 2u8 <oracle_contract_address> --broadcast --network testnet
+```
+
+6. Run the frontend locally:
 ```bash
 npm run dev
 ```

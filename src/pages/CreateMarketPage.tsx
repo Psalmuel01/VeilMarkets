@@ -37,7 +37,7 @@ const categories = [
   { value: "tech", label: "Tech" },
 ];
 
-type Step = "form" | "review" | "creating" | "success";
+type Step = "form" | "review" | "creating" | "success" | "failed";
 
 export default function CreateMarketPage() {
   const navigate = useNavigate();
@@ -47,6 +47,7 @@ export default function CreateMarketPage() {
     description: "",
     category: "",
     closingDate: "",
+    closingTime: "23:59",
     resolutionSource: "",
   });
 
@@ -67,14 +68,16 @@ export default function CreateMarketPage() {
       return;
     }
 
-    const closeBlock = estimateCloseBlockFromDate(formData.closingDate, currentBlockHeight);
+    const closeBlock = estimateCloseBlockFromDate(formData.closingDate, currentBlockHeight, formData.closingTime);
     if (!closeBlock || closeBlock <= currentBlockHeight) {
-      toast.error("Closing date must be in the future.");
+      toast.error("Closing date and time must be in the future.");
       setStep("form");
       return;
     }
 
-    const resolutionBlock = closeBlock + 1_440; // ~6 hours after close on ~15s block time.
+    // For testing, we use a much smaller resolution offset (2 blocks = ~30s)
+    // In production this would be 1,440 (6 hours)
+    const resolutionBlock = closeBlock + 2; 
 
     // Map category string to u8
     const categoryMap: Record<string, number> = {
@@ -100,7 +103,7 @@ export default function CreateMarketPage() {
       setTxId(result);
       setStep("success");
     } else {
-      setStep("form");
+      setStep("failed");
     }
   };
 
@@ -181,15 +184,24 @@ export default function CreateMarketPage() {
               <div className="space-y-2">
                 <Label htmlFor="closingDate" className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-primary" />
-                  Closing Date
+                  Closing Date & Time
                 </Label>
-                <Input
-                  id="closingDate"
-                  type="date"
-                  value={formData.closingDate}
-                  onChange={(e) => setFormData({ ...formData, closingDate: e.target.value })}
-                  className="bg-muted/50 border-border/50 focus:border-primary/50"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="closingDate"
+                    type="date"
+                    value={formData.closingDate}
+                    onChange={(e) => setFormData({ ...formData, closingDate: e.target.value })}
+                    className="flex-3 bg-muted/50 border-border/50 focus:border-primary/50"
+                  />
+                  <Input
+                    id="closingTime"
+                    type="time"
+                    value={formData.closingTime}
+                    onChange={(e) => setFormData({ ...formData, closingTime: e.target.value })}
+                    className="flex-2 bg-muted/50 border-border/50 focus:border-primary/50"
+                  />
+                </div>
               </div>
             </div>
 
@@ -257,7 +269,7 @@ export default function CreateMarketPage() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground mb-1">Closes</p>
-                    <p className="font-medium">{formData.closingDate}</p>
+                    <p className="font-medium">{formData.closingDate} at {formData.closingTime}</p>
                   </div>
                 </div>
                 {formData.resolutionSource && (
@@ -381,6 +393,46 @@ export default function CreateMarketPage() {
                 className="flex-1 btn-glow-primary"
               >
                 View Your Market
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
+        {step === "failed" && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="py-12 text-center space-y-6"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", delay: 0.2 }}
+              className="mx-auto w-24 h-24 rounded-full bg-destructive/10 border-2 border-destructive flex items-center justify-center"
+            >
+              <AlertCircle className="w-12 h-12 text-destructive" />
+            </motion.div>
+
+            <div>
+              <h3 className="text-xl font-semibold mb-2">Transaction Failed</h3>
+              <p className="text-muted-foreground mb-4">
+                Your market could not be created. Please try again or check your wallet connection.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setStep("form")}
+                className="flex-1"
+              >
+                Back to Edit
+              </Button>
+              <Button
+                onClick={handleCreate}
+                className="flex-1 btn-glow-primary"
+              >
+                Try Again
               </Button>
             </div>
           </motion.div>

@@ -1,8 +1,8 @@
 {
-  "program": "veilmarkets_factory_v4.aleo",
+  "program": "veilmarkets_v4.aleo",
   "version": "0.1.0",
   "description": "",
-  "license": "MIT",
+  "license": "",
   "leo": "3.5.0",
   "dependencies": null,
   "dev_dependencies": null

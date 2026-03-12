@@ -22,21 +22,23 @@ interface PlaceBetModalProps {
   onBetPlaced?: () => void;
 }
 
-type Step = "select" | "confirm" | "processing" | "success";
+type Step = "select" | "confirm" | "processing" | "success" | "failed";
 
 export function PlaceBetModal({ open, onClose, marketTitle, marketId, onBetPlaced }: PlaceBetModalProps) {
   const [step, setStep] = useState<Step>("select");
   const [selectedOutcome, setSelectedOutcome] = useState<"Yes" | "No" | null>(null);
-  const [wagerAmount, setWagerAmount] = useState(50);
+  const [wagerAmount, setWagerAmount] = useState(5);
   const [txId, setTxId] = useState<string | null>(null);
-  const { placeBet, fetchPoolStats } = useAleoPrograms();
+  const { placeBet, fetchPoolStats, fetchBalances, shieldCredits } = useAleoPrograms();
   const [pool, setPool] = useState<{ total_yes: number; total_no: number } | null>(null);
+  const [balances, setBalances] = useState<{ private: number; public: number } | null>(null);
 
   useEffect(() => {
     if (open) {
       fetchPoolStats(marketId).then(setPool);
+      fetchBalances().then(setBalances);
     }
-  }, [marketId, open, fetchPoolStats]);
+  }, [marketId, open, fetchPoolStats, fetchBalances]);
 
   const calculateReturn = () => {
     if (!pool || !selectedOutcome) return null;
@@ -70,14 +72,14 @@ export function PlaceBetModal({ open, onClose, marketTitle, marketId, onBetPlace
       setStep("success");
       onBetPlaced?.();
     } else {
-      setStep("confirm");
+      setStep("failed");
     }
   };
 
   const handleClose = () => {
     setStep("select");
     setSelectedOutcome(null);
-    setWagerAmount(50);
+    setWagerAmount(10);
     onClose();
   };
 
@@ -129,9 +131,31 @@ export function PlaceBetModal({ open, onClose, marketTitle, marketId, onBetPlace
                 onChange={setWagerAmount}
               />
 
-              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs text-muted-foreground">
+              {balances && balances.private < wagerAmount && balances.public >= wagerAmount && (
+                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <Shield className="w-5 h-5 text-amber-500 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-amber-500 uppercase tracking-wider">Top-up Required</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        You need **{wagerAmount} Private Credits**. You have enough Public balance to top up now.
+                      </p>
+                    </div>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full border-amber-500/30 hover:bg-amber-500/10 text-amber-500 text-xs py-4 transition-all duration-200"
+                    onClick={() => shieldCredits(wagerAmount)}
+                  >
+                    Shield {wagerAmount} Credits
+                  </Button>
+                </div>
+              )}
+
+              {/* <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs text-muted-foreground">
                 <p>Each bet requires Aleo Credits. If you're out of credits, use the <strong>Faucet</strong> in the sidebar.</p>
-              </div>
+              </div> */}
 
               <Button
                 onClick={() => setStep("confirm")}
@@ -258,6 +282,48 @@ export function PlaceBetModal({ open, onClose, marketTitle, marketId, onBetPlace
               <Button onClick={handleClose} className="w-full">
                 Done
               </Button>
+            </motion.div>
+          )}
+
+          {step === "failed" && (
+            <motion.div
+              key="failed"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="py-8 text-center space-y-6"
+            >
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", delay: 0.2 }}
+                className="mx-auto w-20 h-20 rounded-full bg-destructive/10 border-2 border-destructive flex items-center justify-center"
+              >
+                <X className="w-10 h-10 text-destructive" />
+              </motion.div>
+
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Transaction Failed</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Your bet could not be securely placed.
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setStep("confirm")}
+                  className="flex-1"
+                >
+                  Back
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  className="flex-1 bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                >
+                  Try Again
+                </Button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

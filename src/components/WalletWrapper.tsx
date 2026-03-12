@@ -19,7 +19,7 @@ export const WalletWrapper = ({ children }) => {
             wallets={wallets}
             network={Network.TESTNET}
             decryptPermission={DecryptPermission.OnChainHistory}
-            programs={[PROGRAM_ID, TOKEN_PROGRAM_ID, ORACLE_PROGRAM_ID]}
+            programs={[PROGRAM_ID, TOKEN_PROGRAM_ID, ORACLE_PROGRAM_ID, "credits.aleo"]}
             autoConnect
         >
             {children}

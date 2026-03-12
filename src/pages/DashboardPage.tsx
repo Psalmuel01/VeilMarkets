@@ -122,12 +122,6 @@ export default function DashboardPage() {
           const market = marketMap.get(record.market_id);
           const outcomeLabel = record.outcome === "1" ? "Yes" : "No";
 
-          console.log(`[Dashboard] Joining bet for market ${record.market_id}:`, {
-            foundMarket: !!market,
-            marketTitle: market?.title,
-            isResolved: market?.is_resolved
-          });
-
           let status: "Pending" | "Won" | "Lost" | "Cancelled" = "Pending";
           let canClaim = false;
 
@@ -272,7 +266,7 @@ export default function DashboardPage() {
                 <Wallet className="w-6 h-6 text-primary" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Available Balance (Private)</p>
+                <p className="text-sm text-muted-foreground">Available Balance</p>
                 <p className="text-2xl font-bold font-mono">
                   {tokenBalance !== null ? `${tokenBalance.toLocaleString()} ALEO` : "•••••••• ALEO"}
                 </p>

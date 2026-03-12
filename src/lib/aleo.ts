@@ -5,9 +5,9 @@ const ALEO_NETWORK = "testnet";
 const ESTIMATED_BLOCK_TIME_SECONDS = 15;
 
 const BLOCK_HEIGHT_ENDPOINTS = [
-  `${ALEO_API_URL}/${ALEO_NETWORK}/latest/height`,
-  `${ALEO_API_URL}/${ALEO_NETWORK}/block/height/latest`,
-  `${ALEO_API_URL}/${ALEO_NETWORK}/block/latest`,
+  `https://api.explorer.aleo.org/v1/testnet/latest/height`,
+  `https://vm.provable.network/v1/testnet/latest/height`,
+  `https://api.explorer.provable.com/v2/testnet/latest/height`
 ];
 
 interface AleoTransitionOutput {
@@ -135,7 +135,7 @@ export const fetchTransaction = async (transactionId: string): Promise<AleoTrans
 export const fetchCurrentBlockHeight = async (): Promise<number | null> => {
   for (const endpoint of BLOCK_HEIGHT_ENDPOINTS) {
     try {
-      const response = await fetch(endpoint);
+      const response = await fetch(endpoint, { signal: AbortSignal.timeout(3000) });
       if (!response.ok) continue;
 
       const rawText = await response.text();
@@ -163,14 +163,18 @@ export const fetchCurrentBlockHeight = async (): Promise<number | null> => {
 export const estimateCloseBlockFromDate = (
   closingDate: string,
   currentBlockHeight: number,
+  closingTime?: string, // e.g. "14:30"
 ): number | null => {
-  const closeAt = new Date(`${closingDate}T23:59:59`);
+  const timeStr = closingTime || "23:59:59";
+  const closeAt = new Date(`${closingDate}T${timeStr}`);
+
   if (Number.isNaN(closeAt.getTime())) return null;
 
   const deltaSeconds = Math.floor((closeAt.getTime() - Date.now()) / 1000);
-  if (deltaSeconds <= 0) return null;
+  // Allow for very short deadlines if testing (e.g. 10 blocks)
+  if (deltaSeconds <= -60) return null; // Allow ~1 min grace for recent "now" selections
 
-  const blocksUntilClose = Math.ceil(deltaSeconds / ESTIMATED_BLOCK_TIME_SECONDS);
+  const blocksUntilClose = Math.max(1, Math.ceil(deltaSeconds / ESTIMATED_BLOCK_TIME_SECONDS));
   return currentBlockHeight + blocksUntilClose;
 };
 
@@ -178,50 +182,134 @@ export const estimateCloseBlockFromDate = (
  * Extract the market_id field value from a create_market transaction.
  * The first output of the transition is the market_id (field).
  */
+// export const extractMarketIdFromTx = (tx: AleoTransaction | null): string | null => {
+//   try {
+//     const transitions = tx?.execution?.transitions;
+//     if (!Array.isArray(transitions)) return null;
+
+//     const createMarketTx = transitions.find(
+//       (transition) => transition.function === "create_market" && transition.program === PROGRAM_ID,
+//     );
+//     if (!createMarketTx) return null;
+
+//     const outputs = createMarketTx.outputs;
+//     if (!Array.isArray(outputs) || outputs.length === 0) return null;
+
+//     for (const output of outputs) {
+//       const outputValue = output.value;
+
+//       if (
+//         typeof outputValue === "string" &&
+//         outputValue.includes("function_name") &&
+//         outputValue.includes("create_market")
+//       ) {
+//         const fieldMatch = outputValue.match(/([0-9]+field)/);
+//         if (fieldMatch) return fieldMatch[1];
+//       }
+
+//       if (typeof outputValue === "object" && outputValue !== null) {
+//         const args = asRecord(outputValue).arguments;
+//         if (Array.isArray(args) && args.length > 0) {
+//           const marketIdArg = args[0];
+//           if (typeof marketIdArg === "string" && marketIdArg.endsWith("field")) {
+//             return marketIdArg.trim();
+//           }
+//         }
+//       }
+//     }
+
+//     const txStr = JSON.stringify(createMarketTx);
+//     const matches = [...txStr.matchAll(/([0-9]+field)/g)];
+//     if (matches.length >= 2) return matches[1][1];
+//     if (matches.length === 1) return matches[0][1];
+
+//     return null;
+//   } catch (error) {
+//     console.error("Error extracting market id:", error);
+//     return null;
+//   }
+// };
+
 export const extractMarketIdFromTx = (tx: AleoTransaction | null): string | null => {
   try {
-    const transitions = tx?.execution?.transitions;
-    if (!Array.isArray(transitions)) return null;
+    if (!tx) return null;
 
-    const createMarketTx = transitions.find(
-      (transition) => transition.function === "create_market" && transition.program === PROGRAM_ID,
-    );
-    if (!createMarketTx) return null;
+    console.log('[extractMarketIdFromTx] Full tx:', JSON.stringify(tx, null, 2));
+
+    const transitions = tx?.execution?.transitions;
+    if (!Array.isArray(transitions)) {
+      console.warn('[extractMarketIdFromTx] No transitions found in tx');
+      return null;
+    }
+
+    console.log('[extractMarketIdFromTx] Transitions:', JSON.stringify(transitions, null, 2));
+
+    // Find create_market transition — check both program match and function name
+    const createMarketTx = transitions.find((t) => {
+      const fnMatch = t.function === 'create_market';
+      const programMatch = t.program === PROGRAM_ID || String(t.program).startsWith(PROGRAM_ID.split('.')[0]);
+      console.log(`[extractMarketIdFromTx] Transition: program=${t.program} function=${t.function} fnMatch=${fnMatch} programMatch=${programMatch}`);
+      return fnMatch && programMatch;
+    });
+
+    if (!createMarketTx) {
+      console.warn('[extractMarketIdFromTx] No create_market transition found. Available:',
+        transitions.map(t => `${t.program}/${t.function}`));
+      return null;
+    }
+
+    console.log('[extractMarketIdFromTx] Found create_market transition:', JSON.stringify(createMarketTx, null, 2));
 
     const outputs = createMarketTx.outputs;
-    if (!Array.isArray(outputs) || outputs.length === 0) return null;
+    if (!Array.isArray(outputs) || outputs.length === 0) {
+      console.warn('[extractMarketIdFromTx] No outputs in create_market transition');
+      return null;
+    }
 
+    console.log('[extractMarketIdFromTx] Outputs:', JSON.stringify(outputs, null, 2));
+
+    // Try every output for a field value
     for (const output of outputs) {
-      const outputValue = output.value;
+      const val = output.value;
 
-      if (
-        typeof outputValue === "string" &&
-        outputValue.includes("function_name") &&
-        outputValue.includes("create_market")
-      ) {
-        const fieldMatch = outputValue.match(/([0-9]+field)/);
-        if (fieldMatch) return fieldMatch[1];
+      // Direct field string
+      if (typeof val === 'string' && /^\d+field$/.test(val.trim())) {
+        console.log('[extractMarketIdFromTx] Direct field value:', val.trim());
+        return val.trim();
       }
 
-      if (typeof outputValue === "object" && outputValue !== null) {
-        const args = asRecord(outputValue).arguments;
-        if (Array.isArray(args) && args.length > 0) {
-          const marketIdArg = args[0];
-          if (typeof marketIdArg === "string" && marketIdArg.endsWith("field")) {
-            return marketIdArg.trim();
-          }
+      // Nested in object
+      if (typeof val === 'object' && val !== null) {
+        const str = JSON.stringify(val);
+        const match = str.match(/(\d+field)/);
+        if (match) {
+          console.log('[extractMarketIdFromTx] Field from nested object:', match[1]);
+          return match[1];
+        }
+      }
+
+      // String containing field somewhere
+      if (typeof val === 'string') {
+        const match = val.match(/(\d+field)/);
+        if (match) {
+          console.log('[extractMarketIdFromTx] Field from string match:', match[1]);
+          return match[1];
         }
       }
     }
 
+    // Last resort — scan entire transition JSON for field values
     const txStr = JSON.stringify(createMarketTx);
-    const matches = [...txStr.matchAll(/([0-9]+field)/g)];
-    if (matches.length >= 2) return matches[1][1];
-    if (matches.length === 1) return matches[0][1];
+    const allFields = [...txStr.matchAll(/(\d+field)/g)].map(m => m[1]);
+    console.log('[extractMarketIdFromTx] All field values in transition:', allFields);
+
+    // First field is usually titleHash (input), second is market_id (output)
+    if (allFields.length >= 2) return allFields[1];
+    if (allFields.length === 1) return allFields[0];
 
     return null;
   } catch (error) {
-    console.error("Error extracting market id:", error);
+    console.error('[extractMarketIdFromTx] Error:', error);
     return null;
   }
 };

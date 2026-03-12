@@ -5,7 +5,6 @@ import type { TxHistoryResult } from "@provablehq/aleo-types";
 import {
   fetchMappingValue,
   fetchTransaction,
-  extractMarketIdFromTx,
   parseMarketInfo,
   fetchCurrentBlockHeight,
   PoolInfo,
@@ -13,9 +12,8 @@ import {
 } from "@/lib/aleo";
 import {
   saveMarketMetadata,
-  getBatchMarketMetadata,
   getAllMarketMetadata,
-  type MarketMetadata,
+  type MarketMetadataRow,
 } from "../lib/metadata";
 import { useState, useCallback, useEffect } from "react";
 
@@ -125,8 +123,17 @@ const parseRecordField = (record: WalletRecord, field: string): string => {
 };
 
 const extractRecordAmount = (record: WalletRecord): number => {
-  const val = parseRecordField(record, "amount");
-  return val ? Number.parseInt(val, 10) : 0;
+  // 1. Try common field names
+  const possibleFields = ["microcredits", "amount", "value"];
+  for (const field of possibleFields) {
+    const raw = parseRecordField(record, field);
+    if (raw) {
+      const val = typeof raw === "string" ? raw.replace(/u64|u32|field|group|address|\.private|\.public/g, "").trim() : String(raw);
+      const parsed = Number.parseInt(val, 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+  }
+  return 0;
 };
 
 export const useAleoPrograms = () => {
@@ -156,98 +163,184 @@ export const useAleoPrograms = () => {
     [executeTransaction],
   );
 
+  const executeAndPoll = useCallback(
+    async (
+      options: ExecuteWalletTransactionOptions,
+      pollProgram: string,
+      pollFunction: string
+    ): Promise<{ transactionId: string; transition: any } | null> => {
+      try {
+        // Snapshot BEFORE executing
+        const existingHistory = await requestTransactionHistory(pollProgram);
+        const existingAtIds = new Set(
+          (existingHistory?.transactions ?? [])
+            .map((tx: any) => tx.transactionId)
+            .filter((id: string) => id?.startsWith('at1'))
+        );
+        // console.log(`[poll] Existing at1 IDs before submit:`, [...existingAtIds]);
+
+        const result = await executeWalletTransaction(options);
+        if (!result?.transactionId) return null;
+
+        toast.info(`Transaction submitted! Waiting for network confirmation...`);
+
+        let actualTxId = result.transactionId.startsWith('at1') ? result.transactionId : undefined;
+        let foundTransition: any = null;
+
+        outer: for (let i = 0; i < 15; i++) {
+          await new Promise((r) => setTimeout(r, 4000));
+          // console.log(`[poll] attempt ${i + 1} for ${pollFunction}...`);
+
+          try {
+            if (!actualTxId) {
+              const history = await requestTransactionHistory(pollProgram);
+              const txs = history?.transactions ?? [];
+
+              // First try: match by shield_ id directly
+              const shieldMatch = txs.find((t: any) => t.id === result.transactionId);
+              if (shieldMatch?.transactionId?.startsWith('at1')) {
+                actualTxId = shieldMatch.transactionId;
+                // console.log(`[poll] Matched by shield id:`, actualTxId);
+              }
+
+              // Fallback: only NEW at1 IDs that didn't exist before submit
+              if (!actualTxId) {
+                const newAtTxIds = txs
+                  .map((tx: any) => tx.transactionId)
+                  .filter((id: string) => id?.startsWith('at1') && !existingAtIds.has(id));
+
+                // console.log(`[poll] New at1 IDs since submit:`, newAtTxIds);
+
+                for (const atTxId of newAtTxIds) {
+                  const txData = await fetchTransaction(atTxId);
+                  if (!txData) continue;
+
+                  const transitions = txData?.execution?.transitions ?? [];
+                  const transitionMatch = transitions.find(
+                    (t: any) =>
+                      t.function === pollFunction &&
+                      (t.program === pollProgram ||
+                        String(t.program).startsWith(pollProgram.split('.')[0]))
+                  );
+
+                  if (transitionMatch) {
+                    actualTxId = atTxId;
+                    foundTransition = transitionMatch;
+                    // console.log(`[poll] Found via new at1 ID:`, actualTxId);
+                    break outer;
+                  }
+                }
+              }
+            }
+
+            if (actualTxId && !foundTransition) {
+              const txData = await fetchTransaction(actualTxId);
+              if (!txData) continue;
+
+              const transitions = txData?.execution?.transitions ?? [];
+              const transitionMatch = transitions.find(
+                (t: any) =>
+                  t.function === pollFunction &&
+                  (t.program === pollProgram ||
+                    String(t.program).startsWith(pollProgram.split('.')[0]))
+              );
+
+              if (transitionMatch) {
+                foundTransition = transitionMatch;
+                console.log(`[poll] Confirmed tx:`, actualTxId);
+                break outer;
+              }
+            }
+          } catch (e) {
+            console.warn(`[poll] attempt ${i + 1} failed:`, e);
+          }
+        }
+
+        if (actualTxId && foundTransition) {
+          toast.success('Transaction confirmed!');
+          return { transactionId: actualTxId, transition: foundTransition };
+        }
+
+        toast.error('Transaction failed to confirm within time limit.');
+        return null;
+      } catch (error) {
+        console.error("Execute failed:", error);
+        toast.error(`Transaction failed: ${getErrorMessage(error)}`);
+        return null;
+      }
+    },
+    [executeWalletTransaction, requestTransactionHistory]
+  );
+
   /**
    * Fetch all markets by cross-referencing on-chain data with off-chain metadata.
    * Uses Supabase metadata as global source, and wallet tx history as supplementary source.
    */
+
   const fetchMarkets = useCallback(async (): Promise<ChainMarket[]> => {
     setLoading(true);
     try {
-      const txIdToShieldId: Record<string, string> = {};
-      const txCandidates = new Set<string>();
-      let historyTransactions: TxHistoryTransaction[] = [];
-
-      try {
-        const historyResult = await requestTransactionHistory(PROGRAM_ID);
-        historyTransactions = (historyResult?.transactions ?? []).filter((tx) => Boolean(tx.transactionId));
-      } catch (error) {
-        console.warn("Wallet transaction history unavailable; falling back to metadata index.", error);
-      }
-
-      for (const tx of historyTransactions) {
-        txCandidates.add(tx.transactionId);
-        txIdToShieldId[tx.transactionId] = tx.id;
-      }
-
       const metadataRows = await getAllMarketMetadata();
-      const metadataByTxId: Record<string, MarketMetadata> = {};
-      for (const row of metadataRows) {
-        txCandidates.add(row.transaction_id);
-        metadataByTxId[row.transaction_id] = {
-          title: row.title,
-          description: row.description,
-          source: row.source,
-        };
-      }
+      // console.log('[fetchMarkets] Rows from Supabase:', metadataRows);
 
-      const shieldIds = historyTransactions.map((tx) => tx.id);
-      const metadataByShieldId = await getBatchMarketMetadata(shieldIds);
+      if (metadataRows.length === 0) return [];
 
-      if (txCandidates.size === 0) return [];
+      const marketFetches = metadataRows.map(async (row: MarketMetadataRow) => {
+        if (!row.market_id || row.market_id === 'pending') {
+          console.warn('[fetchMarkets] Skipping invalid market_id:', row);
+          return null;
+        }
 
-      const txIds = Array.from(txCandidates);
-      const marketIdToTxHash: Record<string, string> = {};
-      const marketIds = new Set<string>();
-      const txData = await Promise.all(txIds.map((txId) => fetchTransaction(txId)));
+        try {
+          const cleanId = row.market_id.replace(/field$/i, '').trim();
+          const fieldId = `${cleanId}field`;
 
-      txData.forEach((tx, index) => {
-        if (!tx) return;
-        const marketId = extractMarketIdFromTx(tx);
-        if (!marketId) return;
-        marketIds.add(marketId);
-        marketIdToTxHash[marketId] = txIds[index];
+          const raw = await fetchMappingValue(PROGRAM_ID, "markets", fieldId);
+          // console.log(`[fetchMarkets] On-chain data for ${fieldId}:`, raw);
+
+          if (!raw) {
+            console.warn(`[fetchMarkets] No on-chain data for ${fieldId}`);
+            return null;
+          }
+
+          const parsed = parseMarketInfo(raw as string | object, fieldId);
+
+          return {
+            ...parsed,
+            transactionId: row.transaction_id,
+            title: row.title || `Market ${row.market_id.slice(0, 8)}...`,
+            description: row.description || 'No description.',
+            source: row.source || 'Creator',
+          } satisfies ChainMarket;
+        } catch (err) {
+          console.error(`[fetchMarkets] Failed for market_id ${row.market_id}:`, err);
+          return null;
+        }
       });
 
-      if (marketIds.size === 0) return [];
-
-      const marketFetches = Array.from(marketIds).map(async (marketId) => {
-        const raw = await fetchMappingValue(PROGRAM_ID, "markets", marketId);
-        if (!raw) return null;
-
-        const parsed = parseMarketInfo(raw as string | object, marketId);
-        const txHash = marketIdToTxHash[marketId];
-        const shieldId = txHash ? txIdToShieldId[txHash] : undefined;
-        const metadata = (txHash ? metadataByTxId[txHash] : undefined) ?? (shieldId ? metadataByShieldId[shieldId] : undefined);
-
-        return {
-          ...parsed,
-          transactionId: txHash,
-          title: metadata?.title || `Market ${marketId.slice(0, 8)}...`,
-          description: metadata?.description || "Market metadata not found on the network.",
-          source: metadata?.source || "Creator",
-        } satisfies ChainMarket;
-      });
-
-      const markets = (await Promise.all(marketFetches)).filter((market): market is NonNullable<typeof market> => market !== null);
+      const results = await Promise.all(marketFetches);
+      const markets = results.filter((m) => m !== null);
+      // console.log(`[fetchMarkets] Loaded ${markets.length} markets`);
       return markets;
     } catch (error) {
-      console.error("Failed to fetch markets:", error);
+      console.error("[fetchMarkets] Fatal error:", error);
       return [];
     } finally {
       setLoading(false);
     }
-  }, [requestTransactionHistory]);
+  }, []);
+
+  // Poll for current height
 
   const [currentHeight, setCurrentHeight] = useState<number | null>(null);
 
-  // Poll for current height
   useEffect(() => {
     const updateHeight = async () => {
       const h = await fetchCurrentBlockHeight();
       if (h) setCurrentHeight(h);
     };
     updateHeight();
-    const interval = setInterval(updateHeight, 30000);
+    const interval = setInterval(updateHeight, 60000); // 60s
     return () => clearInterval(interval);
   }, []);
 
@@ -272,7 +365,7 @@ export const useAleoPrograms = () => {
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       const unspentRecords = records.filter((record) => !record.spent);
 
-      console.log(`[fetchUserBets] Found ${records.length} total records from ${TOKEN_PROGRAM_ID}, ${unspentRecords.length} are unspent.`);
+      // console.log(`[fetchUserBets] Found ${records.length} total records from ${TOKEN_PROGRAM_ID}, ${unspentRecords.length} are unspent.`);
 
       const results = unspentRecords
         .map((record) => {
@@ -295,7 +388,7 @@ export const useAleoPrograms = () => {
         })
         .filter((record) => Boolean(record.market_id));
 
-      console.log(`[fetchUserBets] Returning ${results.length} valid bet records.`);
+      // console.log(`[fetchUserBets] Returning ${results.length} valid bet records.`);
       return results;
     } catch (error) {
       console.error("Failed to fetch user bets:", error);
@@ -305,30 +398,41 @@ export const useAleoPrograms = () => {
     }
   }, [address, requestRecords]);
 
-  const fetchTokenBalance = useCallback(async (): Promise<number> => {
-    if (!address) return 0;
+  const fetchBalances = useCallback(async () => {
+    if (!address) return { private: 0, public: 0, total: 0 };
+
+    let privateMicro = 0;
     try {
-      const rawRecords = await requestRecords(TOKEN_PROGRAM_ID, true);
+      const rawRecords = await requestRecords("credits.aleo", true);
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
-      const unspent = records.filter((record) => !record.spent);
-
-      // We only sum "Credits" records, not "EscrowedBet" records
-      const sum = unspent.reduce((acc, record) => {
-        const isCredits = (record.recordName === "Credits" || (record as any).name === "Credits");
-        if (isCredits) {
-          return acc + extractRecordAmount(record);
-        }
-        return acc;
-      }, 0);
-
-      const credits = sum / 1_000_000;
-      console.log(`[fetchTokenBalance] Total balance: ${credits} Credits (${sum} microcredits)`);
-      return credits;
-    } catch (error) {
-      console.error("Failed to fetch token balance:", error);
-      return 0;
+      privateMicro = records.filter(r => !r.spent).reduce((acc, r) => acc + extractRecordAmount(r), 0);
+    } catch (e) {
+      console.warn("[Balances] Private fetch failed");
     }
+
+    let publicMicro = 0;
+    try {
+      const rawValue = await fetchMappingValue("credits.aleo", "account", address);
+      if (rawValue) {
+        const clean = String(rawValue).replace(/u64/g, "").trim();
+        publicMicro = Number.parseInt(clean, 10) || 0;
+      }
+    } catch (e) {
+      console.warn("[Balances] Public fetch failed");
+    }
+
+    return {
+      private: privateMicro / 1_000_000,
+      public: publicMicro / 1_000_000,
+      total: (privateMicro + publicMicro) / 1_000_000
+    };
   }, [address, requestRecords]);
+
+  const fetchTokenBalance = useCallback(async (): Promise<number> => {
+    const balances = await fetchBalances();
+    return balances.total;
+  }, [fetchBalances]);
+
 
   const createMarket = async (
     title: string,
@@ -348,56 +452,58 @@ export const useAleoPrograms = () => {
     const titleHash = `${randomHash}field`;
 
     try {
-      const result = await executeWalletTransaction({
+      const result = await executeAndPoll({
         program: PROGRAM_ID,
         function: "create_market",
         inputs: [titleHash, formatU8(category), formatU64(closeBlock), formatU64(resolutionBlock)],
         fee: 2_000_000,
         privateFee: false,
-      });
+      }, PROGRAM_ID, "create_market");
 
-      console.log(result);
+      if (result) {
+        // Extract marketId
+        const futureOutput = result.transition?.outputs?.find((o: any) => o.type === 'future');
+        const match = String(futureOutput?.value).match(/arguments:\s*\[\s*(\d+field)/);
 
-      if (result?.transactionId) {
-        await saveMarketMetadata(result.transactionId, titleHash, title, description, resolutionSource);
-        toast.success(`Market created! Tx: ${result.transactionId}`);
-        return result.transactionId;
+        if (match) {
+          const marketId = match[1];
+          await saveMarketMetadata(result.transactionId, marketId, title, description, resolutionSource);
+          return marketId;
+        }
       }
+      return null;
     } catch (error) {
       console.error("Create market failed:", error);
-      toast.error(`Failed: ${getErrorMessage(error)}`);
+      return null;
     }
   };
 
-  const requestCredits = async (credits: number) => {
-    if (!address) return;
-    try {
-      const result = await executeWalletTransaction({
-        program: TOKEN_PROGRAM_ID,
-        function: "faucet",
-        inputs: [formatU64(toMicrocredits(credits))],
-        fee: 1_000_000,
-        privateFee: false,
-      });
-      if (result?.transactionId) {
-        toast.success(`Credits requested! Tx: ${result.transactionId}`);
-        return result.transactionId;
-      }
-    } catch (error) {
-      console.error("Faucet failed:", error);
-      toast.error(`Faucet error: ${getErrorMessage(error)}`);
-    }
+  const requestCredits = async () => {
+    toast.info("Please use the Aleo Faucet to get native credits for betting.");
+    window.open("https://faucet.aleo.org/", "_blank");
   };
 
   const findCreditsRecord = async (requiredAmountMicro: number): Promise<WalletRecord | null> => {
     if (!address) return null;
 
     try {
-      const rawRecords = await requestRecords(TOKEN_PROGRAM_ID, true);
+      // NOTE: Some wallets block "credits.aleo" requestRecords for security.
+      // If this fails, we ask the user to ensure they have enough unspent credits in a single record.
+      let rawRecords: any[] = [];
+      try {
+        rawRecords = await requestRecords("credits.aleo", true);
+      } catch (walletError: any) {
+        console.error("[findCreditsRecord] Wallet Error:", walletError);
+        if (walletError.message?.includes("Program not allowed")) {
+          toast.error("Wallet blocked access to Credits. Please ensure your wallet allows 'credits.aleo' access or try a different wallet.");
+        }
+        throw walletError;
+      }
+
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       const unspent = records.filter((record) => !record.spent);
 
-      console.log(`[findCreditsRecord] Found ${unspent.length} unspent records from ${TOKEN_PROGRAM_ID}`);
+      console.log(`[findCreditsRecord] Found ${unspent.length} unspent records from credits.aleo`);
 
       // Log all unspent records for debugging
       for (const record of unspent) {
@@ -480,51 +586,161 @@ export const useAleoPrograms = () => {
       toast.info("Placing private bet...");
 
       const creditsRecord = await findCreditsRecord(amountMicro);
+
       if (!creditsRecord) {
-        toast.error("No Credits record with sufficient balance. Request faucet credits first.");
+        // Double check if they have public funds
+        const balance = await fetchTokenBalance();
+        if (balance >= amountCredits) {
+          toast.error("Your credits are PUBLIC. You must convert them to PRIVATE first to place a bet.");
+        } else {
+          toast.error("Insufficient balance. Total: " + balance + " Credits");
+        }
         return;
       }
 
-      const betResult = await executeWalletTransaction({
+      const betResult = await executeAndPoll({
         program: TOKEN_PROGRAM_ID,
         function: "place_bet",
-        inputs: [creditsRecord, cleanMarketId, formatU8(outcome), formatU64(amountMicro)],
+        inputs: [
+          creditsRecord.recordPlaintext || creditsRecord.plaintext,
+          cleanMarketId,
+          formatU8(outcome),
+          formatU64(amountMicro),
+        ],
         fee: 1_500_000,
         privateFee: false,
-      });
+      }, TOKEN_PROGRAM_ID, "place_bet");
 
-      if (betResult?.transactionId) {
-        toast.success("Bet successfully placed!");
-        return betResult.transactionId;
-      }
+      return betResult ? betResult.transactionId : null;
     } catch (error) {
       console.error("Place bet failed:", error);
-      toast.error(`Bet error: ${getErrorMessage(error)}`);
+      return null;
     } finally {
       setLoading(false);
     }
   };
 
-  const resolveMarket = async (marketId: string, winningOutcome: number) => {
+  const proposeResolution = async (marketId: string, outcome: number) => {
     if (!address) return;
     const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
 
     try {
-      const result = await executeWalletTransaction({
+      const result = await executeAndPoll({
         program: ORACLE_PROGRAM_ID,
-        function: "finalize_resolution",
-        inputs: [cleanMarketId, formatU8(winningOutcome)],
+        function: "propose_resolution",
+        inputs: [cleanMarketId, formatU8(outcome)],
         fee: 500_000,
         privateFee: false,
-      });
+      }, ORACLE_PROGRAM_ID, "propose_resolution");
 
-      if (result?.transactionId) {
-        toast.success(`Resolution submitted! Tx: ${result.transactionId}`);
-        return result.transactionId;
-      }
+      return result ? result.transactionId : null;
     } catch (error) {
-      console.error("Resolve market failed:", error);
-      toast.error(`Resolve error: ${getErrorMessage(error)}`);
+      console.error("Propose resolution failed:", error);
+      return null;
+    }
+  };
+
+  const disputeResolution = async (marketId: string, amountCredits: number) => {
+    if (!address) return;
+    const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+    const amountMicro = toMicrocredits(amountCredits);
+
+    try {
+      const creditsRecord = await findCreditsRecord(amountMicro);
+      if (!creditsRecord) {
+        toast.error("Insufficient private balance for dispute bond.");
+        return;
+      }
+
+      const result = await executeAndPoll({
+        program: ORACLE_PROGRAM_ID,
+        function: "dispute_resolution",
+        inputs: [
+          creditsRecord.recordPlaintext || creditsRecord.plaintext,
+          cleanMarketId,
+          formatU64(amountMicro)
+        ],
+        fee: 1_000_000,
+        privateFee: false,
+      }, ORACLE_PROGRAM_ID, "dispute_resolution");
+
+      return result ? result.transactionId : null;
+    } catch (error) {
+      console.error("Dispute failed:", error);
+      return null;
+    }
+  };
+
+  const resolveMarketOnCore = async (marketId: string, outcome: number) => {
+    if (!address) return;
+    const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+
+    try {
+      const result = await executeAndPoll({
+        program: ORACLE_PROGRAM_ID,
+        function: "resolve_on_core",
+        inputs: [cleanMarketId, formatU8(outcome)],
+        fee: 1_000_000,
+        privateFee: false,
+      }, ORACLE_PROGRAM_ID, "resolve_on_core");
+
+      return result ? result.transactionId : null;
+    } catch (error) {
+      console.error("Final resolution failed:", error);
+      return null;
+    }
+  };
+
+  const registerAsOracle = async (amountCredits: number) => {
+    if (!address) return;
+    const amountMicro = toMicrocredits(amountCredits);
+
+    try {
+      const creditsRecord = await findCreditsRecord(amountMicro);
+      if (!creditsRecord) {
+        toast.error("Insufficient private balance to stake.");
+        return;
+      }
+
+      const result = await executeAndPoll({
+        program: ORACLE_PROGRAM_ID,
+        function: "register_oracle",
+        inputs: [
+          creditsRecord.recordPlaintext || creditsRecord.plaintext,
+          formatU64(amountMicro)
+        ],
+        fee: 1_000_000,
+        privateFee: false,
+      }, ORACLE_PROGRAM_ID, "register_oracle");
+
+      return result ? result.transactionId : null;
+    } catch (error) {
+      console.error("Oracle registration failed:", error);
+      return null;
+    }
+  };
+
+  const shieldCredits = async (amountCredits: number) => {
+    if (!address) return;
+    setLoading(true);
+    const amountMicro = toMicrocredits(amountCredits);
+
+    try {
+      toast.info(`Shielding ${amountCredits} Credits...`);
+      const result = await executeAndPoll({
+        program: "credits.aleo",
+        function: "transfer_public_to_private",
+        inputs: [address, formatU64(amountMicro)],
+        fee: 100_000,
+        privateFee: false,
+      }, "credits.aleo", "transfer_public_to_private");
+
+      return result ? result.transactionId : null;
+    } catch (error) {
+      console.error("Shield credits failed:", error);
+      return null;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -541,20 +757,18 @@ export const useAleoPrograms = () => {
       }
 
       toast.info("Step 1/2: Claiming winnings from core contract...");
-      const claimResult = await executeWalletTransaction({
+      const claimResult = await executeAndPoll({
         program: PROGRAM_ID,
         function: "claim_winnings",
         inputs: [positionRecord],
         fee: 500_000,
         privateFee: false,
-      });
+      }, PROGRAM_ID, "claim_winnings");
 
       if (!claimResult?.transactionId) {
         toast.error("Core claim failed.");
         return;
       }
-
-      toast.success(`Core claim submitted: ${claimResult.transactionId}`);
 
       // Step 2: Call token contract claim_payout with escrow details
       // The user needs the escrow_id, payout_amount, and nullifier from the WinningsClaim record
@@ -581,15 +795,54 @@ export const useAleoPrograms = () => {
     }
   };
 
+  const isOracleRegistered = useCallback(async (): Promise<boolean> => {
+    if (!publicKey) return false;
+    try {
+      const raw = await fetchMappingValue(ORACLE_PROGRAM_ID, "active_oracles", publicKey);
+      return raw !== null;
+    } catch (error) {
+      console.error("Failed to check oracle registration:", error);
+      return false;
+    }
+  }, [publicKey]);
+
+  const fetchResolutionProposal = useCallback(async (marketId: string) => {
+    try {
+      const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+      const raw = await fetchMappingValue(ORACLE_PROGRAM_ID, "proposals", cleanMarketId);
+      if (!raw) return null;
+
+      const data = typeof raw === "string" ? JSON.parse(raw.replace(/field|u8|u64|address/g, '').replace(/([a-zA-Z0-9_]+):/g, '"$1":')) : raw;
+
+      return {
+        market_id: cleanAleoPrimitive(data.market_id),
+        proposed_outcome: Number(cleanAleoPrimitive(data.proposed_outcome)),
+        challenge_deadline: Number(cleanAleoPrimitive(data.challenge_deadline)),
+        is_disputed: Boolean(data.is_disputed),
+        proposer: cleanAleoPrimitive(data.proposer),
+      };
+    } catch (error) {
+      console.error("Failed to fetch resolution proposal:", error);
+      return null;
+    }
+  }, []);
+
   return {
     createMarket,
     placeBet,
-    resolveMarket,
+    resolveMarket: resolveMarketOnCore,
+    proposeResolution,
+    disputeResolution,
+    registerAsOracle,
+    fetchResolutionProposal,
     claimWinnings,
+    shieldCredits,
+    fetchBalances,
     fetchMarkets,
     fetchUserBets,
     fetchTokenBalance,
     fetchPoolStats,
+    isOracleRegistered,
     requestCredits,
     loading,
     currentHeight,

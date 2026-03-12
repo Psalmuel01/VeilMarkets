@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { OutcomeCard } from "@/components/betting/OutcomeCard";
 import { PlaceBetModal } from "@/components/betting/PlaceBetModal";
+import { ResolutionModal } from "@/components/resolution/ResolutionModal";
 import { cn } from "@/lib/utils";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { PoolInfo } from "@/lib/aleo";
@@ -39,7 +40,14 @@ const statusColors = {
 export default function MarketDetailPage() {
   const { id } = useParams();
   const [showBetModal, setShowBetModal] = useState(false);
+  const [showResolutionModal, setShowResolutionModal] = useState(false);
   const [hasUserBet, setHasUserBet] = useState(false);
+  const [proposal, setProposal] = useState<{
+    proposed_outcome: number;
+    challenge_deadline: number;
+    is_disputed: boolean;
+    proposer: string;
+  } | null>(null);
   const [market, setMarket] = useState<{
     id: string;
     title: string;
@@ -52,11 +60,14 @@ export default function MarketDetailPage() {
     createdAt: string;
     resolutionSource: string;
     closeBlock?: number;
+    resolutionBlock?: number;
+    is_resolved: boolean;
   } | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [loadingMarket, setLoadingMarket] = useState(true);
   const [pool, setPool] = useState<PoolInfo | null>(null);
-  const { fetchMarkets, fetchPoolStats, currentHeight } = useAleoPrograms();
+  const [isOracle, setIsOracle] = useState<boolean | null>(null);
+  const { fetchMarkets, fetchPoolStats, fetchResolutionProposal, currentHeight, isOracleRegistered } = useAleoPrograms();
 
   useEffect(() => {
     const loadMarket = async () => {
@@ -68,12 +79,14 @@ export default function MarketDetailPage() {
       setLoadingMarket(true);
 
       try {
-        const [allMarkets, stats] = await Promise.all([
+        const [allMarkets, stats, oracleStatus] = await Promise.all([
           fetchMarkets(),
-          fetchPoolStats(id)
+          fetchPoolStats(id),
+          isOracleRegistered()
         ]);
 
         setPool(stats);
+        setIsOracle(oracleStatus);
 
         // Flexible matching: check against market.id OR market.transactionId
         const cleanId = (sid: string) => (sid || "").replace("field", "").trim();
@@ -105,6 +118,8 @@ export default function MarketDetailPage() {
             createdAt: "On-chain",
             resolutionSource: found.source || "Creator",
             closeBlock: found.close_block,
+            resolutionBlock: found.resolution_block || found.close_block + 100, // Fallback if 0
+            is_resolved: found.is_resolved,
           });
           setNotFound(false);
         } else {
@@ -116,8 +131,21 @@ export default function MarketDetailPage() {
         setLoadingMarket(false);
       }
     };
+
+    const loadProposal = async () => {
+      if (!id) return;
+      const p = await fetchResolutionProposal(id);
+      setProposal(p);
+    };
+
     loadMarket();
-  }, [id, fetchMarkets, fetchPoolStats]);
+    loadProposal();
+  }, [id, fetchMarkets, fetchPoolStats, fetchResolutionProposal]);
+
+  // Calculate status
+  const isSettled = !!market?.is_resolved;
+  const isClosed = !isSettled && currentHeight && market?.closeBlock && currentHeight >= market.closeBlock;
+  const marketStatus = isSettled ? "Settled" : isClosed ? "Closed" : "Open";
 
   // Calculate stats
   const totalVolume = pool ? (pool.total_yes + pool.total_no) / 1_000_000 : 0;
@@ -127,11 +155,24 @@ export default function MarketDetailPage() {
   const noPercent = 100 - yesPercent;
 
   // Countdown logic
-  const blocksRemaining = market?.closeBlock && currentHeight ? market.closeBlock - currentHeight : null;
-  const timeRemainingStr = blocksRemaining !== null && blocksRemaining > 0
-    ? `~${Math.round((blocksRemaining * 15) / 60)} mins remaining`
-    : blocksRemaining !== null && blocksRemaining <= 0 ? "Expired" : "Loading...";
+  const blocksRemaining = market?.closeBlock && currentHeight
+    ? market.closeBlock - currentHeight
+    : null;
 
+  const timeRemainingStr = (() => {
+    if (blocksRemaining === null) return "Loading...";
+    if (blocksRemaining <= 0) return "Expired";
+
+    const totalSeconds = blocksRemaining * 15;
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+
+    if (days > 0) return `~${days}d ${hours}h remaining`;
+    if (hours > 0) return `~${hours}h ${mins}m remaining`;
+    return `~${mins}m remaining`;
+  })();
+  
   if (notFound) {
     return (
       <MainLayout requireWallet={true}>
@@ -190,12 +231,20 @@ export default function MarketDetailPage() {
             >
               {market.category}
             </Badge>
-            <Badge
-              variant="outline"
-              className={cn("text-xs uppercase tracking-wider", statusColors[market.status as keyof typeof statusColors])}
-            >
-              {market.status}
-            </Badge>
+            <div className="flex items-center gap-3">
+              <Badge
+                variant="outline"
+                className={cn(
+                  "px-3 py-1 text-xs font-bold tracking-wider uppercase border-none bg-opacity-20",
+                  marketStatus === "Open" ? "bg-success text-success-foreground" :
+                    marketStatus === "Closed" ? "bg-warning text-warning-foreground" :
+                      "bg-muted text-muted-foreground"
+                )}
+              >
+                {marketStatus}
+              </Badge>
+              <ZKBadge variant="proof" size="sm" />
+            </div>
           </div>
 
           <h1 className="text-3xl md:text-4xl font-bold mb-4">{market.title}</h1>
@@ -205,7 +254,7 @@ export default function MarketDetailPage() {
             <div className="flex items-center gap-1.5">
               <Clock className="w-4 h-4" />
               <span className={cn(blocksRemaining !== null && blocksRemaining < 100 ? "text-warning" : "")}>
-                {timeRemainingStr} ({market.closingTime})
+                {timeRemainingStr}
               </span>
             </div>
             <div className="flex items-center gap-1.5">
@@ -277,17 +326,17 @@ export default function MarketDetailPage() {
                   outcome="Yes"
                   selected={false}
                   onSelect={() => setShowBetModal(true)}
-                  disabled={market.status !== "Open"}
+                  disabled={marketStatus !== "Open"}
                 />
                 <OutcomeCard
                   outcome="No"
                   selected={false}
                   onSelect={() => setShowBetModal(true)}
-                  disabled={market.status !== "Open"}
+                  disabled={marketStatus !== "Open"}
                 />
               </div>
 
-              {market.status !== "Open" && (
+              {marketStatus !== "Open" && (
                 <p className="text-sm text-muted-foreground mt-4 text-center">
                   This market is no longer accepting bets
                 </p>
@@ -350,7 +399,7 @@ export default function MarketDetailPage() {
                   </p>
                   <Button
                     onClick={() => setShowBetModal(true)}
-                    disabled={market.status !== "Open"}
+                    disabled={marketStatus !== "Open"}
                     className="w-full btn-glow-primary"
                   >
                     Place Private Bet
@@ -358,6 +407,47 @@ export default function MarketDetailPage() {
                 </div>
               )}
             </div>
+
+            {/* Resolution Control (Propose/Dispute/Finalize) */}
+            {((market.closeBlock && currentHeight && currentHeight >= market.closeBlock) || proposal) && (marketStatus === "Closed" || marketStatus === "Settled") && (
+              <div className="p-6 rounded-xl bg-card border border-border/50">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold">Resolution</h2>
+                  <ZKBadge variant="verified" size="sm" />
+                </div>
+
+                <div className="space-y-3">
+                  {proposal ? (
+                    <div className="p-3 rounded-lg bg-muted/20 border border-border/50 text-sm">
+                      <div className="flex justify-between mb-2">
+                        <span className="text-muted-foreground">Proposed Outcome</span>
+                        <span className={cn("font-bold", proposal.proposed_outcome === 1 ? "text-success" : "text-destructive")}>
+                          {proposal.proposed_outcome === 1 ? "YES" : "NO"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Challenge Window</span>
+                        <span className="text-amber-500 font-medium">
+                          {proposal.is_disputed ? "Disputed" : (currentHeight && currentHeight >= proposal.challenge_deadline) ? "Ended" : "Active"}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      This market is entering its resolution phase. Oracles can now propose the true outcome.
+                    </p>
+                  )}
+
+                  <Button
+                    onClick={() => setShowResolutionModal(true)}
+                    className="w-full btn-glow-primary"
+                    variant={proposal ? "outline" : "default"}
+                  >
+                    {proposal ? "Manage Resolution" : "Propose Resolution"}
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* Privacy Info */}
             <div className="p-6 rounded-xl bg-muted/20 border border-border/50">
@@ -390,6 +480,29 @@ export default function MarketDetailPage() {
         onBetPlaced={() => setHasUserBet(true)}
         marketTitle={market.title}
         marketId={market.id}
+      />
+
+      <ResolutionModal
+        isOpen={showResolutionModal}
+        onClose={() => setShowResolutionModal(false)}
+        market={{
+          id: market.id,
+          title: market.title,
+          close_block: market.closeBlock || 0,
+          resolution_block: market.resolutionBlock || 0,
+        }}
+        proposal={proposal}
+        currentHeight={currentHeight || 0}
+        isOracle={isOracle === true}
+        onUpdate={async () => {
+          if (!id) return;
+          const [p, oracleStatus] = await Promise.all([
+            fetchResolutionProposal(id),
+            isOracleRegistered()
+          ]);
+          setProposal(p);
+          setIsOracle(oracleStatus);
+        }}
       />
     </MainLayout>
   );

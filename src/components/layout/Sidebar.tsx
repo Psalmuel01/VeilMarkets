@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
+import { OracleRegistrationModal } from "@/components/resolution/OracleRegistrationModal";
 
 const navItems = [
   { icon: LayoutGrid, label: "Markets", path: "/markets" },
@@ -25,34 +26,29 @@ const navItems = [
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
-  const { requestCredits, fetchMarkets, fetchTokenBalance, publicKey } = useAleoPrograms();
+  const { requestCredits, fetchMarkets, fetchBalances, shieldCredits, publicKey, isOracleRegistered, registerAsOracle } = useAleoPrograms();
   const [activeMarketsCount, setActiveMarketsCount] = useState<number | null>(null);
-  const [tokenBalance, setTokenBalance] = useState<number | null>(null);
+  const [balances, setBalances] = useState<{ private: number; public: number } | null>(null);
+  const [isOracle, setIsOracle] = useState<boolean | null>(null);
+  const [isOracleModalOpen, setIsOracleModalOpen] = useState(false);
 
   useEffect(() => {
     const loadStats = async () => {
       try {
-        const [markets, balance] = await Promise.all([
+        const [markets, bal, oracleStatus] = await Promise.all([
           fetchMarkets(),
-          fetchTokenBalance()
+          fetchBalances(),
+          isOracleRegistered()
         ]);
         setActiveMarketsCount(markets.length);
-        setTokenBalance(balance);
+        setBalances(bal);
+        setIsOracle(oracleStatus);
       } catch (error) {
         console.error("Failed to fetch sidebar stats:", error);
       }
     };
     loadStats();
-  }, [fetchMarkets, fetchTokenBalance, publicKey]);
-
-  const handleRequestCredits = async (amount: number) => {
-    const tx = await requestCredits(amount);
-    if (tx) {
-      // Refresh balance after a short delay to allow for the tx to be detected locally if possible
-      // or just wait for next poll
-      setTimeout(() => fetchTokenBalance().then(setTokenBalance), 5000);
-    }
-  };
+  }, [fetchMarkets, fetchBalances, isOracleRegistered, publicKey]);
 
   return (
     <aside
@@ -115,11 +111,19 @@ export function Sidebar() {
                   {activeMarketsCount !== null ? activeMarketsCount : "..."}
                 </span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Your Balance</span>
-                <span className="font-medium text-primary">
-                  {tokenBalance !== null ? `${tokenBalance.toLocaleString()} Credits` : "..."}
-                </span>
+              <div className="space-y-2 pt-2 border-t border-border/10">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Betting Balance</span>
+                  <span className="font-bold text-primary">
+                    {balances !== null ? `${balances.private.toLocaleString()} Credits` : "..."}
+                  </span>
+                </div>
+                {balances && balances.public > 0 && (
+                  <div className="flex justify-between text-[10px] text-muted-foreground/60">
+                    <span>Available to Shield</span>
+                    <span>{balances.public.toLocaleString()} Credits</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -128,15 +132,32 @@ export function Sidebar() {
 
       {/* Wallet Connect & Faucet */}
       <div className="p-3 border-t border-border/50 space-y-2">
-        {!collapsed && (
+        {/* {!collapsed && (
           <Button
             variant="outline"
             size="sm"
-            className="w-full border-primary/30 hover:border-primary/50 text-xs"
-            onClick={() => handleRequestCredits(500)}
+            className={cn(
+              "w-full text-xs transition-all duration-200",
+              balances && balances.public > 0 
+                ? "border-amber-500/30 hover:bg-amber-500/10 text-amber-500" 
+                : "border-primary/30 hover:border-primary/50 text-primary"
+            )}
+            onClick={() => balances && balances.public > 0 ? shieldCredits(balances.public) : requestCredits()}
           >
-            <Shield className="w-3.5 h-3.5 mr-2 text-primary" />
-            Request 500 Credits
+            <Shield className="w-3.5 h-3.5" />
+            {balances && balances.public > 0 ? "Shield for Betting" : "Request faucet credits"}
+          </Button>
+        )} */}
+        
+        {!collapsed && isOracle === false && publicKey && (
+          <Button
+            variant="default"
+            size="sm"
+            className="w-full text-xs bg-amber-500 hover:bg-amber-600 text-white border-none shadow-lg shadow-amber-500/20"
+            onClick={() => setIsOracleModalOpen(true)}
+          >
+            <Shield className="w-3.5 h-3.5 mr-2" />
+            Become an Oracle
           </Button>
         )}
         <ConnectWalletButton className={collapsed ? "w-10 px-0 justify-center" : "w-full"} />
@@ -160,6 +181,13 @@ export function Sidebar() {
           )}
         </Button>
       </div>
+
+      {/* Oracle Registration Modal */}
+      <OracleRegistrationModal
+        isOpen={isOracleModalOpen}
+        onClose={() => setIsOracleModalOpen(false)}
+        onSuccess={() => setIsOracle(true)}
+      />
     </aside>
   );
 }
