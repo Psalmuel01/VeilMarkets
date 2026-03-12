@@ -170,66 +170,99 @@ export const useAleoPrograms = () => {
       pollFunction: string
     ): Promise<{ transactionId: string; transition: any } | null> => {
       try {
+        // Snapshot BEFORE executing
+        const existingHistory = await requestTransactionHistory(pollProgram);
+        const existingAtIds = new Set(
+          (existingHistory?.transactions ?? [])
+            .map((tx: any) => tx.transactionId)
+            .filter((id: string) => id?.startsWith('at1'))
+        );
+        // console.log(`[poll] Existing at1 IDs before submit:`, [...existingAtIds]);
+
         const result = await executeWalletTransaction(options);
         if (!result?.transactionId) return null;
-        
+
         toast.info(`Transaction submitted! Waiting for network confirmation...`);
 
         let actualTxId = result.transactionId.startsWith('at1') ? result.transactionId : undefined;
+        let foundTransition: any = null;
 
-        for (let i = 0; i < 15; i++) {
+        outer: for (let i = 0; i < 15; i++) {
           await new Promise((r) => setTimeout(r, 4000));
-          console.log(`[poll] attempt ${i + 1} for ${pollFunction}...`);
+          // console.log(`[poll] attempt ${i + 1} for ${pollFunction}...`);
 
           try {
             if (!actualTxId) {
               const history = await requestTransactionHistory(pollProgram);
               const txs = history?.transactions ?? [];
-              
-              const match = txs.find((t: any) => t.id === result.transactionId);
-              if (match?.transactionId?.startsWith('at1')) {
-                actualTxId = match.transactionId;
-              } else if (!match) {
-                 // Fallback: search for first unconfirmed matching transition in recent history
-                 for (const tx of txs.slice(-3).reverse()) {
-                   if (!tx.transactionId?.startsWith('at1')) continue;
-                   const txData = await fetchTransaction(tx.transactionId);
-                   if (!txData) continue;
-                   
-                   const transitions = txData?.execution?.transitions ?? [];
-                   const transitionMatch = transitions.find(
-                     (t: any) => t.function === pollFunction && (t.program === pollProgram || String(t.program).startsWith(pollProgram.split('.')[0]))
-                   );
-                   if (transitionMatch) {
-                     actualTxId = tx.transactionId;
-                     return { transactionId: actualTxId, transition: transitionMatch };
-                   }
-                 }
+
+              // First try: match by shield_ id directly
+              const shieldMatch = txs.find((t: any) => t.id === result.transactionId);
+              if (shieldMatch?.transactionId?.startsWith('at1')) {
+                actualTxId = shieldMatch.transactionId;
+                // console.log(`[poll] Matched by shield id:`, actualTxId);
+              }
+
+              // Fallback: only NEW at1 IDs that didn't exist before submit
+              if (!actualTxId) {
+                const newAtTxIds = txs
+                  .map((tx: any) => tx.transactionId)
+                  .filter((id: string) => id?.startsWith('at1') && !existingAtIds.has(id));
+
+                // console.log(`[poll] New at1 IDs since submit:`, newAtTxIds);
+
+                for (const atTxId of newAtTxIds) {
+                  const txData = await fetchTransaction(atTxId);
+                  if (!txData) continue;
+
+                  const transitions = txData?.execution?.transitions ?? [];
+                  const transitionMatch = transitions.find(
+                    (t: any) =>
+                      t.function === pollFunction &&
+                      (t.program === pollProgram ||
+                        String(t.program).startsWith(pollProgram.split('.')[0]))
+                  );
+
+                  if (transitionMatch) {
+                    actualTxId = atTxId;
+                    foundTransition = transitionMatch;
+                    // console.log(`[poll] Found via new at1 ID:`, actualTxId);
+                    break outer;
+                  }
+                }
               }
             }
 
-            if (actualTxId) {
+            if (actualTxId && !foundTransition) {
               const txData = await fetchTransaction(actualTxId);
               if (!txData) continue;
 
               const transitions = txData?.execution?.transitions ?? [];
-              const match = transitions.find(
-                (t: any) => t.function === pollFunction && (t.program === pollProgram || String(t.program).startsWith(pollProgram.split('.')[0]))
+              const transitionMatch = transitions.find(
+                (t: any) =>
+                  t.function === pollFunction &&
+                  (t.program === pollProgram ||
+                    String(t.program).startsWith(pollProgram.split('.')[0]))
               );
 
-              if (match) {
-                console.log(`[poll] Found confirmed tx:`, actualTxId);
-                toast.success('Transaction confirmed!');
-                return { transactionId: actualTxId, transition: match };
+              if (transitionMatch) {
+                foundTransition = transitionMatch;
+                console.log(`[poll] Confirmed tx:`, actualTxId);
+                break outer;
               }
             }
           } catch (e) {
             console.warn(`[poll] attempt ${i + 1} failed:`, e);
           }
         }
-        
+
+        if (actualTxId && foundTransition) {
+          toast.success('Transaction confirmed!');
+          return { transactionId: actualTxId, transition: foundTransition };
+        }
+
         toast.error('Transaction failed to confirm within time limit.');
-        return null; // timeout
+        return null;
       } catch (error) {
         console.error("Execute failed:", error);
         toast.error(`Transaction failed: ${getErrorMessage(error)}`);
@@ -248,7 +281,7 @@ export const useAleoPrograms = () => {
     setLoading(true);
     try {
       const metadataRows = await getAllMarketMetadata();
-      console.log('[fetchMarkets] Rows from Supabase:', metadataRows);
+      // console.log('[fetchMarkets] Rows from Supabase:', metadataRows);
 
       if (metadataRows.length === 0) return [];
 
@@ -431,7 +464,7 @@ export const useAleoPrograms = () => {
         // Extract marketId
         const futureOutput = result.transition?.outputs?.find((o: any) => o.type === 'future');
         const match = String(futureOutput?.value).match(/arguments:\s*\[\s*(\d+field)/);
-        
+
         if (match) {
           const marketId = match[1];
           await saveMarketMetadata(result.transactionId, marketId, title, description, resolutionSource);
