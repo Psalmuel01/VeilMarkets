@@ -468,7 +468,7 @@ export const useAleoPrograms = () => {
         if (match) {
           const marketId = match[1];
           await saveMarketMetadata(result.transactionId, marketId, title, description, resolutionSource);
-          return marketId;
+          return result.transactionId;
         }
       }
       return null;

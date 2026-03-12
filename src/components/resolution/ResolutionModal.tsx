@@ -52,6 +52,7 @@ export function ResolutionModal({
   const [step, setStep] = useState<Step>("action");
   const [txId, setTxId] = useState<string | null>(null);
   const [isOracleModalOpen, setIsOracleModalOpen] = useState(false);
+  // console.log(isOracle);
 
   const handleAction = async (actionFn: () => Promise<string | null | undefined>) => {
     setStep("processing");
@@ -199,12 +200,12 @@ export function ResolutionModal({
                           <p className="text-xs text-muted-foreground leading-relaxed">
                             You must be a registered Oracle to propose outcomes. This ensures high-quality resolutions via economic stake.
                           </p>
-                          {/* <Button 
+                          <Button 
                       className="w-full bg-amber-500 hover:bg-amber-600 text-white" 
                       onClick={() => setIsOracleModalOpen(true)}
                     >
                       Register as Oracle
-                    </Button> */}
+                    </Button>
                         </div>
                       ) : (
                         <Button

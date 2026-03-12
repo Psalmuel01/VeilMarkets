@@ -493,7 +493,7 @@ export default function MarketDetailPage() {
         }}
         proposal={proposal}
         currentHeight={currentHeight || 0}
-        isOracle={isOracle === true}
+        isOracle={isOracle}
         onUpdate={async () => {
           if (!id) return;
           const [p, oracleStatus] = await Promise.all([

@@ -43,6 +43,7 @@ export function Sidebar() {
         setActiveMarketsCount(markets.length);
         setBalances(bal);
         setIsOracle(oracleStatus);
+        // console.log(oracleStatus);
       } catch (error) {
         console.error("Failed to fetch sidebar stats:", error);
       }
