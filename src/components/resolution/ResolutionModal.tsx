@@ -13,6 +13,7 @@ import { AlertTriangle, CheckCircle2, Gavel, Timer, Shield, Loader2, X } from "l
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { OracleRegistrationModal } from "@/components/resolution/OracleRegistrationModal";
 
 interface ResolutionModalProps {
   isOpen: boolean;
@@ -50,6 +51,7 @@ export function ResolutionModal({
 
   const [step, setStep] = useState<Step>("action");
   const [txId, setTxId] = useState<string | null>(null);
+  const [isOracleModalOpen, setIsOracleModalOpen] = useState(false);
 
   const handleAction = async (actionFn: () => Promise<string | null | undefined>) => {
     setStep("processing");
@@ -201,10 +203,9 @@ export function ResolutionModal({
                     </p>
                     <Button 
                       className="w-full bg-amber-500 hover:bg-amber-600 text-white" 
-                      onClick={() => registerAsOracle(30)}
-                      disabled={loading}
+                      onClick={() => setIsOracleModalOpen(true)}
                     >
-                      Stake 30 Credits & Register
+                      Open Oracle Registration
                     </Button>
                   </div>
                 ) : (
@@ -225,8 +226,7 @@ export function ResolutionModal({
                    <Button 
                     variant="outline"
                     className="w-full border-amber-500/30 hover:bg-amber-500/10 text-amber-500"
-                    onClick={() => registerAsOracle(30)}
-                    disabled={loading}
+                    onClick={() => setIsOracleModalOpen(true)}
                   >
                     <Shield className="w-4 h-4 mr-2" />
                     Register as Oracle to Dispute
