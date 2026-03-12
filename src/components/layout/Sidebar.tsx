@@ -152,7 +152,7 @@ export function Sidebar() {
             variant="default"
             size="sm"
             className="w-full text-xs bg-amber-500 hover:bg-amber-600 text-white border-none shadow-lg shadow-amber-500/20"
-            onClick={() => registerAsOracle(100)} // Default stake 100
+            onClick={() => registerAsOracle(30)} // Default stake 100
             disabled
           >
             <Shield className="w-3.5 h-3.5 mr-2" />

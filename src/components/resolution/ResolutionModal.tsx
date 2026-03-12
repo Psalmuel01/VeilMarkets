@@ -187,7 +187,7 @@ export function ResolutionModal({
                     </p>
                     <Button 
                       className="w-full bg-amber-500 hover:bg-amber-600 text-white" 
-                      onClick={() => registerAsOracle(100)}
+                      onClick={() => registerAsOracle(30)}
                       disabled={loading}
                     >
                       Stake 100 Credits & Register
@@ -211,7 +211,7 @@ export function ResolutionModal({
                    <Button 
                     variant="outline"
                     className="w-full border-amber-500/30 hover:bg-amber-500/10 text-amber-500"
-                    onClick={() => registerAsOracle(100)}
+                    onClick={() => registerAsOracle(30)}
                     disabled={loading}
                   >
                     <Shield className="w-4 h-4 mr-2" />
