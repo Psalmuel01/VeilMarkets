@@ -20,16 +20,16 @@ export const saveMarketMetadata = async (
   source?: string,
 ) => {
   try {
-    const { error } = await supabase.from("markets").upsert(
-      [{
+    const { error } = await supabase
+      .from("markets")
+      .insert([{
         market_id: marketId,
         transaction_id: transactionId,
         title,
         description,
         source: source || "Creator",
-      }],
-      { onConflict: "market_id" }
-    );
+      }]);
+
     if (error) console.error("[saveMarketMetadata] Error:", error.message);
     else console.log("[saveMarketMetadata] Saved:", marketId);
   } catch (e) {

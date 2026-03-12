@@ -5,7 +5,6 @@ import type { TxHistoryResult } from "@provablehq/aleo-types";
 import {
   fetchMappingValue,
   fetchTransaction,
-  extractMarketIdFromTx,
   parseMarketInfo,
   fetchCurrentBlockHeight,
   PoolInfo,
@@ -162,6 +161,82 @@ export const useAleoPrograms = () => {
       } as Parameters<typeof executeTransaction>[0]);
     },
     [executeTransaction],
+  );
+
+  const executeAndPoll = useCallback(
+    async (
+      options: ExecuteWalletTransactionOptions,
+      pollProgram: string,
+      pollFunction: string
+    ): Promise<{ transactionId: string; transition: any } | null> => {
+      try {
+        const result = await executeWalletTransaction(options);
+        if (!result?.transactionId) return null;
+        
+        toast.info(`Transaction submitted! Waiting for network confirmation...`);
+
+        let actualTxId = result.transactionId.startsWith('at1') ? result.transactionId : undefined;
+
+        for (let i = 0; i < 15; i++) {
+          await new Promise((r) => setTimeout(r, 4000));
+          console.log(`[poll] attempt ${i + 1} for ${pollFunction}...`);
+
+          try {
+            if (!actualTxId) {
+              const history = await requestTransactionHistory(pollProgram);
+              const txs = history?.transactions ?? [];
+              
+              const match = txs.find((t: any) => t.id === result.transactionId);
+              if (match?.transactionId?.startsWith('at1')) {
+                actualTxId = match.transactionId;
+              } else if (!match) {
+                 // Fallback: search for first unconfirmed matching transition in recent history
+                 for (const tx of txs.slice(-3).reverse()) {
+                   if (!tx.transactionId?.startsWith('at1')) continue;
+                   const txData = await fetchTransaction(tx.transactionId);
+                   if (!txData) continue;
+                   
+                   const transitions = txData?.execution?.transitions ?? [];
+                   const transitionMatch = transitions.find(
+                     (t: any) => t.function === pollFunction && (t.program === pollProgram || String(t.program).startsWith(pollProgram.split('.')[0]))
+                   );
+                   if (transitionMatch) {
+                     actualTxId = tx.transactionId;
+                     return { transactionId: actualTxId, transition: transitionMatch };
+                   }
+                 }
+              }
+            }
+
+            if (actualTxId) {
+              const txData = await fetchTransaction(actualTxId);
+              if (!txData) continue;
+
+              const transitions = txData?.execution?.transitions ?? [];
+              const match = transitions.find(
+                (t: any) => t.function === pollFunction && (t.program === pollProgram || String(t.program).startsWith(pollProgram.split('.')[0]))
+              );
+
+              if (match) {
+                console.log(`[poll] Found confirmed tx:`, actualTxId);
+                toast.success('Transaction confirmed!');
+                return { transactionId: actualTxId, transition: match };
+              }
+            }
+          } catch (e) {
+            console.warn(`[poll] attempt ${i + 1} failed:`, e);
+          }
+        }
+        
+        toast.error('Transaction failed to confirm within time limit.');
+        return null; // timeout
+      } catch (error) {
+        console.error("Execute failed:", error);
+        toast.error(`Transaction failed: ${getErrorMessage(error)}`);
+        return null;
+      }
+    },
+    [executeWalletTransaction, requestTransactionHistory]
   );
 
   /**
@@ -344,75 +419,29 @@ export const useAleoPrograms = () => {
     const titleHash = `${randomHash}field`;
 
     try {
-      const result = await executeWalletTransaction({
+      const result = await executeAndPoll({
         program: PROGRAM_ID,
         function: "create_market",
         inputs: [titleHash, formatU8(category), formatU64(closeBlock), formatU64(resolutionBlock)],
         fee: 2_000_000,
         privateFee: false,
-      });
+      }, PROGRAM_ID, "create_market");
 
-      console.log('[createMarket] Raw wallet result:', result);
-
-      if (result?.transactionId) {
-        toast.success('Transaction submitted! Waiting for confirmation...');
-
-        let actualTxId: string | undefined;
-        let marketId: string | undefined;
-
-        for (let i = 0; i < 15; i++) {
-          await new Promise(r => setTimeout(r, 4000));
-          console.log(`[createMarket] Poll attempt ${i + 1}...`);
-
-          try {
-            const history = await requestTransactionHistory(PROGRAM_ID);
-            const transactions: Array<{ id: string; transactionId: string }> = history?.transactions ?? [];
-
-            for (const tx of transactions.slice().reverse()) {
-              const atTxId = tx.transactionId;
-              if (!atTxId?.startsWith('at1')) continue;
-
-              const txData = await fetchTransaction(atTxId);
-              if (!txData) continue;
-
-              const transitions = txData?.execution?.transitions ?? [];
-              const createTx = transitions.find(
-                (t: any) => t.function === 'create_market' && t.program === PROGRAM_ID,
-              );
-              if (!createTx) continue;
-
-              const futureOutput = createTx?.outputs?.find((o: any) => o.type === 'future');
-              if (!futureOutput?.value) continue;
-
-              const match = String(futureOutput.value).match(/arguments:\s*\[\s*(\d+field)/);
-              if (!match) continue;
-
-              actualTxId = atTxId;
-              marketId = match[1];
-              console.log('[createMarket] Found — txId:', actualTxId, 'marketId:', marketId);
-              break;
-            }
-          } catch (e) {
-            console.warn(`[createMarket] Poll attempt ${i + 1} failed:`, e);
-          }
-
-          if (actualTxId && marketId) break;
+      if (result) {
+        // Extract marketId
+        const futureOutput = result.transition?.outputs?.find((o: any) => o.type === 'future');
+        const match = String(futureOutput?.value).match(/arguments:\s*\[\s*(\d+field)/);
+        
+        if (match) {
+          const marketId = match[1];
+          await saveMarketMetadata(result.transactionId, marketId, title, description, resolutionSource);
+          return marketId;
         }
-
-        console.log('[createMarket] FINAL — txId:', actualTxId, 'marketId:', marketId);
-
-        if (actualTxId && marketId) {
-          await saveMarketMetadata(actualTxId, marketId, title, description, resolutionSource);
-          toast.success(`Market created! ID: ${marketId}`);
-        } else {
-          toast.warning('Market submitted but not yet confirmed. Please sync markets in a moment.');
-        }
-
-        return actualTxId || result.transactionId;
       }
+      return null;
     } catch (error) {
       console.error("Create market failed:", error);
-      toast.error(`Failed: ${getErrorMessage(error)}`);
+      return null;
     }
   };
 
@@ -536,26 +565,23 @@ export const useAleoPrograms = () => {
         return;
       }
 
-      const betResult = await executeWalletTransaction({
+      const betResult = await executeAndPoll({
         program: TOKEN_PROGRAM_ID,
         function: "place_bet",
         inputs: [
-          creditsRecord.recordPlaintext || creditsRecord.plaintext, // Pass the actual record string
+          creditsRecord.recordPlaintext || creditsRecord.plaintext,
           cleanMarketId,
-          formatU8(outcome), // Assuming outcome is the correct variable, not outcomeIndex as in the snippet
+          formatU8(outcome),
           formatU64(amountMicro),
         ],
         fee: 1_500_000,
         privateFee: false,
-      });
+      }, TOKEN_PROGRAM_ID, "place_bet");
 
-      if (betResult?.transactionId) {
-        toast.success("Bet successfully placed!");
-        return betResult.transactionId;
-      }
+      return betResult ? betResult.transactionId : null;
     } catch (error) {
       console.error("Place bet failed:", error);
-      toast.error(`Bet error: ${getErrorMessage(error)}`);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -566,21 +592,18 @@ export const useAleoPrograms = () => {
     const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
 
     try {
-      const result = await executeWalletTransaction({
+      const result = await executeAndPoll({
         program: ORACLE_PROGRAM_ID,
         function: "propose_resolution",
         inputs: [cleanMarketId, formatU8(outcome)],
         fee: 500_000,
         privateFee: false,
-      });
+      }, ORACLE_PROGRAM_ID, "propose_resolution");
 
-      if (result?.transactionId) {
-        toast.success(`Resolution proposed! Tx: ${result.transactionId}`);
-        return result.transactionId;
-      }
+      return result ? result.transactionId : null;
     } catch (error) {
       console.error("Propose resolution failed:", error);
-      toast.error(`Propose error: ${getErrorMessage(error)}`);
+      return null;
     }
   };
 
@@ -596,7 +619,7 @@ export const useAleoPrograms = () => {
         return;
       }
 
-      const result = await executeWalletTransaction({
+      const result = await executeAndPoll({
         program: ORACLE_PROGRAM_ID,
         function: "dispute_resolution",
         inputs: [
@@ -606,15 +629,12 @@ export const useAleoPrograms = () => {
         ],
         fee: 1_000_000,
         privateFee: false,
-      });
+      }, ORACLE_PROGRAM_ID, "dispute_resolution");
 
-      if (result?.transactionId) {
-        toast.success(`Dispute submitted! Tx: ${result.transactionId}`);
-        return result.transactionId;
-      }
+      return result ? result.transactionId : null;
     } catch (error) {
       console.error("Dispute failed:", error);
-      toast.error(`Dispute error: ${getErrorMessage(error)}`);
+      return null;
     }
   };
 
@@ -623,21 +643,18 @@ export const useAleoPrograms = () => {
     const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
 
     try {
-      const result = await executeWalletTransaction({
+      const result = await executeAndPoll({
         program: ORACLE_PROGRAM_ID,
         function: "resolve_on_core",
         inputs: [cleanMarketId, formatU8(outcome)],
         fee: 1_000_000,
         privateFee: false,
-      });
+      }, ORACLE_PROGRAM_ID, "resolve_on_core");
 
-      if (result?.transactionId) {
-        toast.success(`Market settled on core! Tx: ${result.transactionId}`);
-        return result.transactionId;
-      }
+      return result ? result.transactionId : null;
     } catch (error) {
       console.error("Final resolution failed:", error);
-      toast.error(`Resolution error: ${getErrorMessage(error)}`);
+      return null;
     }
   };
 
@@ -652,7 +669,7 @@ export const useAleoPrograms = () => {
         return;
       }
 
-      const result = await executeWalletTransaction({
+      const result = await executeAndPoll({
         program: ORACLE_PROGRAM_ID,
         function: "register_oracle",
         inputs: [
@@ -661,15 +678,12 @@ export const useAleoPrograms = () => {
         ],
         fee: 1_000_000,
         privateFee: false,
-      });
+      }, ORACLE_PROGRAM_ID, "register_oracle");
 
-      if (result?.transactionId) {
-        toast.success(`Registered as Oracle! Tx: ${result.transactionId}`);
-        return result.transactionId;
-      }
+      return result ? result.transactionId : null;
     } catch (error) {
       console.error("Oracle registration failed:", error);
-      toast.error(`Registration error: ${getErrorMessage(error)}`);
+      return null;
     }
   };
 
@@ -680,21 +694,18 @@ export const useAleoPrograms = () => {
 
     try {
       toast.info(`Shielding ${amountCredits} Credits...`);
-      const result = await executeWalletTransaction({
+      const result = await executeAndPoll({
         program: "credits.aleo",
         function: "transfer_public_to_private",
         inputs: [address, formatU64(amountMicro)],
         fee: 100_000,
         privateFee: false,
-      });
+      }, "credits.aleo", "transfer_public_to_private");
 
-      if (result?.transactionId) {
-        toast.success("Credits shielded successfully! They will appear in your private balance shortly.");
-        return result.transactionId;
-      }
+      return result ? result.transactionId : null;
     } catch (error) {
       console.error("Shield credits failed:", error);
-      toast.error(`Shield error: ${getErrorMessage(error)}`);
+      return null;
     } finally {
       setLoading(false);
     }
@@ -713,20 +724,18 @@ export const useAleoPrograms = () => {
       }
 
       toast.info("Step 1/2: Claiming winnings from core contract...");
-      const claimResult = await executeWalletTransaction({
+      const claimResult = await executeAndPoll({
         program: PROGRAM_ID,
         function: "claim_winnings",
         inputs: [positionRecord],
         fee: 500_000,
         privateFee: false,
-      });
+      }, PROGRAM_ID, "claim_winnings");
 
       if (!claimResult?.transactionId) {
         toast.error("Core claim failed.");
         return;
       }
-
-      toast.success(`Core claim submitted: ${claimResult.transactionId}`);
 
       // Step 2: Call token contract claim_payout with escrow details
       // The user needs the escrow_id, payout_amount, and nullifier from the WinningsClaim record

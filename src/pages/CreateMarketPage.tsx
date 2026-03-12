@@ -37,7 +37,7 @@ const categories = [
   { value: "tech", label: "Tech" },
 ];
 
-type Step = "form" | "review" | "creating" | "success";
+type Step = "form" | "review" | "creating" | "success" | "failed";
 
 export default function CreateMarketPage() {
   const navigate = useNavigate();
@@ -103,7 +103,7 @@ export default function CreateMarketPage() {
       setTxId(result);
       setStep("success");
     } else {
-      setStep("form");
+      setStep("failed");
     }
   };
 
@@ -393,6 +393,46 @@ export default function CreateMarketPage() {
                 className="flex-1 btn-glow-primary"
               >
                 View Your Market
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
+        {step === "failed" && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="py-12 text-center space-y-6"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", delay: 0.2 }}
+              className="mx-auto w-24 h-24 rounded-full bg-destructive/10 border-2 border-destructive flex items-center justify-center"
+            >
+              <AlertCircle className="w-12 h-12 text-destructive" />
+            </motion.div>
+
+            <div>
+              <h3 className="text-xl font-semibold mb-2">Transaction Failed</h3>
+              <p className="text-muted-foreground mb-4">
+                Your market could not be created. Please try again or check your wallet connection.
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setStep("form")}
+                className="flex-1"
+              >
+                Back to Edit
+              </Button>
+              <Button
+                onClick={handleCreate}
+                className="flex-1 btn-glow-primary"
+              >
+                Try Again
               </Button>
             </div>
           </motion.div>

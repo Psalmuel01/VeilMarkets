@@ -130,7 +130,7 @@ export function Sidebar() {
 
       {/* Wallet Connect & Faucet */}
       <div className="p-3 border-t border-border/50 space-y-2">
-        {!collapsed && (
+        {/* {!collapsed && (
           <Button
             variant="outline"
             size="sm"
@@ -145,7 +145,7 @@ export function Sidebar() {
             <Shield className="w-3.5 h-3.5" />
             {balances && balances.public > 0 ? "Shield for Betting" : "Request faucet credits"}
           </Button>
-        )}
+        )} */}
         
         {!collapsed && isOracle === false && publicKey && (
           <Button

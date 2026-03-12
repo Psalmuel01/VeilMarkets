@@ -22,7 +22,7 @@ interface PlaceBetModalProps {
   onBetPlaced?: () => void;
 }
 
-type Step = "select" | "confirm" | "processing" | "success";
+type Step = "select" | "confirm" | "processing" | "success" | "failed";
 
 export function PlaceBetModal({ open, onClose, marketTitle, marketId, onBetPlaced }: PlaceBetModalProps) {
   const [step, setStep] = useState<Step>("select");
@@ -72,7 +72,7 @@ export function PlaceBetModal({ open, onClose, marketTitle, marketId, onBetPlace
       setStep("success");
       onBetPlaced?.();
     } else {
-      setStep("confirm");
+      setStep("failed");
     }
   };
 
@@ -282,6 +282,48 @@ export function PlaceBetModal({ open, onClose, marketTitle, marketId, onBetPlace
               <Button onClick={handleClose} className="w-full">
                 Done
               </Button>
+            </motion.div>
+          )}
+
+          {step === "failed" && (
+            <motion.div
+              key="failed"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="py-8 text-center space-y-6"
+            >
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", delay: 0.2 }}
+                className="mx-auto w-20 h-20 rounded-full bg-destructive/10 border-2 border-destructive flex items-center justify-center"
+              >
+                <X className="w-10 h-10 text-destructive" />
+              </motion.div>
+
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Transaction Failed</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Your bet could not be securely placed.
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setStep("confirm")}
+                  className="flex-1"
+                >
+                  Back
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  className="flex-1 bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                >
+                  Try Again
+                </Button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

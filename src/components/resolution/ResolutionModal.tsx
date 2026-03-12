@@ -9,9 +9,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { AlertTriangle, CheckCircle2, Gavel, Timer, Shield } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Gavel, Timer, Shield, Loader2, X } from "lucide-react";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface ResolutionModalProps {
   isOpen: boolean;
@@ -33,6 +34,8 @@ interface ResolutionModalProps {
   onUpdate: () => void;
 }
 
+type Step = "action" | "processing" | "success" | "failed";
+
 export function ResolutionModal({
   isOpen,
   onClose,
@@ -45,35 +48,37 @@ export function ResolutionModal({
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
   const { proposeResolution, disputeResolution, resolveMarket, registerAsOracle, loading } = useAleoPrograms();
 
+  const [step, setStep] = useState<Step>("action");
+  const [txId, setTxId] = useState<string | null>(null);
+
+  const handleAction = async (actionFn: () => Promise<string | null | undefined>) => {
+    setStep("processing");
+    const resultTx = await actionFn();
+    if (resultTx) {
+      setTxId(resultTx);
+      setStep("success");
+      onUpdate();
+    } else {
+      setStep("failed");
+    }
+  };
+
   const handlePropose = async () => {
     if (selectedOutcome === null) {
       toast.error("Please select an outcome");
       return;
     }
-    const txId = await proposeResolution(market.id, selectedOutcome);
-    if (txId) {
-      onUpdate();
-      onClose();
-    }
+    await handleAction(() => proposeResolution(market.id, selectedOutcome));
   };
 
   const handleDispute = async () => {
-    const txId = await disputeResolution(market.id, 100); // 100 Credits bond as per contract
-    if (txId) {
-      onUpdate();
-      onClose();
-    }
+    await handleAction(() => disputeResolution(market.id, 100)); // 100 Credits bond as per contract
   };
 
   const handleFinalize = async () => {
     const outcome = proposal ? proposal.proposed_outcome : selectedOutcome;
     if (outcome === null) return;
-    
-    const txId = await resolveMarket(market.id, outcome);
-    if (txId) {
-      onUpdate();
-      onClose();
-    }
+    await handleAction(() => resolveMarket(market.id, outcome));
   };
 
   const isWindowActive = proposal && currentHeight < proposal.challenge_deadline && !proposal.is_disputed;
@@ -94,6 +99,15 @@ export function ResolutionModal({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+        <AnimatePresence mode="wait">
+        {step === "action" && (
+          <motion.div
+              key="action"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-6"
+          >
           {proposal ? (
             <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
               <div className="flex items-start justify-between mb-4">
@@ -190,7 +204,7 @@ export function ResolutionModal({
                       onClick={() => registerAsOracle(30)}
                       disabled={loading}
                     >
-                      Stake 100 Credits & Register
+                      Stake 30 Credits & Register
                     </Button>
                   </div>
                 ) : (
@@ -225,7 +239,7 @@ export function ResolutionModal({
                     disabled={loading}
                   >
                     <AlertTriangle className="w-4 h-4 mr-2" />
-                    Dispute Proposal (Stake 100 Credits)
+                    Dispute Proposal (Stake 30 Credits)
                   </Button>
                 )}
                 <p className="text-[10px] text-center text-muted-foreground">
@@ -251,6 +265,108 @@ export function ResolutionModal({
               </div>
             )}
           </div>
+          </motion.div>
+        )}
+
+        {step === "processing" && (
+            <motion.div
+              key="processing"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="py-12 text-center space-y-6"
+            >
+              <div className="relative mx-auto w-20 h-20">
+                <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+                <div className="relative w-20 h-20 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center">
+                  <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Generating ZK Proof</h3>
+                <p className="text-sm text-muted-foreground">
+                  Encrypting and propagating transaction...
+                </p>
+              </div>
+            </motion.div>
+          )}
+
+          {step === "success" && (
+            <motion.div
+              key="success"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="py-8 text-center space-y-6"
+            >
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", delay: 0.2 }}
+                className="mx-auto w-20 h-20 rounded-full bg-success/10 border-2 border-success flex items-center justify-center"
+              >
+                <CheckCircle2 className="w-10 h-10 text-success" />
+              </motion.div>
+
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Transaction Confirmed!</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  The network has processed your action.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
+                <div className="text-xs text-muted-foreground mb-1">Transaction ID</div>
+                <code className="text-sm font-mono text-primary break-all">
+                  {txId || "aleo1tx..."}
+                </code>
+              </div>
+
+              <Button onClick={() => {
+                setStep("action");
+                onClose();
+              }} className="w-full">
+                Close
+              </Button>
+            </motion.div>
+          )}
+
+          {step === "failed" && (
+            <motion.div
+              key="failed"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="py-8 text-center space-y-6"
+            >
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", delay: 0.2 }}
+                className="mx-auto w-20 h-20 rounded-full bg-destructive/10 border-2 border-destructive flex items-center justify-center"
+              >
+                <X className="w-10 h-10 text-destructive" />
+              </motion.div>
+
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Transaction Failed</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  The transaction timed out or was rejected by the network.
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setStep("action")}
+                  className="flex-1"
+                >
+                  Back
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         </div>
       </DialogContent>
     </Dialog>
