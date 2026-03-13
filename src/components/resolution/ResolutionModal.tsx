@@ -49,14 +49,23 @@ export function ResolutionModal({
   onUpdate,
 }: ResolutionModalProps) {
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
-  const { proposeResolution, disputeResolution, resolveMarket, registerAsOracle, loading } = useAleoPrograms();
+  const { proposeResolution, disputeResolution, loading } = useAleoPrograms();
 
   const [step, setStep] = useState<Step>("action");
   const [txId, setTxId] = useState<string | null>(null);
   const [isOracleModalOpen, setIsOracleModalOpen] = useState(false);
+  const [didPropose, setDidPropose] = useState(false);
   // console.log(isOracle);
   useEffect(() => {
-    if (!isOpen) setSelectedOutcome(null);
+    if (!isOpen) {
+      setSelectedOutcome(null);
+      setDidPropose(false);
+    }
+    if (isOpen) {
+      const normalized = publicKey?.toString().replace(/address/g, "").trim() ?? "";
+      const isAdmin = normalized === ADMIN_ADDRESS;
+      console.log("[ResolutionModal] admin check:", { address: normalized, isAdmin });
+    }
   }, [isOpen]);
 
   const handleAction = async (actionFn: () => Promise<string | null | undefined>) => {
@@ -76,17 +85,15 @@ export function ResolutionModal({
       toast.error("Please select an outcome");
       return;
     }
-    await handleAction(() => proposeResolution(market.id, selectedOutcome));
+    await handleAction(async () => {
+      const tx = await proposeResolution(market.id, selectedOutcome);
+      if (tx) setDidPropose(true);
+      return tx;
+    });
   };
 
   const handleDispute = async () => {
     await handleAction(() => disputeResolution(market.id, DISPUTE_BOND_CREDITS));
-  };
-
-  const handleFinalize = async () => {
-    const outcome = proposal ? proposal.proposed_outcome : selectedOutcome;
-    if (outcome === null) return;
-    await handleAction(() => resolveMarket(market.id, outcome));
   };
 
   const isResolved = market.is_resolved;
@@ -207,79 +214,84 @@ export function ResolutionModal({
                 )}
 
                 {!isResolved && (
-                  <div className="space-y-3 pt-">
+                  <div className="space-y-3 pt-2">
                     {canPropose && (
-                      <div className="space-y-3 pt-">
-                      {!isOracle ? (
-                        <div className="p-4 mb-3 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-3">
-                          <div className="flex items-center gap-2 text-amber-500">
-                            <Shield className="w-4 h-4" />
-                            <span className="text-sm font-semibold">Oracle Credentials Required</span>
+                      <div className="space-y-3">
+                        {!isOracle ? (
+                          <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-3">
+                            <div className="flex items-center gap-2 text-amber-500">
+                              <Shield className="w-4 h-4" />
+                              <span className="text-sm font-semibold">Oracle Credentials Required</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                              You must be a registered Oracle to propose outcomes. This ensures high-quality resolutions via economic stake.
+                              <button
+                                type="button"
+                                className="ml-1 text-amber-500 hover:text-amber-400 underline underline-offset-2"
+                                onClick={handleOpenOracleModal}
+                              >
+                                Register Oracle
+                              </button>
+                              .
+                            </p>
                           </div>
-                          <p className="text-xs text-muted-foreground leading-relaxed">
-                            You must be a registered Oracle to propose outcomes. This ensures high-quality resolutions via economic stake.
-                            <button
-                              type="button"
-                              className="ml-1 text-amber-500 hover:text-amber-400 underline underline-offset-2"
-                              onClick={handleOpenOracleModal}
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-xs text-success">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Active Oracle
+                            </div>
+                            <Button
+                              className={`w-full btn-glow-primary ${didPropose ? "opacity-60" : ""}`}
+                              onClick={handlePropose}
+                              disabled={loading || selectedOutcome === null || didPropose}
                             >
-                              Register Oracle
-                            </button>
-                          </p>
-                        </div>
-                      ) : (
-                          <div className="flex items-center gap-2 text-xs text-success">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            Active Oracle
+                              {didPropose ? "Proposal Submitted" : "Propose Outcome"}
+                            </Button>
                           </div>
                         )}
-                          <Button
-                            className="w-full btn-glow-primary"
-                            onClick={handlePropose}
-                            disabled={loading || selectedOutcome === null || !isOracle}
-                          >
-                            Propose Outcome
-                          </Button>
                       </div>
                     )}
 
-                  {isWindowActive && (
-                    <div className="space-y-3">
-                      {!isOracle ? (
-                        <Button
-                          variant="outline"
-                          className="w-full border-amber-500/30 hover:bg-amber-500/10 text-amber-500"
-                          onClick={handleOpenOracleModal}
-                        >
-                          <Shield className="w-4 h-4 mr-2" />
-                          Register as Oracle to Dispute
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          className="w-full border-destructive/30 hover:bg-destructive/10 text-destructive"
-                          onClick={handleDispute}
-                          disabled={loading}
-                        >
-                          <AlertTriangle className="w-4 h-4 mr-2" />
-                          Dispute Proposal (Stake {DISPUTE_BOND_CREDITS} Credits)
-                        </Button>
-                      )}
-                      <p className="text-[10px] text-center text-muted-foreground">
-                        Disputes require a {DISPUTE_BOND_CREDITS} Credit bond during the challenge window.
-                      </p>
-                    </div>
-                  )}
+                    {proposal && (
+                      <div className="p-3 rounded-lg bg-muted/20 border border-border/50 text-xs text-muted-foreground">
+                        Finalization is available to the oracle owner on the market page.
+                      </div>
+                    )}
 
-                  {isFinalizable && (
-                    <Button
-                      className="w-full btn-glow-success"
-                      onClick={handleFinalize}
-                      disabled={loading}
-                    >
-                      Finalize Resolution
-                    </Button>
-                  )}
+                    {isWindowActive && (
+                      <div className="space-y-3">
+                        {!isOracle ? (
+                          <Button
+                            variant="outline"
+                            className="w-full border-amber-500/30 hover:bg-amber-500/10 text-amber-500"
+                            onClick={handleOpenOracleModal}
+                          >
+                            <Shield className="w-4 h-4 mr-2" />
+                            Register as Oracle to Dispute
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            className="w-full border-destructive/30 hover:bg-destructive/10 text-destructive"
+                            onClick={handleDispute}
+                            disabled={loading}
+                          >
+                            <AlertTriangle className="w-4 h-4 mr-2" />
+                            Dispute Proposal (Stake {DISPUTE_BOND_CREDITS} Credits)
+                          </Button>
+                        )}
+                        <p className="text-[10px] text-center text-muted-foreground">
+                          Disputes require a {DISPUTE_BOND_CREDITS} Credit bond during the challenge window.
+                        </p>
+                      </div>
+                    )}
+
+                    {isFinalizable && !proposal && (
+                      <div className="p-3 rounded-lg bg-muted/20 border border-border/50 text-xs text-muted-foreground">
+                        Finalization requires a resolution proposal.
+                      </div>
+                    )}
 
                     {!canPropose && !proposal && (
                       <div className="p-4 rounded-xl bg-muted/20 border border-border/50 text-center text-sm text-muted-foreground">

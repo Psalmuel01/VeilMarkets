@@ -6,6 +6,8 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { BetCard, UserBet } from "@/components/dashboard/BetCard";
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
+import { fetchMappingValue, parseMarketInfo } from "@/lib/aleo";
+import { PROGRAM_ID } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -116,6 +118,23 @@ export default function DashboardPage() {
         setTokenBalance(balance);
 
         const marketMap = new Map(allMarkets.map(m => [m.id.replace("field", "").trim(), m]));
+        const missingMarketIds = Array.from(
+          new Set(records.map(r => r.market_id).filter((id) => !marketMap.has(id)))
+        );
+
+        if (missingMarketIds.length > 0) {
+          const fetched = await Promise.all(
+            missingMarketIds.map(async (id) => {
+              const fieldId = id.endsWith("field") ? id : `${id}field`;
+              const raw = await fetchMappingValue(PROGRAM_ID, "markets", fieldId);
+              if (!raw) return null;
+              return parseMarketInfo(raw as string | object, fieldId);
+            })
+          );
+          fetched.filter(Boolean).forEach((m: any) => {
+            marketMap.set(m.id.replace("field", "").trim(), m);
+          });
+        }
 
         const mapped: UserBet[] = records.map((record) => {
           // record.market_id is already cleaned by the hook

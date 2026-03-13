@@ -10,6 +10,7 @@ import {
   DEFAULT_BLOCK_TIME_SECONDS,
   PoolInfo,
   parsePoolInfo,
+  parseResolutionProposal,
 } from "@/lib/aleo";
 import {
   saveMarketMetadata,
@@ -85,6 +86,20 @@ const toMicrocredits = (credits: number): number => Math.max(1_000_000, Math.flo
 
 const formatU64 = (value: number): string => `${Math.max(0, Math.floor(value))}u64`;
 const formatU8 = (value: number): string => `${Math.max(0, Math.floor(value))}u8`;
+const formatField = (value: string): string => (value.endsWith("field") ? value : `${value}field`);
+
+const parseMappingU64 = (value: unknown): number => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number.parseInt(value.replace(/u64/g, "").trim(), 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  if (typeof value === "object" && value !== null) {
+    const obj = value as Record<string, unknown>;
+    if (obj.value !== undefined) return parseMappingU64(obj.value);
+  }
+  return 0;
+};
 
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
@@ -598,6 +613,48 @@ export const useAleoPrograms = () => {
     }
   };
 
+  const findWinningsClaimRecord = async (marketId: string): Promise<WalletRecord | null> => {
+    if (!address) return null;
+
+    const cleanMarketId = marketId.includes("field") ? marketId.replace("field", "") : marketId;
+
+    try {
+      const rawRecords = await requestRecords(PROGRAM_ID, true);
+      const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
+      const unspent = records.filter((record) => !record.spent);
+
+      const found = unspent.find((record) => {
+        const recordMarketId = parseRecordField(record, "market_id");
+        const nullifier = parseRecordField(record, "nullifier");
+        return recordMarketId === cleanMarketId && Boolean(nullifier);
+      });
+
+      return found ?? null;
+    } catch (error) {
+      console.error("Error finding winnings claim record:", error);
+      return null;
+    }
+  };
+
+  const waitForWinningsClaimRecord = async (marketId: string): Promise<WalletRecord | null> => {
+    for (let i = 0; i < 20; i++) {
+      const record = await findWinningsClaimRecord(marketId);
+      if (record) return record;
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    return null;
+  };
+
+  const waitForPendingPayout = async (nullifierField: string): Promise<number> => {
+    for (let i = 0; i < 20; i++) {
+      const payoutRaw = await fetchMappingValue(PROGRAM_ID, "pending_payouts", nullifierField);
+      const payoutAmount = parseMappingU64(payoutRaw);
+      if (payoutAmount > 0) return payoutAmount;
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    return 0;
+  };
+
   const placeBet = async (marketId: string, outcome: number, amountCredits: number) => {
     if (!address) {
       toast.error("Please connect your wallet first");
@@ -796,23 +853,43 @@ export const useAleoPrograms = () => {
         return;
       }
 
-      // Step 2: Call token contract claim_payout with escrow details
-      // The user needs the escrow_id, payout_amount, and nullifier from the WinningsClaim record
-      const escrowedBet = await findEscrowedBetRecord(marketId);
-      if (!escrowedBet) {
-        toast.info("Winnings claim registered. Please claim your payout once confirmed.");
+      // Step 2: Wait for WinningsClaim record, then claim payout from token contract
+      const claimRecord = await waitForWinningsClaimRecord(marketId);
+      if (!claimRecord) {
+        toast.error("Claim record not found in wallet yet. Please retry in a moment.");
         return claimResult.transactionId;
       }
 
-      const escrowSource = escrowedBet.data ?? escrowedBet;
-      const escrowId = cleanAleoPrimitive(escrowSource.escrow_id);
-      const escrowIdFormatted = escrowId.includes("field") ? escrowId : `${escrowId}field`;
+      const nullifierRaw = parseRecordField(claimRecord, "nullifier");
+      if (!nullifierRaw) {
+        toast.error("Unable to read claim nullifier from wallet record.");
+        return claimResult.transactionId;
+      }
+
+      const nullifierField = formatField(nullifierRaw);
+      const payoutAmount = await waitForPendingPayout(nullifierField);
+
+      if (!payoutAmount || payoutAmount <= 0) {
+        toast.error("Payout not available yet. Please retry shortly.");
+        return claimResult.transactionId;
+      }
 
       toast.info("Step 2/2: Collecting payout from token contract...");
-      // Note: payout_amount and nullifier would ideally come from the WinningsClaim record
-      // For now, the user needs to wait for the core claim to be finalized on-chain
-      toast.success(`Winnings claim submitted! Core Tx: ${claimResult.transactionId}. Payout will be available after on-chain finalization.`);
-      return claimResult.transactionId;
+      const payoutResult = await executeAndPoll({
+        program: TOKEN_PROGRAM_ID,
+        function: "claim_payout",
+        inputs: [formatU64(payoutAmount), nullifierField],
+        fee: 500_000,
+        privateFee: false,
+      }, TOKEN_PROGRAM_ID, "claim_payout");
+
+      if (!payoutResult?.transactionId) {
+        toast.error("Token payout failed.");
+        return claimResult.transactionId;
+      }
+
+      toast.success(`Payout claimed! Token Tx: ${payoutResult.transactionId}.`);
+      return payoutResult.transactionId;
     } catch (error) {
       console.error("Claim winnings failed:", error);
       toast.error(`Claim error: ${getErrorMessage(error)}`);
@@ -838,15 +915,7 @@ export const useAleoPrograms = () => {
       const raw = await fetchMappingValue(ORACLE_PROGRAM_ID, "proposals", cleanMarketId);
       if (!raw) return null;
 
-      const data = typeof raw === "string" ? JSON.parse(raw.replace(/field|u8|u64|address/g, '').replace(/([a-zA-Z0-9_]+):/g, '"$1":')) : raw;
-
-      return {
-        market_id: cleanAleoPrimitive(data.market_id),
-        proposed_outcome: Number(cleanAleoPrimitive(data.proposed_outcome)),
-        challenge_deadline: Number(cleanAleoPrimitive(data.challenge_deadline)),
-        is_disputed: Boolean(data.is_disputed),
-        proposer: cleanAleoPrimitive(data.proposer),
-      };
+      return parseResolutionProposal(raw);
     } catch (error) {
       console.error("Failed to fetch resolution proposal:", error);
       return null;

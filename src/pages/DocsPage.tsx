@@ -97,6 +97,37 @@ const sections = [
       },
     ],
   },
+  {
+    id: "lifecycle",
+    title: "Market Lifecycle",
+    icon: HelpCircle,
+    content: [
+      {
+        title: "1) Create Market",
+        description: "A market is created with a close block and a resolution block. Bets are accepted until the close block.",
+      },
+      {
+        title: "2) Place Bets",
+        description: "Bets are escrowed in the token contract and the core pool totals are updated without revealing bet details.",
+      },
+      {
+        title: "3) Propose Resolution",
+        description: "Registered oracles can propose the outcome after the resolution block. This writes a proposal and sets a challenge deadline.",
+      },
+      {
+        title: "4) Challenge & Vote",
+        description: "Anyone can dispute a proposal within the challenge window. If disputed, oracle votes determine the winning outcome.",
+      },
+      {
+        title: "5) Finalize",
+        description: "The oracle owner finalizes on-chain via resolve_on_core, which resolves the market in the core contract.",
+      },
+      {
+        title: "6) Claim Winnings",
+        description: "Winners claim in two steps: claim_winnings on core to compute payout, then claim_payout on token to receive credits.",
+      },
+    ],
+  },
 ];
 
 const faqs = [
@@ -106,7 +137,7 @@ const faqs = [
   },
   {
     question: "How are markets resolved?",
-    answer: "Markets are resolved based on their predefined criteria after the closing date. The resolution is verified on-chain.",
+    answer: "A proposal is written on-chain with a challenge deadline. Finalization must match that proposal: if not disputed, resolve_on_core asserts outcome == proposed_outcome after the challenge window ends. If disputed, resolve_on_core asserts outcome == winning_outcome computed from votes. The proposal is enforced on-chain, not advisory.",
   },
   {
     question: "What happens if I win?",

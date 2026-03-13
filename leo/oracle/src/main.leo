@@ -166,6 +166,7 @@ program veilmarkets_oracle_v4.aleo {
 
     // FINALIZATION: The step that speaks to Core
     async transition resolve_on_core(public market_id: field, public outcome: u8) -> Future {
+        assert_eq(self.caller, aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n);
         // One transition calls another
         let f_core: Future = veilmarkets_v4.aleo/resolve_market(
             market_id,

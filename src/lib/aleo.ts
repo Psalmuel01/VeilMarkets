@@ -46,6 +46,14 @@ export interface PoolInfo {
   escrowed_amount: number;
 }
 
+export interface ResolutionProposal {
+  market_id: string;
+  proposed_outcome: number;
+  challenge_deadline: number;
+  is_disputed: boolean;
+  proposer: string;
+}
+
 const asRecord = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 
@@ -85,6 +93,13 @@ const parseHeightPayload = (payload: unknown): number | null => {
   }
 
   return null;
+};
+
+const unwrapMappingValue = (raw: unknown): unknown => {
+  if (typeof raw === "object" && raw !== null && "value" in raw) {
+    return (raw as Record<string, unknown>).value;
+  }
+  return raw;
 };
 
 /**
@@ -362,6 +377,60 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
 
     if (key === "total_no" || key === "total_yes" || key === "participant_count" || key === "escrowed_amount") {
       parsed[key] = parseAleoInt(value) as never;
+    }
+  }
+
+  return { ...base, ...parsed };
+};
+
+/**
+ * Parse a ResolutionProposal struct string returned by the Aleo API.
+ * Input format: "{ market_id: 123field, proposed_outcome: 1u8, challenge_deadline: 120u64, is_disputed: false, proposer: aleo1... }"
+ */
+export const parseResolutionProposal = (raw: string | object): ResolutionProposal | null => {
+  const base: ResolutionProposal = {
+    market_id: "",
+    proposed_outcome: 0,
+    challenge_deadline: 0,
+    is_disputed: false,
+    proposer: "",
+  };
+
+  if (!raw) return null;
+
+  const unwrapped = unwrapMappingValue(raw);
+
+  if (typeof unwrapped === "object" && unwrapped !== null) {
+    const obj = asRecord(unwrapped);
+    return {
+      market_id: stripTypeSuffixes(String(obj.market_id ?? "")),
+      proposed_outcome: parseAleoInt(obj.proposed_outcome),
+      challenge_deadline: parseAleoInt(obj.challenge_deadline),
+      is_disputed: parseAleoBool(obj.is_disputed),
+      proposer: stripTypeSuffixes(String(obj.proposer ?? "")),
+    };
+  }
+
+  if (typeof unwrapped !== "string") return null;
+
+  const cleaned = unwrapped.replace(/\{|\}/g, "");
+  const pairs = cleaned.split(",");
+  const parsed: Partial<ResolutionProposal> = {};
+
+  for (const pair of pairs) {
+    const colonIdx = pair.indexOf(":");
+    if (colonIdx === -1) continue;
+
+    const key = pair.slice(0, colonIdx).trim();
+    const value = pair.slice(colonIdx + 1).trim();
+    if (!key || !value) continue;
+
+    if (key === "proposed_outcome" || key === "challenge_deadline") {
+      parsed[key] = parseAleoInt(value) as never;
+    } else if (key === "is_disputed") {
+      parsed.is_disputed = parseAleoBool(value);
+    } else if (key === "market_id" || key === "proposer") {
+      parsed[key] = stripTypeSuffixes(value) as never;
     }
   }
 

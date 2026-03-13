@@ -140,6 +140,7 @@ finalize vote_on_resolution:
 function resolve_on_core:
     input r0 as field.public;
     input r1 as u8.public;
+    assert.eq self.caller aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
     call veilmarkets_v4.aleo/resolve_market r0 r1 veilmarkets_oracle_v4.aleo into r2;
     async resolve_on_core r0 r1 r2 into r3;
     output r3 as veilmarkets_oracle_v4.aleo/resolve_on_core.future;
