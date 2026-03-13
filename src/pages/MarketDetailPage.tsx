@@ -515,8 +515,7 @@ export default function MarketDetailPage() {
             </div>
 
             {/* Resolution Control (Propose/Dispute/Finalize) */}
-            {((market.closeBlock && currentHeight && currentHeight >= market.closeBlock) || proposal) && (
-              <div className="p-6 rounded-xl bg-card border border-border/50">
+            <div className="p-6 rounded-xl bg-card border border-border/50">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold">Resolution</h2>
                   <ZKBadge variant="verified" size="sm" />
@@ -542,7 +541,9 @@ export default function MarketDetailPage() {
                     <p className="text-sm text-muted-foreground">
                       {marketStatus === "Settled"
                         ? "This market is resolved."
-                        : "This market is entering its resolution phase. Oracles can now propose the true outcome."
+                        : currentHeight && market?.resolutionBlock && currentHeight < market.resolutionBlock
+                          ? `Proposals open at resolution block ${market.resolutionBlock}.`
+                          : "Oracles can now propose the true outcome."
                       }
                     </p>
                   )}
@@ -596,7 +597,6 @@ export default function MarketDetailPage() {
                   )}
                 </div>
               </div>
-            )}
 
             {/* Privacy Info */}
             <div className="p-6 rounded-xl bg-muted/20 border border-border/50">

@@ -61,11 +61,6 @@ export function ResolutionModal({
       setSelectedOutcome(null);
       setDidPropose(false);
     }
-    if (isOpen) {
-      const normalized = publicKey?.toString().replace(/address/g, "").trim() ?? "";
-      const isAdmin = normalized === ADMIN_ADDRESS;
-      console.log("[ResolutionModal] admin check:", { address: normalized, isAdmin });
-    }
   }, [isOpen]);
 
   const handleAction = async (actionFn: () => Promise<string | null | undefined>) => {
@@ -100,6 +95,25 @@ export function ResolutionModal({
   const isWindowActive = proposal && currentHeight < proposal.challenge_deadline && !proposal.is_disputed && !isResolved;
   const isFinalizable = proposal && currentHeight >= proposal.challenge_deadline && !proposal.is_disputed && !isResolved;
   const canPropose = !proposal && currentHeight >= market.resolution_block && !isResolved;
+
+  const blocksToResolution = currentHeight && market.resolution_block
+    ? market.resolution_block - currentHeight
+    : null;
+
+  const proposeDisabledReason = (() => {
+    if (isResolved) return "Market is already resolved.";
+    if (proposal) return "Resolution already proposed.";
+    if (!currentHeight) return "Waiting for current block height...";
+    if (blocksToResolution !== null && blocksToResolution > 0) {
+      return `Proposals open at resolution block ${market.resolution_block} (${blocksToResolution} blocks remaining).`;
+    }
+    if (!isOracle) return "Only registered oracles can propose outcomes.";
+    if (selectedOutcome === null) return "Select an outcome to propose.";
+    if (didPropose) return "Proposal already submitted.";
+    return "";
+  })();
+
+  const isProposeDisabled = !!proposeDisabledReason || loading;
 
   const handleOpenOracleModal = () => {
     setIsOracleModalOpen(true);
@@ -215,43 +229,48 @@ export function ResolutionModal({
 
                 {!isResolved && (
                   <div className="space-y-3 pt-2">
-                    {canPropose && (
-                      <div className="space-y-3">
-                        {!isOracle ? (
-                          <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-3">
-                            <div className="flex items-center gap-2 text-amber-500">
-                              <Shield className="w-4 h-4" />
-                              <span className="text-sm font-semibold">Oracle Credentials Required</span>
-                            </div>
-                            <p className="text-xs text-muted-foreground leading-relaxed">
-                              You must be a registered Oracle to propose outcomes. This ensures high-quality resolutions via economic stake.
-                              <button
-                                type="button"
-                                className="ml-1 text-amber-500 hover:text-amber-400 underline underline-offset-2"
-                                onClick={handleOpenOracleModal}
-                              >
-                                Register Oracle
-                              </button>
-                              .
-                            </p>
+                    <div className="space-y-3">
+                      {!isOracle && (
+                        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-3">
+                          <div className="flex items-center gap-2 text-amber-500">
+                            <Shield className="w-4 h-4" />
+                            <span className="text-sm font-semibold">Oracle Credentials Required</span>
                           </div>
-                        ) : (
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 text-xs text-success">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              Active Oracle
-                            </div>
-                            <Button
-                              className={`w-full btn-glow-primary ${didPropose ? "opacity-60" : ""}`}
-                              onClick={handlePropose}
-                              disabled={loading || selectedOutcome === null || didPropose}
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            You must be a registered Oracle to propose outcomes. This ensures high-quality resolutions via economic stake.
+                            <button
+                              type="button"
+                              className="ml-1 text-amber-500 hover:text-amber-400 underline underline-offset-2"
+                              onClick={handleOpenOracleModal}
                             >
-                              {didPropose ? "Proposal Submitted" : "Propose Outcome"}
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                              Register Oracle
+                            </button>
+                            .
+                          </p>
+                        </div>
+                      )}
+
+                      {isOracle && (
+                        <div className="flex items-center gap-2 text-xs text-success">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Active Oracle
+                        </div>
+                      )}
+
+                      <Button
+                        className={`w-full btn-glow-primary ${isProposeDisabled ? "opacity-60" : ""}`}
+                        onClick={handlePropose}
+                        disabled={isProposeDisabled}
+                      >
+                        {proposal ? "Resolution Proposed" : didPropose ? "Proposal Submitted" : "Propose Outcome"}
+                      </Button>
+
+                      {proposeDisabledReason && (
+                        <p className="text-[10px] text-center text-muted-foreground">
+                          {proposeDisabledReason}
+                        </p>
+                      )}
+                    </div>
 
                     {proposal && (
                       <div className="p-3 rounded-lg bg-muted/20 border border-border/50 text-xs text-muted-foreground">
@@ -284,19 +303,6 @@ export function ResolutionModal({
                         <p className="text-[10px] text-center text-muted-foreground">
                           Disputes require a {DISPUTE_BOND_CREDITS} Credit bond during the challenge window.
                         </p>
-                      </div>
-                    )}
-
-                    {isFinalizable && !proposal && (
-                      <div className="p-3 rounded-lg bg-muted/20 border border-border/50 text-xs text-muted-foreground">
-                        Finalization requires a resolution proposal.
-                      </div>
-                    )}
-
-                    {!canPropose && !proposal && (
-                      <div className="p-4 rounded-xl bg-muted/20 border border-border/50 text-center text-sm text-muted-foreground">
-                        <Timer className="w-5 h-5 mx-auto mb-2 opacity-50" />
-                        Wait for resolution block ({market.resolution_block}) to propose.
                       </div>
                     )}
                   </div>
