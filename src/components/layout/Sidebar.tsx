@@ -150,7 +150,7 @@ export function Sidebar() {
           </Button>
         )} */}
         
-        {!collapsed && isOracle === false && publicKey && (
+        {/* {!collapsed && isOracle === false && publicKey && (
           <Button
             variant="default"
             size="sm"
@@ -160,7 +160,7 @@ export function Sidebar() {
             <Shield className="w-3.5 h-3.5 mr-2" />
             Become an Oracle
           </Button>
-        )}
+        )} */}
         <ConnectWalletButton className={collapsed ? "w-10 px-0 justify-center" : "w-full"} />
       </div>
 

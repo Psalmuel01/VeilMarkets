@@ -7,6 +7,7 @@ import {
   fetchTransaction,
   parseMarketInfo,
   fetchCurrentBlockHeight,
+  DEFAULT_BLOCK_TIME_SECONDS,
   PoolInfo,
   parsePoolInfo,
 } from "@/lib/aleo";
@@ -15,7 +16,7 @@ import {
   getAllMarketMetadata,
   type MarketMetadataRow,
 } from "../lib/metadata";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 
 type TxHistoryTransaction = TxHistoryResult["transactions"][number];
 
@@ -330,17 +331,42 @@ export const useAleoPrograms = () => {
     }
   }, []);
 
-  // Poll for current height
+  // Poll for current height + estimate block time
 
   const [currentHeight, setCurrentHeight] = useState<number | null>(null);
+  const [blockTimeSeconds, setBlockTimeSeconds] = useState<number>(DEFAULT_BLOCK_TIME_SECONDS);
+  const lastHeightRef = useRef<number | null>(null);
+  const lastSampleTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
     const updateHeight = async () => {
       const h = await fetchCurrentBlockHeight();
-      if (h) setCurrentHeight(h);
+      if (!h) return;
+
+      const now = Date.now();
+      const lastHeight = lastHeightRef.current;
+      const lastTime = lastSampleTimeRef.current;
+
+      if (lastHeight !== null && lastTime !== null && h > lastHeight) {
+        const deltaHeight = h - lastHeight;
+        const deltaSeconds = (now - lastTime) / 1000;
+        const estimate = deltaSeconds / deltaHeight;
+        if (Number.isFinite(estimate)) {
+          const clamped = Math.min(30, Math.max(2, estimate));
+          setBlockTimeSeconds((prev) => {
+            const base = Number.isFinite(prev) ? prev : clamped;
+            const smoothed = (base * 3 + clamped) / 4;
+            return Math.round(smoothed * 100) / 100;
+          });
+        }
+      }
+
+      lastHeightRef.current = h;
+      lastSampleTimeRef.current = now;
+      setCurrentHeight(h);
     };
     updateHeight();
-    const interval = setInterval(updateHeight, 60000); // 60s
+    const interval = setInterval(updateHeight, 15000); // 15s
     return () => clearInterval(interval);
   }, []);
 
@@ -846,6 +872,7 @@ export const useAleoPrograms = () => {
     requestCredits,
     loading,
     currentHeight,
+    blockTimeSeconds,
     publicKey,
   };
 };

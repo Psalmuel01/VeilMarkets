@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +23,7 @@ interface ResolutionModalProps {
     title: string;
     close_block: number;
     resolution_block: number;
+    is_resolved: boolean;
   };
   proposal: {
     proposed_outcome: number;
@@ -36,6 +37,7 @@ interface ResolutionModalProps {
 }
 
 type Step = "action" | "processing" | "success" | "failed";
+const DISPUTE_BOND_CREDITS = 30;
 
 export function ResolutionModal({
   isOpen,
@@ -53,6 +55,9 @@ export function ResolutionModal({
   const [txId, setTxId] = useState<string | null>(null);
   const [isOracleModalOpen, setIsOracleModalOpen] = useState(false);
   // console.log(isOracle);
+  useEffect(() => {
+    if (!isOpen) setSelectedOutcome(null);
+  }, [isOpen]);
 
   const handleAction = async (actionFn: () => Promise<string | null | undefined>) => {
     setStep("processing");
@@ -75,7 +80,7 @@ export function ResolutionModal({
   };
 
   const handleDispute = async () => {
-    await handleAction(() => disputeResolution(market.id, 100)); // 100 Credits bond as per contract
+    await handleAction(() => disputeResolution(market.id, DISPUTE_BOND_CREDITS));
   };
 
   const handleFinalize = async () => {
@@ -84,33 +89,40 @@ export function ResolutionModal({
     await handleAction(() => resolveMarket(market.id, outcome));
   };
 
-  const isWindowActive = proposal && currentHeight < proposal.challenge_deadline && !proposal.is_disputed;
-  const isFinalizable = proposal && currentHeight >= proposal.challenge_deadline && !proposal.is_disputed;
-  const canPropose = !proposal && currentHeight >= market.resolution_block;
+  const isResolved = market.is_resolved;
+  const isWindowActive = proposal && currentHeight < proposal.challenge_deadline && !proposal.is_disputed && !isResolved;
+  const isFinalizable = proposal && currentHeight >= proposal.challenge_deadline && !proposal.is_disputed && !isResolved;
+  const canPropose = !proposal && currentHeight >= market.resolution_block && !isResolved;
+
+  const handleOpenOracleModal = () => {
+    setIsOracleModalOpen(true);
+    onClose();
+  };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md bg-card">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Gavel className="w-5 h-5 text-primary" />
-            Market Resolution
-          </DialogTitle>
-          <DialogDescription>
-            {market.title}
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-md bg-card">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Gavel className="w-5 h-5 text-primary" />
+              Market Resolution
+            </DialogTitle>
+            <DialogDescription>
+              {market.title}
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          <AnimatePresence mode="wait">
-            {step === "action" && (
-              <motion.div
-                key="action"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="space-y-6"
-              >
+          <div className="space-y-6 py-4">
+            <AnimatePresence mode="wait">
+              {step === "action" && (
+                <motion.div
+                  key="action"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="space-y-6"
+                >
                 {proposal ? (
                   <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
                     <div className="flex items-start justify-between mb-4">
@@ -160,7 +172,7 @@ export function ResolutionModal({
                 <AlertTriangle className="w-5 h-5 flex-shrink-0" />
                 <p>
                   {canPropose 
-                    ? "This market is closed. Registered oracles can now propose the finalized outcome. A 24h challenge window will follow."
+                    ? "This market is closed. Registered oracles can now propose the finalized outcome. A short challenge window will follow."
                     : `This market is closed. Awaiting resolution block (${market.resolution_block}). Only ${market.resolution_block - currentHeight} blocks left.`}
                 </p>
               </div> */}
@@ -172,7 +184,7 @@ export function ResolutionModal({
                           className={`flex flex-col items-center justify-between rounded-xl border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer transition-all ${selectedOutcome === 1 ? "border-primary bg-primary/5" : ""
                             }`}
                         >
-                          <RadioGroupItem value="1" id="yes" className="sr-only" />
+                          <RadioGroupItem value="1" id="yes" className="sr-only" disabled={!isOracle}/>
                           <span className="text-lg font-bold">YES</span>
                         </Label>
                         <Label
@@ -180,7 +192,7 @@ export function ResolutionModal({
                           className={`flex flex-col items-center justify-between rounded-xl border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer transition-all ${selectedOutcome === 0 ? "border-primary bg-primary/5" : ""
                             }`}
                         >
-                          <RadioGroupItem value="0" id="no" className="sr-only" />
+                          <RadioGroupItem value="0" id="no" className="sr-only" disabled={!isOracle} />
                           <span className="text-lg font-bold">NO</span>
                         </Label>
                       </div>
@@ -188,36 +200,48 @@ export function ResolutionModal({
                   </div>
                 )}
 
-                <div className="space-y-3 pt-2">
-                  {canPropose && (
-                    <div className="space-y-3 pt-2">
+                {isResolved && (
+                  <div className="p-4 rounded-xl bg-success/10 border border-success/20 text-sm text-success">
+                    This market is resolved.
+                  </div>
+                )}
+
+                {!isResolved && (
+                  <div className="space-y-3 pt-">
+                    {canPropose && (
+                      <div className="space-y-3 pt-">
                       {!isOracle ? (
-                        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-3">
+                        <div className="p-4 mb-3 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-3">
                           <div className="flex items-center gap-2 text-amber-500">
                             <Shield className="w-4 h-4" />
                             <span className="text-sm font-semibold">Oracle Credentials Required</span>
                           </div>
                           <p className="text-xs text-muted-foreground leading-relaxed">
                             You must be a registered Oracle to propose outcomes. This ensures high-quality resolutions via economic stake.
+                            <button
+                              type="button"
+                              className="ml-1 text-amber-500 hover:text-amber-400 underline underline-offset-2"
+                              onClick={handleOpenOracleModal}
+                            >
+                              Register Oracle
+                            </button>
                           </p>
-                          <Button 
-                      className="w-full bg-amber-500 hover:bg-amber-600 text-white" 
-                      onClick={() => setIsOracleModalOpen(true)}
-                    >
-                      Register as Oracle
-                    </Button>
                         </div>
                       ) : (
-                        <Button
-                          className="w-full btn-glow-primary"
-                          onClick={handlePropose}
-                          disabled={loading || selectedOutcome === null}
-                        >
-                          Propose Outcome
-                        </Button>
-                      )}
-                    </div>
-                  )}
+                          <div className="flex items-center gap-2 text-xs text-success">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Active Oracle
+                          </div>
+                        )}
+                          <Button
+                            className="w-full btn-glow-primary"
+                            onClick={handlePropose}
+                            disabled={loading || selectedOutcome === null || !isOracle}
+                          >
+                            Propose Outcome
+                          </Button>
+                      </div>
+                    )}
 
                   {isWindowActive && (
                     <div className="space-y-3">
@@ -225,7 +249,7 @@ export function ResolutionModal({
                         <Button
                           variant="outline"
                           className="w-full border-amber-500/30 hover:bg-amber-500/10 text-amber-500"
-                          onClick={() => setIsOracleModalOpen(true)}
+                          onClick={handleOpenOracleModal}
                         >
                           <Shield className="w-4 h-4 mr-2" />
                           Register as Oracle to Dispute
@@ -238,11 +262,11 @@ export function ResolutionModal({
                           disabled={loading}
                         >
                           <AlertTriangle className="w-4 h-4 mr-2" />
-                          Dispute Proposal (Stake 30 Credits)
+                          Dispute Proposal (Stake {DISPUTE_BOND_CREDITS} Credits)
                         </Button>
                       )}
                       <p className="text-[10px] text-center text-muted-foreground">
-                        Challenger gets proposer's bond if the dispute is successful.
+                        Disputes require a {DISPUTE_BOND_CREDITS} Credit bond during the challenge window.
                       </p>
                     </div>
                   )}
@@ -253,17 +277,18 @@ export function ResolutionModal({
                       onClick={handleFinalize}
                       disabled={loading}
                     >
-                      Finalize & Distribute Payouts
+                      Finalize Resolution
                     </Button>
                   )}
 
-                  {!canPropose && !proposal && (
-                    <div className="p-4 rounded-xl bg-muted/20 border border-border/50 text-center text-sm text-muted-foreground">
-                      <Timer className="w-5 h-5 mx-auto mb-2 opacity-50" />
-                      Wait for close block ({market.close_block}) to propose.
-                    </div>
-                  )}
-                </div>
+                    {!canPropose && !proposal && (
+                      <div className="p-4 rounded-xl bg-muted/20 border border-border/50 text-center text-sm text-muted-foreground">
+                        <Timer className="w-5 h-5 mx-auto mb-2 opacity-50" />
+                        Wait for resolution block ({market.resolution_block}) to propose.
+                      </div>
+                    )}
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -367,7 +392,16 @@ export function ResolutionModal({
             )}
           </AnimatePresence>
         </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+      <OracleRegistrationModal
+        isOpen={isOracleModalOpen}
+        onClose={() => setIsOracleModalOpen(false)}
+        onSuccess={async () => {
+          setIsOracleModalOpen(false);
+          await onUpdate();
+        }}
+      />
+    </>
   );
 }

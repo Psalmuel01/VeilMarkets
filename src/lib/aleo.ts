@@ -2,13 +2,10 @@ import { PROGRAM_ID } from "./constants";
 
 const ALEO_API_URL = "https://api.explorer.provable.com/v2";
 const ALEO_NETWORK = "testnet";
-const ESTIMATED_BLOCK_TIME_SECONDS = 15;
+export const DEFAULT_BLOCK_TIME_SECONDS = 15;
 
-const BLOCK_HEIGHT_ENDPOINTS = [
-  `https://api.explorer.aleo.org/v1/testnet/latest/height`,
-  `https://vm.provable.network/v1/testnet/latest/height`,
-  `https://api.explorer.provable.com/v2/testnet/latest/height`
-];
+const BLOCK_HEIGHT_ENDPOINT = `https://api.explorer.provable.com/v2/testnet/block/latest`;
+
 
 interface AleoTransitionOutput {
   value?: unknown;
@@ -65,9 +62,7 @@ const parseAleoInt = (value: unknown): number => {
 const parseAleoBool = (value: unknown): boolean => value === true || value === "true";
 
 const parseHeightPayload = (payload: unknown): number | null => {
-  if (typeof payload === "number" && Number.isFinite(payload)) {
-    return payload;
-  }
+  if (typeof payload === "number" && Number.isFinite(payload)) return payload;
 
   if (typeof payload === "string") {
     const parsed = Number.parseInt(payload, 10);
@@ -75,15 +70,17 @@ const parseHeightPayload = (payload: unknown): number | null => {
   }
 
   const obj = asRecord(payload);
-  const directKeys = ["height", "latest_height", "latestHeight", "block_height", "blockHeight"];
-  for (const key of directKeys) {
-    const parsed = parseHeightPayload(obj[key]);
+
+  // Handle nested block header format
+  const headerHeight = asRecord(asRecord(obj.header).metadata).height;
+  if (headerHeight !== undefined) {
+    const parsed = parseHeightPayload(headerHeight);
     if (parsed !== null) return parsed;
   }
 
-  const blockObj = asRecord(obj.block);
-  if (Object.keys(blockObj).length > 0) {
-    const parsed = parseHeightPayload(blockObj.height);
+  const directKeys = ["height", "latest_height", "latestHeight", "block_height", "blockHeight"];
+  for (const key of directKeys) {
+    const parsed = parseHeightPayload(obj[key]);
     if (parsed !== null) return parsed;
   }
 
@@ -132,29 +129,20 @@ export const fetchTransaction = async (transactionId: string): Promise<AleoTrans
 /**
  * Fetch the latest block height. Handles multiple payload shapes used by explorers.
  */
+
 export const fetchCurrentBlockHeight = async (): Promise<number | null> => {
-  for (const endpoint of BLOCK_HEIGHT_ENDPOINTS) {
-    try {
-      const response = await fetch(endpoint, { signal: AbortSignal.timeout(3000) });
-      if (!response.ok) continue;
+  try {
+    const response = await fetch(BLOCK_HEIGHT_ENDPOINT, { signal: AbortSignal.timeout(3000) });
+    if (!response.ok) return null;
 
-      const rawText = await response.text();
-      let payload: unknown = rawText;
-
-      try {
-        payload = JSON.parse(rawText);
-      } catch {
-        // Some endpoints return a raw numeric string.
-      }
-
-      const parsed = parseHeightPayload(payload);
-      if (parsed !== null) return parsed;
-    } catch {
-      // Try the next endpoint shape.
-    }
+    const payload = await response.json();
+    const parsed = parseHeightPayload(payload);
+    // console.log('[fetchCurrentBlockHeight] height:', parsed);
+    return parsed;
+  } catch (e) {
+    console.error('[fetchCurrentBlockHeight] Failed:', e);
+    return null;
   }
-
-  return null;
 };
 
 /**
@@ -163,72 +151,28 @@ export const fetchCurrentBlockHeight = async (): Promise<number | null> => {
 export const estimateCloseBlockFromDate = (
   closingDate: string,
   currentBlockHeight: number,
-  closingTime?: string, // e.g. "14:30"
+  closingTime?: string,
+  blockTimeSeconds: number = DEFAULT_BLOCK_TIME_SECONDS,
 ): number | null => {
   const timeStr = closingTime || "23:59:59";
-  const closeAt = new Date(`${closingDate}T${timeStr}`);
+
+  // Fix: parse date parts explicitly to avoid UTC vs local timezone misinterpretation
+  const [year, month, day] = closingDate.split('-').map(Number);
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  const closeAt = new Date(year, month - 1, day, hours, minutes, 0);
 
   if (Number.isNaN(closeAt.getTime())) return null;
 
   const deltaSeconds = Math.floor((closeAt.getTime() - Date.now()) / 1000);
-  // Allow for very short deadlines if testing (e.g. 10 blocks)
-  if (deltaSeconds <= -60) return null; // Allow ~1 min grace for recent "now" selections
+  if (deltaSeconds <= -60) return null;
 
-  const blocksUntilClose = Math.max(1, Math.ceil(deltaSeconds / ESTIMATED_BLOCK_TIME_SECONDS));
+  const safeBlockTime = Number.isFinite(blockTimeSeconds) && blockTimeSeconds > 0
+    ? blockTimeSeconds
+    : DEFAULT_BLOCK_TIME_SECONDS;
+
+  const blocksUntilClose = Math.max(1, Math.ceil(deltaSeconds / safeBlockTime));
   return currentBlockHeight + blocksUntilClose;
 };
-
-/**
- * Extract the market_id field value from a create_market transaction.
- * The first output of the transition is the market_id (field).
- */
-// export const extractMarketIdFromTx = (tx: AleoTransaction | null): string | null => {
-//   try {
-//     const transitions = tx?.execution?.transitions;
-//     if (!Array.isArray(transitions)) return null;
-
-//     const createMarketTx = transitions.find(
-//       (transition) => transition.function === "create_market" && transition.program === PROGRAM_ID,
-//     );
-//     if (!createMarketTx) return null;
-
-//     const outputs = createMarketTx.outputs;
-//     if (!Array.isArray(outputs) || outputs.length === 0) return null;
-
-//     for (const output of outputs) {
-//       const outputValue = output.value;
-
-//       if (
-//         typeof outputValue === "string" &&
-//         outputValue.includes("function_name") &&
-//         outputValue.includes("create_market")
-//       ) {
-//         const fieldMatch = outputValue.match(/([0-9]+field)/);
-//         if (fieldMatch) return fieldMatch[1];
-//       }
-
-//       if (typeof outputValue === "object" && outputValue !== null) {
-//         const args = asRecord(outputValue).arguments;
-//         if (Array.isArray(args) && args.length > 0) {
-//           const marketIdArg = args[0];
-//           if (typeof marketIdArg === "string" && marketIdArg.endsWith("field")) {
-//             return marketIdArg.trim();
-//           }
-//         }
-//       }
-//     }
-
-//     const txStr = JSON.stringify(createMarketTx);
-//     const matches = [...txStr.matchAll(/([0-9]+field)/g)];
-//     if (matches.length >= 2) return matches[1][1];
-//     if (matches.length === 1) return matches[0][1];
-
-//     return null;
-//   } catch (error) {
-//     console.error("Error extracting market id:", error);
-//     return null;
-//   }
-// };
 
 export const extractMarketIdFromTx = (tx: AleoTransaction | null): string | null => {
   try {

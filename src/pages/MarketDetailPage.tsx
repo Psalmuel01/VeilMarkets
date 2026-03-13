@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -67,80 +67,80 @@ export default function MarketDetailPage() {
   const [loadingMarket, setLoadingMarket] = useState(true);
   const [pool, setPool] = useState<PoolInfo | null>(null);
   const [isOracle, setIsOracle] = useState<boolean | null>(null);
-  const { fetchMarkets, fetchPoolStats, fetchResolutionProposal, currentHeight, isOracleRegistered } = useAleoPrograms();
+  const { fetchMarkets, fetchPoolStats, fetchResolutionProposal, currentHeight, blockTimeSeconds, isOracleRegistered } = useAleoPrograms();
+
+  const loadMarket = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!id) {
+      setNotFound(true);
+      if (!opts?.silent) setLoadingMarket(false);
+      return;
+    }
+    if (!opts?.silent) setLoadingMarket(true);
+
+    try {
+      const [allMarkets, stats, oracleStatus] = await Promise.all([
+        fetchMarkets(),
+        fetchPoolStats(id),
+        isOracleRegistered()
+      ]);
+
+      setPool(stats);
+      setIsOracle(oracleStatus);
+
+      // Flexible matching: check against market.id OR market.transactionId
+      const cleanId = (sid: string) => (sid || "").replace("field", "").trim();
+      const currentId = cleanId(id);
+
+      const found = allMarkets.find((chainMarket) =>
+        cleanId(chainMarket.id) === currentId || cleanId(chainMarket.transactionId ?? "") === currentId
+      );
+
+      if (found) {
+        const categoryRevMap: Record<number, keyof typeof categoryColors> = {
+          0: "Crypto",
+          1: "Finance",
+          2: "Sports",
+          3: "Politics",
+          4: "Entertainment",
+          5: "Tech",
+        };
+
+        setMarket({
+          id: found.id,
+          title: found.title,
+          description: found.description,
+          category: categoryRevMap[found.category] || "Tech",
+          status: found.is_resolved ? "Settled" : "Open",
+          closingTime: `Block ${found.close_block}`,
+          closingDate: "On-chain block time",
+          betsPlaced: stats?.participant_count || 0,
+          createdAt: "On-chain",
+          resolutionSource: found.source || "Creator",
+          closeBlock: found.close_block,
+          resolutionBlock: found.resolution_block || found.close_block + 100, // Fallback if 0
+          is_resolved: found.is_resolved,
+        });
+        setNotFound(false);
+      } else {
+        setNotFound(true);
+      }
+    } catch (error) {
+      console.error("Error loading market details:", error);
+    } finally {
+      if (!opts?.silent) setLoadingMarket(false);
+    }
+  }, [id, fetchMarkets, fetchPoolStats, isOracleRegistered]);
+
+  const loadProposal = useCallback(async () => {
+    if (!id) return;
+    const p = await fetchResolutionProposal(id);
+    setProposal(p);
+  }, [id, fetchResolutionProposal]);
 
   useEffect(() => {
-    const loadMarket = async () => {
-      if (!id) {
-        setNotFound(true);
-        setLoadingMarket(false);
-        return;
-      }
-      setLoadingMarket(true);
-
-      try {
-        const [allMarkets, stats, oracleStatus] = await Promise.all([
-          fetchMarkets(),
-          fetchPoolStats(id),
-          isOracleRegistered()
-        ]);
-
-        setPool(stats);
-        setIsOracle(oracleStatus);
-
-        // Flexible matching: check against market.id OR market.transactionId
-        const cleanId = (sid: string) => (sid || "").replace("field", "").trim();
-        const currentId = cleanId(id);
-
-        const found = allMarkets.find((chainMarket) =>
-          cleanId(chainMarket.id) === currentId || cleanId(chainMarket.transactionId ?? "") === currentId
-        );
-
-        if (found) {
-          const categoryRevMap: Record<number, keyof typeof categoryColors> = {
-            0: "Crypto",
-            1: "Finance",
-            2: "Sports",
-            3: "Politics",
-            4: "Entertainment",
-            5: "Tech",
-          };
-
-          setMarket({
-            id: found.id,
-            title: found.title,
-            description: found.description,
-            category: categoryRevMap[found.category] || "Tech",
-            status: found.is_resolved ? "Settled" : "Open",
-            closingTime: `Block ${found.close_block}`,
-            closingDate: "On-chain block time",
-            betsPlaced: stats?.participant_count || 0,
-            createdAt: "On-chain",
-            resolutionSource: found.source || "Creator",
-            closeBlock: found.close_block,
-            resolutionBlock: found.resolution_block || found.close_block + 100, // Fallback if 0
-            is_resolved: found.is_resolved,
-          });
-          setNotFound(false);
-        } else {
-          setNotFound(true);
-        }
-      } catch (error) {
-        console.error("Error loading market details:", error);
-      } finally {
-        setLoadingMarket(false);
-      }
-    };
-
-    const loadProposal = async () => {
-      if (!id) return;
-      const p = await fetchResolutionProposal(id);
-      setProposal(p);
-    };
-
     loadMarket();
     loadProposal();
-  }, [id, fetchMarkets, fetchPoolStats, fetchResolutionProposal]);
+  }, [loadMarket, loadProposal]);
 
   // Calculate status
   const isSettled = !!market?.is_resolved;
@@ -163,7 +163,7 @@ export default function MarketDetailPage() {
     if (blocksRemaining === null) return "Loading...";
     if (blocksRemaining <= 0) return "Expired";
 
-    const totalSeconds = blocksRemaining * 15;
+    const totalSeconds = blocksRemaining * (blockTimeSeconds || 15);
     const days = Math.floor(totalSeconds / 86400);
     const hours = Math.floor((totalSeconds % 86400) / 3600);
     const mins = Math.floor((totalSeconds % 3600) / 60);
@@ -434,16 +434,22 @@ export default function MarketDetailPage() {
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      This market is entering its resolution phase. Oracles can now propose the true outcome.
+                      {marketStatus === "Settled"
+                        ? "This market is resolved."
+                        : "This market is entering its resolution phase. Oracles can now propose the true outcome."
+                      }
                     </p>
                   )}
 
                   <Button
-                    onClick={() => setShowResolutionModal(true)}
+                    onClick={() => {
+                      if (marketStatus !== "Settled") setShowResolutionModal(true);
+                    }}
                     className="w-full btn-glow-primary"
                     variant={proposal ? "outline" : "default"}
+                    disabled={marketStatus === "Settled"}
                   >
-                    {proposal ? "Manage Resolution" : "Propose Resolution"}
+                    {marketStatus === "Settled" ? "Resolved" : (proposal ? "Manage Resolution" : "Propose Resolution")}
                   </Button>
                 </div>
               </div>
@@ -490,18 +496,13 @@ export default function MarketDetailPage() {
           title: market.title,
           close_block: market.closeBlock || 0,
           resolution_block: market.resolutionBlock || 0,
+          is_resolved: market.is_resolved,
         }}
         proposal={proposal}
         currentHeight={currentHeight || 0}
         isOracle={isOracle}
         onUpdate={async () => {
-          if (!id) return;
-          const [p, oracleStatus] = await Promise.all([
-            fetchResolutionProposal(id),
-            isOracleRegistered()
-          ]);
-          setProposal(p);
-          setIsOracle(oracleStatus);
+          await Promise.all([loadMarket({ silent: true }), loadProposal()]);
         }}
       />
     </MainLayout>

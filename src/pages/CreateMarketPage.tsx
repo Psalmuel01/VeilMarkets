@@ -27,6 +27,7 @@ import {
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { estimateCloseBlockFromDate, fetchCurrentBlockHeight } from "@/lib/aleo";
+import { min } from "date-fns";
 
 const categories = [
   { value: "crypto", label: "Crypto" },
@@ -51,8 +52,9 @@ export default function CreateMarketPage() {
     resolutionSource: "",
   });
 
-  const { createMarket } = useAleoPrograms();
+  const { createMarket, currentHeight, blockTimeSeconds } = useAleoPrograms();
   const [txId, setTxId] = useState<string | null>(null);
+  const MIN_BLOCKS_AHEAD = 40; // ~10 minutes minimum (40 blocks × 15s)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,23 +63,29 @@ export default function CreateMarketPage() {
 
   const handleCreate = async () => {
     setStep("creating");
-    const currentBlockHeight = await fetchCurrentBlockHeight();
-    if (currentBlockHeight === null) {
+    const height = currentHeight ?? await fetchCurrentBlockHeight();
+    if (height === null) {
       toast.error("Unable to fetch current block height. Please try again.");
       setStep("form");
       return;
     }
 
-    const closeBlock = estimateCloseBlockFromDate(formData.closingDate, currentBlockHeight, formData.closingTime);
-    if (!closeBlock || closeBlock <= currentBlockHeight) {
+    const closeBlock = estimateCloseBlockFromDate(
+      formData.closingDate,
+      height,
+      formData.closingTime,
+      blockTimeSeconds,
+    );
+    if (!closeBlock || closeBlock <= height + MIN_BLOCKS_AHEAD) {
       toast.error("Closing date and time must be in the future.");
       setStep("form");
       return;
     }
 
-    // For testing, we use a much smaller resolution offset (2 blocks = ~30s)
-    // In production this would be 1,440 (6 hours)
-    const resolutionBlock = closeBlock + 2; 
+    // Resolution begins after a fixed offset from close.
+    // in production should be 1,440 blocks at ~15s/block is ~6 hours.
+    const RESOLUTION_OFFSET_BLOCKS = 2;
+    const resolutionBlock = closeBlock + RESOLUTION_OFFSET_BLOCKS;
 
     // Map category string to u8
     const categoryMap: Record<string, number> = {
@@ -197,6 +205,7 @@ export default function CreateMarketPage() {
                   <Input
                     id="closingTime"
                     type="time"
+                    step="1"
                     value={formData.closingTime}
                     onChange={(e) => setFormData({ ...formData, closingTime: e.target.value })}
                     className="flex-2 bg-muted/50 border-border/50 focus:border-primary/50"
