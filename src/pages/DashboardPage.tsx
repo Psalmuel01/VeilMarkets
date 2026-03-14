@@ -6,6 +6,8 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { BetCard, UserBet } from "@/components/dashboard/BetCard";
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
+import { fetchMappingValue, parseMarketInfo } from "@/lib/aleo";
+import { PROGRAM_ID } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,68 +17,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-// Mock data
-const mockBets: UserBet[] = [
-  {
-    id: "1",
-    marketId: "101",
-    marketTitle: "Will Bitcoin surpass $120,000 before the end of 2025?",
-    category: "Crypto",
-    status: "Won",
-    outcome: "Yes",
-    placedAt: "Oct 10, 2025",
-    canClaim: true,
-  },
-  {
-    id: "2",
-    marketId: "102",
-    marketTitle: "Will Manchester City win the Premier League 2024-25 season?",
-    category: "Sports",
-    status: "Lost",
-    outcome: "Yes",
-    placedAt: "Aug 18, 2024",
-    canClaim: false,
-  },
-  {
-    id: "3",
-    marketId: "103",
-    marketTitle: "Will Dune: Part Two win at least one Oscar in 2025?",
-    category: "Entertainment",
-    status: "Won",
-    outcome: "Yes",
-    placedAt: "Feb 25, 2025",
-    canClaim: false,
-  },
-  {
-    id: "4",
-    marketId: "104",
-    marketTitle: "Will the Federal Reserve cut interest rates before July 2025?",
-    category: "Finance",
-    status: "Won",
-    outcome: "Yes",
-    placedAt: "May 2, 2025",
-    canClaim: true,
-  },
-  {
-    id: "5",
-    marketId: "105",
-    marketTitle: "Will Apple release a foldable iPhone before 2027?",
-    category: "Technology",
-    status: "Pending",
-    outcome: "Yes",
-    placedAt: "Jan 14, 2026",
-    canClaim: false,
-  }
-];
-
-const stats = [
-  { icon: Trophy, label: "Total Bets", value: "12" },
-  { icon: TrendingUp, label: "Win Rate", value: "66%" },
-  { icon: Clock, label: "Pending", value: "3" },
-];
-
-
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -91,6 +31,7 @@ export default function DashboardPage() {
     { icon: Clock, label: "Pending", value: "0" },
   ]);
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
+  const [claimedAmount, setClaimedAmount] = useState<number | null>(null);
   const [myMarkets, setMyMarkets] = useState<
     Array<{
       id: string;
@@ -116,11 +57,29 @@ export default function DashboardPage() {
         setTokenBalance(balance);
 
         const marketMap = new Map(allMarkets.map(m => [m.id.replace("field", "").trim(), m]));
+        const missingMarketIds = Array.from(
+          new Set(records.map(r => r.market_id).filter((id) => !marketMap.has(id)))
+        );
+
+        if (missingMarketIds.length > 0) {
+          const fetched = await Promise.all(
+            missingMarketIds.map(async (id) => {
+              const fieldId = id.endsWith("field") ? id : `${id}field`;
+              const raw = await fetchMappingValue(PROGRAM_ID, "markets", fieldId);
+              if (!raw) return null;
+              return parseMarketInfo(raw as string | object, fieldId);
+            })
+          );
+          fetched.filter(Boolean).forEach((m: any) => {
+            marketMap.set(m.id.replace("field", "").trim(), m);
+          });
+        }
 
         const mapped: UserBet[] = records.map((record) => {
           // record.market_id is already cleaned by the hook
           const market = marketMap.get(record.market_id);
           const outcomeLabel = record.outcome === "1" ? "Yes" : "No";
+          const betId = `${record.market_id}-${record.escrow_id}`;
 
           let status: "Pending" | "Won" | "Lost" | "Cancelled" = "Pending";
           let canClaim = false;
@@ -128,24 +87,25 @@ export default function DashboardPage() {
           if (market?.is_resolved) {
             if (market.winning_outcome === 3) {
               status = "Cancelled";
-              canClaim = !record.spent;
+              canClaim = !record.position_spent;
             } else if (market.winning_outcome === (record.outcome === "1" ? 1 : 0)) {
               status = "Won";
-              canClaim = !record.spent;
+              canClaim = !record.position_spent;
             } else {
               status = "Lost";
             }
           }
 
           return {
-            id: `${record.market_id}-${record.escrow_id}`,
+            id: betId,
             marketId: record.market_id,
             marketTitle: market?.title || `Market ${record.market_id.substring(0, 8)}...`,
             category: market?.category === 0 ? "Crypto" : market?.category === 1 ? "Sports" : "Misc",
             status,
             outcome: outcomeLabel,
-            placedAt: "Recorded",
+            placedAt: "Recorded", // TODO - need timestamp in the record
             canClaim,
+            isClaimed: Boolean(record.position_spent),
           };
         });
 
@@ -200,6 +160,7 @@ export default function DashboardPage() {
     setSelectedMarketId(marketId);
     setShowClaimModal(true);
     setClaimStep("confirm");
+    setClaimedAmount(null);
   };
 
   const processClaim = async () => {
@@ -209,7 +170,22 @@ export default function DashboardPage() {
     const result = await claimWinnings(selectedMarketId);
 
     if (result) {
-      setTxId(result);
+      setTxId(result.transactionId);
+      setClaimedAmount(result.payoutAmount);
+      const claimedAt = new Date().toLocaleString();
+      setUserBets((prev) =>
+        prev.map((bet) =>
+          bet.marketId === selectedMarketId && bet.status === "Won"
+            ? {
+                ...bet,
+                canClaim: false,
+                isClaimed: true,
+                claimedAmount: result.payoutAmount,
+                claimedAt,
+              }
+            : bet,
+        ),
+      );
       setClaimStep("success");
     } else {
       setClaimStep("confirm");
@@ -363,7 +339,7 @@ export default function DashboardPage() {
               <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
                 <div className="flex justify-between text-sm mb-2">
                   <span className="text-muted-foreground">Amount to Claim</span>
-                  <span className="font-mono encrypted-text">•••••• ALEO</span>
+                  <span className="font-mono encrypted-text">Calculated on-chain</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Network Fee</span>
@@ -424,6 +400,13 @@ export default function DashboardPage() {
                 </p>
                 <ZKBadge variant="verified" size="lg" animated />
               </div>
+
+              {claimedAmount !== null && (
+                <div className="p-4 rounded-lg bg-success/10 border border-success/30 text-success">
+                  <div className="text-xs uppercase tracking-wide mb-1">Claimed Amount</div>
+                  <div className="text-2xl font-bold">+{claimedAmount.toFixed(4)} ALEO</div>
+                </div>
+              )}
 
               <Button onClick={() => setShowClaimModal(false)} className="w-full">
                 Done

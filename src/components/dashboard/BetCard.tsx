@@ -1,4 +1,4 @@
-import { Clock, ExternalLink } from "lucide-react";
+import { CheckCircle2, Clock, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { ZKBadge } from "@/components/ui/ZKBadge";
@@ -14,6 +14,9 @@ export interface UserBet {
   outcome: "Yes" | "No";
   placedAt: string;
   canClaim: boolean;
+  claimedAmount?: number;
+  claimedAt?: string;
+  isClaimed?: boolean;
 }
 
 interface BetCardProps {
@@ -42,6 +45,10 @@ const statusConfig = {
 
 export function BetCard({ bet, onClaim }: BetCardProps) {
   const config = statusConfig[bet.status];
+  const hasClaimed = Boolean(bet.isClaimed) || typeof bet.claimedAmount === "number";
+  const claimedLabel =
+    typeof bet.claimedAmount === "number" ? `+${bet.claimedAmount.toFixed(4)} ALEO` : "Claimed";
+  // console.log("BetCard render", { bet, hasClaimed, claimedLabel });
 
   return (
     <div className={cn(
@@ -53,6 +60,11 @@ export function BetCard({ bet, onClaim }: BetCardProps) {
           <Badge variant="outline" className={cn("text-[10px] uppercase", config.color)}>
             {config.label}
           </Badge>
+          {hasClaimed && (
+            <Badge variant="outline" className="text-[10px] uppercase bg-success/10 text-success border-success/30">
+              Claimed
+            </Badge>
+          )}
           <Badge variant="outline" className="text-[10px] uppercase text-muted-foreground border-border">
             {bet.category}
           </Badge>
@@ -88,11 +100,28 @@ export function BetCard({ bet, onClaim }: BetCardProps) {
         {bet.status === "Won" && (
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Winnings</span>
-            <span className="font-mono text-success">+•••••• ALEO</span>
+            <span className="font-mono text-success">+•••••• {bet.claimedAmount?.toFixed(4)} ALEO</span>
           </div>
         )}
 
-        {bet.canClaim && (
+        {hasClaimed && (
+          <div className="p-3 rounded-lg bg-success/10 border border-success/30 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-success text-sm font-medium">
+              <CheckCircle2 className="w-4 h-4" />
+              Reward Claimed
+            </div>
+            <span className="font-mono text-success">{claimedLabel}</span>
+          </div>
+        )}
+
+        {hasClaimed && bet.claimedAt && (
+          <div className="text-xs text-muted-foreground flex justify-between">
+            <span>Claimed At</span>
+            <span>{bet.claimedAt}</span>
+          </div>
+        )}
+
+        {bet.canClaim && !hasClaimed && (
           <Button onClick={() => onClaim?.(bet.marketId)} className="w-full btn-glow-primary mt-2">
             Claim Winnings
           </Button>

@@ -71,11 +71,11 @@ This leads to **manipulation, MEV, exposure of high-value bettors, and friction 
 
 VeilMarkets uses a modular **4-program architecture** to ensure scalability, security, and Aleo compliance:
 
-## Frontend Integration (v3)
+## Frontend Integration (v4)
 
 ### Transaction Flow Changes
 1. **Placing a Bet**:
-   - Program: `veilmarkets_token_v3.aleo`
+   - Program: `veilmarkets_token_v4.aleo`
    - Transition: `place_bet`
    - **Returns**: `(credits.aleo/credits, EscrowedBet, Future)`
    - > [!IMPORTANT]
@@ -83,20 +83,26 @@ VeilMarkets uses a modular **4-program architecture** to ensure scalability, sec
 
 2. **Resolving a Market**:
    - **Step 1**: Call `propose_resolution` (Oracle Contract).
-   - **Step 2**: Wait 24 hours (Dispute window).
+   - **Step 2**: Wait for the challenge window to end (or a dispute/vote if challenged).
    - **Step 3**: Call `resolve_on_core` (Oracle Contract) to finalize.
+   - **Enforced rule**:
+     - `propose_resolution` writes a proposal into `proposals[market_id]` and sets `challenge_deadline`.
+     - `resolve_on_core` must match that proposal:
+     - If not disputed, it asserts `outcome == proposed_outcome` and only after the challenge window ends.
+     - If disputed, it asserts `outcome == winning_outcome` computed from votes.
+     - The proposal is not advisory — it is enforced on-chain during finalization.
 
 ### Troubleshooting
 - **Error: 'Credits' expected 2 entries, found 5 entries**:
   - **Cause**: You are likely passing an `EscrowedBet` record from the token contract instead of a `credits.aleo/credits` record.
   - **Fix**: Check your wallet filtering logic. Ensure input records for `place_bet` or `register_oracle` are specifically from the `credits.aleo` program.
 
-## Architecture Diagram (v3)
+## Architecture Diagram (v4)
 ```mermaid
 graph TD
-    Factory[veilmarkets_factory_v3.aleo] --> Core[veilmarkets_v3.aleo]
-    Factory --> Token[veilmarkets_token_v3.aleo]
-    Factory --> Oracle[veilmarkets_oracle_v3.aleo]
+    Factory[veilmarkets_factory_v4.aleo] --> Core[veilmarkets_v4.aleo]
+    Factory --> Token[veilmarkets_token_v4.aleo]
+    Factory --> Oracle[veilmarkets_oracle_v4.aleo]
     
     User[User Wallet] --> Token
     Token --> Core
@@ -107,10 +113,22 @@ graph TD
     Frontend --> Aleo[Aleo Network]
 ```
 
-- **veilmarkets_factory_v3.aleo**: System registry and permission management.
-- **veilmarkets_v3.aleo**: Core logic for market creation, pool accounting, and pro-rata winnings calculation.
-- **veilmarkets_token_v3.aleo**: Integrated pari-mutuel escrow vault. Handles deposits, bet funding, and secure payouts.
-- **veilmarkets_oracle_v3.aleo**: Optimistic resolution governance with built-in 24h dispute window and escalation.
+- **veilmarkets_factory_v4.aleo**: System registry and permission management.
+- **veilmarkets_v4.aleo**: Core logic for market creation, pool accounting, and pro-rata winnings calculation.
+- **veilmarkets_token_v4.aleo**: Integrated pari-mutuel escrow vault. Handles deposits, bet funding, and secure payouts.
+- **veilmarkets_oracle_v4.aleo**: Optimistic resolution governance with challenge window and escalation.
+
+## Lifecycle Flow (End-to-End)
+
+1. **Create Market**: Core contract stores market metadata, close block, and resolution block.
+2. **Place Bet**: Token contract escrows credits and calls core to update pool state.
+3. **Propose Resolution**: Oracle proposes a binary outcome after `resolution_block`.
+4. **Challenge Window**: Others can dispute; if disputed, oracle votes determine the winning outcome.
+5. **Finalize**: `resolve_on_core` resolves the market on core and locks the pool.
+6. **Claim Winnings**:
+   - Step 1: User calls `claim_winnings` on core to compute payout and store `pending_payouts[nullifier]`.
+   - Step 2: User calls `claim_payout` on token with `(payout_amount, nullifier)` to receive credits.
+   - Step 3: Token contract calls core `verify_claim` to confirm the payout amount before transfer finalizes.
 
 ---
 

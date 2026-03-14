@@ -26,8 +26,7 @@ import {
 } from "@/components/ui/select";
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
-import { estimateCloseBlockFromDate, fetchCurrentBlockHeight } from "@/lib/aleo";
-import { min } from "date-fns";
+import { DEFAULT_BLOCK_TIME_SECONDS, estimateCloseBlockFromDate, fetchCurrentBlockHeight } from "@/lib/aleo";
 
 const categories = [
   { value: "crypto", label: "Crypto" },
@@ -54,7 +53,7 @@ export default function CreateMarketPage() {
 
   const { createMarket, currentHeight, blockTimeSeconds } = useAleoPrograms();
   const [txId, setTxId] = useState<string | null>(null);
-  const MIN_BLOCKS_AHEAD = 40; // ~10 minutes minimum (40 blocks × 15s)
+  const MIN_SECONDS_AHEAD = 10 * 60; // 10 minutes minimum
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,8 +75,9 @@ export default function CreateMarketPage() {
       formData.closingTime,
       blockTimeSeconds,
     );
-    if (!closeBlock || closeBlock <= height + MIN_BLOCKS_AHEAD) {
-      toast.error("Closing date and time must be in the future.");
+    const minBlocksAhead = Math.ceil(MIN_SECONDS_AHEAD / (blockTimeSeconds || DEFAULT_BLOCK_TIME_SECONDS));
+    if (!closeBlock || closeBlock <= height + minBlocksAhead) {
+      toast.error("Closing date and time must be in the future, over 10mins ahead.");
       setStep("form");
       return;
     }

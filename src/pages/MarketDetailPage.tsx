@@ -8,7 +8,9 @@ import {
   Shield,
   Calendar,
   Info,
-  AlertCircle
+  AlertCircle,
+  CheckCircle2,
+  Loader2
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -17,8 +19,15 @@ import { ZKBadge } from "@/components/ui/ZKBadge";
 import { OutcomeCard } from "@/components/betting/OutcomeCard";
 import { PlaceBetModal } from "@/components/betting/PlaceBetModal";
 import { ResolutionModal } from "@/components/resolution/ResolutionModal";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
+import { ADMIN_ADDRESS } from "@/lib/constants";
 import { PoolInfo } from "@/lib/aleo";
 
 
@@ -41,7 +50,12 @@ export default function MarketDetailPage() {
   const { id } = useParams();
   const [showBetModal, setShowBetModal] = useState(false);
   const [showResolutionModal, setShowResolutionModal] = useState(false);
+  const [showFinalizeModal, setShowFinalizeModal] = useState(false);
+  const [finalizeStep, setFinalizeStep] = useState<"confirm" | "processing" | "success" | "failed">("confirm");
+  const [finalizeTxId, setFinalizeTxId] = useState<string | null>(null);
   const [hasUserBet, setHasUserBet] = useState(false);
+  const [userBetOutcome, setUserBetOutcome] = useState<"Yes" | "No" | null>(null);
+  const [userBetResult, setUserBetResult] = useState<"Won" | "Lost" | "Cancelled" | null>(null);
   const [proposal, setProposal] = useState<{
     proposed_outcome: number;
     challenge_deadline: number;
@@ -62,12 +76,13 @@ export default function MarketDetailPage() {
     closeBlock?: number;
     resolutionBlock?: number;
     is_resolved: boolean;
+    winningOutcome?: number;
   } | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [loadingMarket, setLoadingMarket] = useState(true);
   const [pool, setPool] = useState<PoolInfo | null>(null);
   const [isOracle, setIsOracle] = useState<boolean | null>(null);
-  const { fetchMarkets, fetchPoolStats, fetchResolutionProposal, currentHeight, blockTimeSeconds, isOracleRegistered } = useAleoPrograms();
+  const { fetchMarkets, fetchPoolStats, fetchResolutionProposal, fetchUserBets, resolveMarket, currentHeight, blockTimeSeconds, isOracleRegistered, publicKey } = useAleoPrograms();
 
   const loadMarket = useCallback(async (opts?: { silent?: boolean }) => {
     if (!id) {
@@ -77,12 +92,13 @@ export default function MarketDetailPage() {
     }
     if (!opts?.silent) setLoadingMarket(true);
 
-    try {
-      const [allMarkets, stats, oracleStatus] = await Promise.all([
-        fetchMarkets(),
-        fetchPoolStats(id),
-        isOracleRegistered()
-      ]);
+      try {
+        const [allMarkets, stats, oracleStatus, userBets] = await Promise.all([
+          fetchMarkets(),
+          fetchPoolStats(id),
+          isOracleRegistered(),
+          fetchUserBets()
+        ]);
 
       setPool(stats);
       setIsOracle(oracleStatus);
@@ -95,31 +111,54 @@ export default function MarketDetailPage() {
         cleanId(chainMarket.id) === currentId || cleanId(chainMarket.transactionId ?? "") === currentId
       );
 
-      if (found) {
-        const categoryRevMap: Record<number, keyof typeof categoryColors> = {
-          0: "Crypto",
-          1: "Finance",
-          2: "Sports",
-          3: "Politics",
-          4: "Entertainment",
-          5: "Tech",
-        };
+        if (found) {
+          const categoryRevMap: Record<number, keyof typeof categoryColors> = {
+            0: "Crypto",
+            1: "Finance",
+            2: "Sports",
+            3: "Politics",
+            4: "Entertainment",
+            5: "Tech",
+          };
 
-        setMarket({
-          id: found.id,
-          title: found.title,
-          description: found.description,
-          category: categoryRevMap[found.category] || "Tech",
-          status: found.is_resolved ? "Settled" : "Open",
-          closingTime: `Block ${found.close_block}`,
-          closingDate: "On-chain block time",
-          betsPlaced: stats?.participant_count || 0,
-          createdAt: "On-chain",
-          resolutionSource: found.source || "Creator",
-          closeBlock: found.close_block,
-          resolutionBlock: found.resolution_block || found.close_block + 100, // Fallback if 0
-          is_resolved: found.is_resolved,
-        });
+          const userBet = userBets.find((b) => cleanId(b.market_id) === currentId);
+          if (userBet) {
+            setHasUserBet(true);
+            const outcomeLabel = userBet.outcome === "1" ? "Yes" : "No";
+            setUserBetOutcome(outcomeLabel);
+            if (found.is_resolved) {
+              if (found.winning_outcome === 3) {
+                setUserBetResult("Cancelled");
+              } else if (found.winning_outcome === (userBet.outcome === "1" ? 1 : 0)) {
+                setUserBetResult("Won");
+              } else {
+                setUserBetResult("Lost");
+              }
+            } else {
+              setUserBetResult(null);
+            }
+          } else {
+            setHasUserBet(false);
+            setUserBetOutcome(null);
+            setUserBetResult(null);
+          }
+
+          setMarket({
+            id: found.id,
+            title: found.title,
+            description: found.description,
+            category: categoryRevMap[found.category] || "Tech",
+            status: found.is_resolved ? "Settled" : "Open",
+            closingTime: `Block ${found.close_block}`,
+            closingDate: "On-chain block time",
+            betsPlaced: stats?.participant_count || 0,
+            createdAt: "On-chain",
+            resolutionSource: found.source || "Creator",
+            closeBlock: found.close_block,
+            resolutionBlock: found.resolution_block || found.close_block + 100, // Fallback if 0
+            is_resolved: found.is_resolved,
+            winningOutcome: found.winning_outcome,
+          });
         setNotFound(false);
       } else {
         setNotFound(true);
@@ -129,18 +168,26 @@ export default function MarketDetailPage() {
     } finally {
       if (!opts?.silent) setLoadingMarket(false);
     }
-  }, [id, fetchMarkets, fetchPoolStats, isOracleRegistered]);
+  }, [id, fetchMarkets, fetchPoolStats, fetchUserBets, isOracleRegistered]);
 
   const loadProposal = useCallback(async () => {
     if (!id) return;
     const p = await fetchResolutionProposal(id);
     setProposal(p);
+    console.log("[MarketDetailPage] proposal:", p);
   }, [id, fetchResolutionProposal]);
 
   useEffect(() => {
     loadMarket();
     loadProposal();
   }, [loadMarket, loadProposal]);
+
+  useEffect(() => {
+    if (!publicKey) return;
+    const normalized = publicKey.toString().replace(/address/g, "").trim().toLowerCase();
+    const isAdmin = normalized === ADMIN_ADDRESS.toLowerCase();
+    console.log("[MarketDetailPage] admin check:", { address: normalized, isAdmin });
+  }, [publicKey]);
 
   // Calculate status
   const isSettled = !!market?.is_resolved;
@@ -153,6 +200,17 @@ export default function MarketDetailPage() {
     ? Math.round((pool.total_yes / (pool.total_yes + pool.total_no)) * 100)
     : 50;
   const noPercent = 100 - yesPercent;
+
+  const resolvedOutcomeLabel =
+    market?.winningOutcome === 1 ? "YES" :
+      market?.winningOutcome === 0 ? "NO" :
+        market?.winningOutcome === 3 ? "CANCELLED" :
+          null;
+
+  const isAdmin = publicKey
+    ? publicKey.toString().replace(/address/g, "").trim().toLowerCase() === ADMIN_ADDRESS.toLowerCase()
+    : false;
+  const isFinalizable = proposal && (!proposal.is_disputed ? currentHeight >= proposal.challenge_deadline : true);
 
   // Countdown logic
   const blocksRemaining = market?.closeBlock && currentHeight
@@ -172,6 +230,20 @@ export default function MarketDetailPage() {
     if (hours > 0) return `~${hours}h ${mins}m remaining`;
     return `~${mins}m remaining`;
   })();
+
+  const handleFinalize = async () => {
+    if (!proposal) return;
+    setFinalizeStep("processing");
+    const outcome = proposal.proposed_outcome;
+    const tx = await resolveMarket(market.id, outcome);
+    if (tx) {
+      setFinalizeTxId(tx);
+      setFinalizeStep("success");
+      await Promise.all([loadMarket({ silent: true }), loadProposal()]);
+    } else {
+      setFinalizeStep("failed");
+    }
+  };
   
   if (notFound) {
     return (
@@ -301,6 +373,32 @@ export default function MarketDetailPage() {
             transition={{ delay: 0.1 }}
             className="lg:col-span-2 space-y-6"
           >
+            {marketStatus === "Settled" && resolvedOutcomeLabel && (
+              <div className="p-6 rounded-xl bg-card border border-border/50">
+                <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-success" />
+                  Resolved Outcome
+                </h2>
+                <div className={`text-3xl font-bold ${resolvedOutcomeLabel === "YES" ? "text-success" : resolvedOutcomeLabel === "NO" ? "text-destructive" : "text-muted-foreground"}`}>
+                  {resolvedOutcomeLabel}
+                </div>
+                {userBetOutcome && (
+                  <div className="mt-4 pt-4 border-t border-border/50 text-sm flex justify-between">
+                    <span className="text-muted-foreground">Your Bet</span>
+                    <span className="font-medium">{userBetOutcome}</span>
+                  </div>
+                )}
+                {userBetResult && (
+                  <div className="mt-2 text-sm flex justify-between">
+                    <span className="text-muted-foreground">Your Result</span>
+                    <span className={`font-semibold ${userBetResult === "Won" ? "text-success" : userBetResult === "Lost" ? "text-destructive" : "text-muted-foreground"}`}>
+                      {userBetResult}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Description */}
             <div className="p-6 rounded-xl bg-card border border-border/50">
               <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
@@ -382,13 +480,21 @@ export default function MarketDetailPage() {
                   <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
                     <div className="flex justify-between text-sm mb-2">
                       <span className="text-muted-foreground">Your Bet</span>
-                      <span className="font-mono encrypted-text">Hidden</span>
+                      <span className="font-mono encrypted-text">{userBetOutcome ?? "Hidden"}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Amount</span>
                       <span className="font-mono encrypted-text">•••••• ALEO</span>
                     </div>
                   </div>
+                  {marketStatus === "Settled" && userBetResult && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Result</span>
+                      <span className={`font-semibold ${userBetResult === "Won" ? "text-success" : userBetResult === "Lost" ? "text-destructive" : "text-muted-foreground"}`}>
+                        {userBetResult}
+                      </span>
+                    </div>
+                  )}
                   <ZKBadge variant="proof" className="w-full justify-center py-2" />
                 </div>
               ) : (
@@ -409,8 +515,7 @@ export default function MarketDetailPage() {
             </div>
 
             {/* Resolution Control (Propose/Dispute/Finalize) */}
-            {((market.closeBlock && currentHeight && currentHeight >= market.closeBlock) || proposal) && (marketStatus === "Closed" || marketStatus === "Settled") && (
-              <div className="p-6 rounded-xl bg-card border border-border/50">
+            <div className="p-6 rounded-xl bg-card border border-border/50">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold">Resolution</h2>
                   <ZKBadge variant="verified" size="sm" />
@@ -420,7 +525,7 @@ export default function MarketDetailPage() {
                   {proposal ? (
                     <div className="p-3 rounded-lg bg-muted/20 border border-border/50 text-sm">
                       <div className="flex justify-between mb-2">
-                        <span className="text-muted-foreground">Proposed Outcome</span>
+                        <span className="text-muted-foreground">Resolution Already Proposed</span>
                         <span className={cn("font-bold", proposal.proposed_outcome === 1 ? "text-success" : "text-destructive")}>
                           {proposal.proposed_outcome === 1 ? "YES" : "NO"}
                         </span>
@@ -436,7 +541,9 @@ export default function MarketDetailPage() {
                     <p className="text-sm text-muted-foreground">
                       {marketStatus === "Settled"
                         ? "This market is resolved."
-                        : "This market is entering its resolution phase. Oracles can now propose the true outcome."
+                        : currentHeight && market?.resolutionBlock && currentHeight < market.resolutionBlock
+                          ? `Proposals open at resolution block ${market.resolutionBlock}.`
+                          : "Oracles can now propose the true outcome."
                       }
                     </p>
                   )}
@@ -447,13 +554,49 @@ export default function MarketDetailPage() {
                     }}
                     className="w-full btn-glow-primary"
                     variant={proposal ? "outline" : "default"}
-                    disabled={marketStatus === "Settled"}
+                    disabled={marketStatus === "Settled" || !!proposal}
                   >
-                    {marketStatus === "Settled" ? "Resolved" : (proposal ? "Manage Resolution" : "Propose Resolution")}
+                    {marketStatus === "Settled" ? "Resolved" : (proposal ? "Resolution Proposed" : "Propose Resolution")}
                   </Button>
+
+                  {proposal && marketStatus !== "Settled" && (
+                    <Button
+                      variant="link"
+                      className="w-full text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => setShowResolutionModal(true)}
+                    >
+                      Manage / Dispute Resolution
+                    </Button>
+                  )}
+
+                  {isAdmin && (
+                    <Button
+                      onClick={() => {
+                        if (proposal) {
+                          setFinalizeStep("confirm");
+                          setShowFinalizeModal(true);
+                        }
+                      }}
+                      className="w-full btn-glow-success"
+                      disabled={!proposal || !isFinalizable || proposal.is_disputed || marketStatus === "Settled"}
+                    >
+                      Resolve Market
+                    </Button>
+                  )}
+
+                  {isAdmin && proposal && !isFinalizable && !proposal.is_disputed && (
+                    <p className="text-[10px] text-center text-muted-foreground">
+                      Challenge window active until block {proposal.challenge_deadline}.
+                    </p>
+                  )}
+
+                  {isAdmin && !proposal && (
+                    <p className="text-[10px] text-center text-muted-foreground">
+                      A resolution proposal is required before finalization.
+                    </p>
+                  )}
                 </div>
               </div>
-            )}
 
             {/* Privacy Info */}
             <div className="p-6 rounded-xl bg-muted/20 border border-border/50">
@@ -505,6 +648,105 @@ export default function MarketDetailPage() {
           await Promise.all([loadMarket({ silent: true }), loadProposal()]);
         }}
       />
+
+      <Dialog
+        open={showFinalizeModal}
+        onOpenChange={(open) => {
+          setShowFinalizeModal(open);
+          if (!open) {
+            setFinalizeStep("confirm");
+            setFinalizeTxId(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md bg-card">
+          <DialogHeader>
+            <DialogTitle>Resolve Market</DialogTitle>
+          </DialogHeader>
+
+          {finalizeStep === "confirm" && (
+            <div className="space3">
+              <p className="text-sm text-muted-foreground">
+                You are about to finalize this market with the proposed outcome.
+              </p>
+              {proposal && (
+                <div className="p-3 rounded-lg bg-muted/20 border border-border/50 text-sm flex justify-between">
+                  <span className="text-muted-foreground">Proposed Outcome</span>
+                  <span className={cn("font-bold", proposal.proposed_outcome === 1 ? "text-success" : "text-destructive")}>
+                    {proposal.proposed_outcome === 1 ? "YES" : "NO"}
+                  </span>
+                </div>
+              )}
+              {proposal && !proposal.is_disputed && currentHeight && currentHeight < proposal.challenge_deadline && (
+                <p className="text-xs text-amber-500">
+                  Challenge window active until block {proposal.challenge_deadline}. Finalization may fail if submitted early.
+                </p>
+              )}
+              <Button onClick={handleFinalize} className="w-full btn-glow-success" disabled={!proposal}>
+                Confirm Resolve
+              </Button>
+            </div>
+          )}
+
+          {finalizeStep === "processing" && (
+            <div className="py-12 text-center space-y-6">
+              <div className="mx-auto w-20 h-20 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center">
+                <Loader2 className="w-8 h-8 text-primary animate-spin" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Resolving Market</h3>
+                <p className="text-sm text-muted-foreground">
+                  Submitting final resolution transaction...
+                </p>
+              </div>
+            </div>
+          )}
+
+          {finalizeStep === "success" && (
+            <div className="py-8 text-center space-y-6">
+              <div className="mx-auto w-20 h-20 rounded-full bg-success/10 border-2 border-success flex items-center justify-center">
+                <CheckCircle2 className="w-10 h-10 text-success" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Market Resolved!</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  The final outcome has been submitted to the network.
+                </p>
+              </div>
+              {finalizeTxId && (
+                <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
+                  <div className="text-xs text-muted-foreground mb-1">Transaction ID</div>
+                  <code className="text-sm font-mono text-primary break-all">
+                    {finalizeTxId}
+                  </code>
+                </div>
+              )}
+              <Button onClick={() => setShowFinalizeModal(false)} className="w-full">
+                Close
+              </Button>
+            </div>
+          )}
+
+          {finalizeStep === "failed" && (
+            <div className="py-8 text-center space-y-6">
+              <div className="mx-auto w-20 h-20 rounded-full bg-destructive/10 border-2 border-destructive flex items-center justify-center">
+                <AlertCircle className="w-10 h-10 text-destructive" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Resolution Failed</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  The transaction was rejected or timed out.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => setFinalizeStep("confirm")} className="flex-1">
+                  Back
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
