@@ -106,7 +106,33 @@ const getErrorMessage = (error: unknown): string => {
   return "Unknown error";
 };
 
-const parseRecordField = (record: WalletRecord, field: string): string => {
+const isWalletNoResponse = (error: unknown): boolean => {
+  if (!(error instanceof Error)) return false;
+  return error.message.toLowerCase().includes("no response");
+};
+
+const requestRecordsWithRetry = async (
+  requestRecords: (programId: string, includeUnspent: boolean) => Promise<unknown[]>,
+  programId: string,
+  label: string,
+  retries = 2,
+): Promise<unknown[]> => {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await requestRecords(programId, true);
+    } catch (error) {
+      if (isWalletNoResponse(error) && i < retries) {
+        await new Promise((r) => setTimeout(r, 1000));
+        continue;
+      }
+      console.error(`[${label}] requestRecords failed for ${programId}:`, error);
+      throw error;
+    }
+  }
+  return [];
+};
+
+  const parseRecordField = (record: WalletRecord, field: string): string => {
   const rawData = record.data ?? record;
 
   // Try direct object access
@@ -156,6 +182,20 @@ export const useAleoPrograms = () => {
   const { address, executeTransaction, requestRecords, requestTransactionHistory } = useWallet();
   const publicKey = address;
   const [loading, setLoading] = useState(false);
+
+  const logProgramRecordSummary = async (programId: string, label: string) => {
+    try {
+      const rawRecords = await requestRecordsWithRetry(requestRecords, programId, label);
+      const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
+      const unspent = records.filter((record) => !record.spent);
+      console.warn(`[Claim] ${label} records for ${programId}:`, {
+        total: records.length,
+        unspent: unspent.length,
+      });
+    } catch (error) {
+      console.warn(`[Claim] Failed to read records for ${programId}:`, error);
+    }
+  };
 
   const executeWalletTransaction = useCallback(
     async (options: ExecuteWalletTransactionOptions) => {
@@ -572,21 +612,32 @@ export const useAleoPrograms = () => {
 
     try {
       // Search CORE program for BetPosition records
-      const rawRecords = await requestRecords(PROGRAM_ID, true);
+      const rawRecords = await requestRecordsWithRetry(requestRecords, PROGRAM_ID, "Claim");
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       const unspent = records.filter((record) => !record.spent);
 
       const found = unspent.find((record) => {
-        const source = record.data ?? record;
-        const recordMarketId = cleanAleoPrimitive(source.market_id);
+        const recordMarketId = parseRecordField(record, "market_id");
         return recordMarketId === cleanMarketId;
       });
 
       return found ?? null;
     } catch (error) {
+      if (isWalletNoResponse(error)) {
+        toast.error("Wallet did not respond. Unlock/approve the wallet and retry claim.");
+      }
       console.error("Error finding claimable record:", error);
       return null;
     }
+  };
+
+  const waitForPositionRecord = async (marketId: string): Promise<WalletRecord | null> => {
+    for (let i = 0; i < 10; i++) {
+      const record = await findClaimablePositionRecord(marketId);
+      if (record) return record;
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    return null;
   };
 
   const findEscrowedBetRecord = async (marketId: string): Promise<WalletRecord | null> => {
@@ -596,18 +647,20 @@ export const useAleoPrograms = () => {
 
     try {
       // Search TOKEN program for EscrowedBet records
-      const rawRecords = await requestRecords(TOKEN_PROGRAM_ID, true);
+      const rawRecords = await requestRecordsWithRetry(requestRecords, TOKEN_PROGRAM_ID, "EscrowedBet");
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       const unspent = records.filter((record) => !record.spent);
 
       const found = unspent.find((record) => {
-        const source = record.data ?? record;
-        const recordMarketId = cleanAleoPrimitive(source.market_id);
+        const recordMarketId = parseRecordField(record, "market_id");
         return recordMarketId === cleanMarketId;
       });
 
       return found ?? null;
     } catch (error) {
+      if (isWalletNoResponse(error)) {
+        toast.error("Wallet did not respond. Unlock/approve the wallet and retry claim.");
+      }
       console.error("Error finding escrowed bet record:", error);
       return null;
     }
@@ -827,16 +880,50 @@ export const useAleoPrograms = () => {
     }
   };
 
-  const claimWinnings = async (marketId: string) => {
+  const claimWinnings = async (marketId: string): Promise<{ transactionId: string; payoutAmount: number } | null> => {
     if (!address) return;
 
     setLoading(true);
     try {
       // Step 1: Call core contract claim_winnings with BetPosition record
-      const positionRecord = await findClaimablePositionRecord(marketId);
+      let positionRecord = await findClaimablePositionRecord(marketId);
       if (!positionRecord) {
-        toast.error("No claimable bet record found for this market in your wallet.");
-        return;
+        const escrowedBet = await findEscrowedBetRecord(marketId);
+        if (!escrowedBet) {
+          await logProgramRecordSummary(TOKEN_PROGRAM_ID, "EscrowedBet");
+          toast.error("No claimable bet record found for this market in your wallet. Ensure you placed the bet with this wallet and that your wallet allows veilmarkets_token_v4.aleo records.");
+          return;
+        }
+
+        const marketIdRaw = parseRecordField(escrowedBet, "market_id");
+        const outcomeRaw = parseRecordField(escrowedBet, "outcome");
+        const amountRaw = parseRecordField(escrowedBet, "amount");
+        const escrowIdRaw = parseRecordField(escrowedBet, "escrow_id");
+
+        if (!marketIdRaw || !outcomeRaw || !amountRaw || !escrowIdRaw) {
+          toast.error("Unable to read escrowed bet details to mint position.");
+          return;
+        }
+
+        toast.info("Preparing claim record...");
+        await executeAndPoll({
+          program: PROGRAM_ID,
+          function: "mint_position_record",
+          inputs: [
+            formatField(marketIdRaw),
+            formatU8(Number(outcomeRaw)),
+            formatU64(Number(amountRaw)),
+            formatField(escrowIdRaw),
+          ],
+          fee: 500_000,
+          privateFee: false,
+        }, PROGRAM_ID, "mint_position_record");
+
+        positionRecord = await waitForPositionRecord(marketId);
+        if (!positionRecord) {
+          toast.error("Claim record not found after minting. Please retry.");
+          return;
+        }
       }
 
       toast.info("Step 1/2: Claiming winnings from core contract...");
@@ -885,11 +972,12 @@ export const useAleoPrograms = () => {
 
       if (!payoutResult?.transactionId) {
         toast.error("Token payout failed.");
-        return claimResult.transactionId;
+        return null;
       }
 
-      toast.success(`Payout claimed! Token Tx: ${payoutResult.transactionId}.`);
-      return payoutResult.transactionId;
+      const payoutAleo = payoutAmount / 1_000_000;
+      toast.success(`Payout claimed! ${payoutAleo.toFixed(4)} ALEO`);
+      return { transactionId: payoutResult.transactionId, payoutAmount: payoutAleo };
     } catch (error) {
       console.error("Claim winnings failed:", error);
       toast.error(`Claim error: ${getErrorMessage(error)}`);

@@ -128,6 +128,7 @@ graph TD
 6. **Claim Winnings**:
    - Step 1: User calls `claim_winnings` on core to compute payout and store `pending_payouts[nullifier]`.
    - Step 2: User calls `claim_payout` on token with `(payout_amount, nullifier)` to receive credits.
+   - Step 3: Token contract calls core `verify_claim` to confirm the payout amount before transfer finalizes.
 
 ---
 
