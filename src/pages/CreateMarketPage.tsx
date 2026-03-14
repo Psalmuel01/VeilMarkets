@@ -77,7 +77,7 @@ export default function CreateMarketPage() {
     );
     const minBlocksAhead = Math.ceil(MIN_SECONDS_AHEAD / (blockTimeSeconds || DEFAULT_BLOCK_TIME_SECONDS));
     if (!closeBlock || closeBlock <= height + minBlocksAhead) {
-      toast.error("Closing date and time must be in the future.");
+      toast.error("Closing date and time must be in the future, over 10mins ahead.");
       setStep("form");
       return;
     }

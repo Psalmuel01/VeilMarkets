@@ -24,6 +24,7 @@ type TxHistoryTransaction = TxHistoryResult["transactions"][number];
 interface WalletRecord {
   id?: string;
   spent?: boolean;
+  timestamp?: number | string;
   data?: Record<string, unknown>;
   [key: string]: unknown;
 }
@@ -34,6 +35,7 @@ interface ParsedBetRecord {
   amount: string;
   escrow_id: string;
   spent: boolean;
+  position_spent?: boolean;
 }
 
 interface ChainMarket {
@@ -132,7 +134,7 @@ const requestRecordsWithRetry = async (
   return [];
 };
 
-  const parseRecordField = (record: WalletRecord, field: string): string => {
+const parseRecordField = (record: WalletRecord, field: string): string => {
   const rawData = record.data ?? record;
 
   // Try direct object access
@@ -446,6 +448,19 @@ export const useAleoPrograms = () => {
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       const unspentRecords = records.filter((record) => !record.spent);
 
+      const rawPositions = await requestRecordsWithRetry(requestRecords, PROGRAM_ID, "BetPosition");
+      const positionRecords = rawPositions.filter(
+        (entry): entry is WalletRecord => typeof entry === "object" && entry !== null,
+      );
+      const positionSpentByKey = new Map<string, boolean>();
+      for (const record of positionRecords) {
+        const market_id = parseRecordField(record, "market_id");
+        const escrow_id = parseRecordField(record, "escrow_id");
+        if (!market_id || !escrow_id) continue;
+        const key = `${market_id}-${escrow_id}`;
+        positionSpentByKey.set(key, Boolean(record.spent));
+      }
+
       // console.log(`[fetchUserBets] Found ${records.length} total records from ${TOKEN_PROGRAM_ID}, ${unspentRecords.length} are unspent.`);
 
       const results = unspentRecords
@@ -454,6 +469,8 @@ export const useAleoPrograms = () => {
           const outcome = parseRecordField(record, "outcome");
           const amount = parseRecordField(record, "amount");
           const escrow_id = parseRecordField(record, "escrow_id");
+          const position_key = `${market_id}-${escrow_id}`;
+          const position_spent = positionSpentByKey.get(position_key) ?? false;
 
           if (market_id) {
             console.log(`[fetchUserBets] Found bet for market: ${market_id}`, { outcome, amount, escrow_id });
@@ -465,6 +482,7 @@ export const useAleoPrograms = () => {
             amount,
             escrow_id,
             spent: Boolean(record.spent),
+            position_spent,
           };
         })
         .filter((record) => Boolean(record.market_id));
