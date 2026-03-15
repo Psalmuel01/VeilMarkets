@@ -77,7 +77,7 @@ export function MarketCard({ market }: MarketCardProps) {
       <div className="flex items-center justify-between pt-4 border-t border-border/50">
         <div className="flex items-center gap-4 text-[11px] text-muted-foreground/70">
           <div className="flex items-center gap-1">
-            <Timer className="w-3 h-3 text-amber-500/70" />
+            <Timer className="w-3 h-3 text-amber-500/" />
             {market.closingTime}
           </div>
           <div className="flex items-center gap-1">

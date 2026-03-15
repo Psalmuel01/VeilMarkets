@@ -47,7 +47,7 @@ This leads to **manipulation, MEV, exposure of high-value bettors, and friction 
 - Binary outcome markets (Yes/No) with V2 pari-mutuel logic
 - Real-time **Pool Analytics**: Automated Yes/No ratios and implied probability
 - Live **Participant Tracking**: Transparent on-chain engagement metrics
-- **Block-based Countdown**: Precise market closing estimations
+- **Timestamp-based Accuracy**: Precise market closing and resolution using absolute time (Unix timestamps)
 - Private bet submission and encrypted storage
 - Market resolution via oracle with zero-knowledge proofs
 - Settlement and winnings claim with verifiable privacy
@@ -68,14 +68,11 @@ This leads to **manipulation, MEV, exposure of high-value bettors, and friction 
 ---
 
 ## Architecture
-
-VeilMarkets uses a modular **4-program architecture** to ensure scalability, security, and Aleo compliance:
-
-## Frontend Integration (v4)
+## Frontend Integration (v5)
 
 ### Transaction Flow Changes
 1. **Placing a Bet**:
-   - Program: `veilmarkets_token_v4.aleo`
+   - Program: `veilmarkets_token_v5.aleo`
    - Transition: `place_bet`
    - **Returns**: `(credits.aleo/credits, EscrowedBet, Future)`
    - > [!IMPORTANT]
@@ -97,12 +94,12 @@ VeilMarkets uses a modular **4-program architecture** to ensure scalability, sec
   - **Cause**: You are likely passing an `EscrowedBet` record from the token contract instead of a `credits.aleo/credits` record.
   - **Fix**: Check your wallet filtering logic. Ensure input records for `place_bet` or `register_oracle` are specifically from the `credits.aleo` program.
 
-## Architecture Diagram (v4)
+## Architecture Diagram (v5)
 ```mermaid
 graph TD
-    Factory[veilmarkets_factory_v4.aleo] --> Core[veilmarkets_v4.aleo]
-    Factory --> Token[veilmarkets_token_v4.aleo]
-    Factory --> Oracle[veilmarkets_oracle_v4.aleo]
+    Factory[veilmarkets_factory_v5.aleo] --> Core[veilmarkets_v5.aleo]
+    Factory --> Token[veilmarkets_token_v5.aleo]
+    Factory --> Oracle[veilmarkets_oracle_v5.aleo]
     
     User[User Wallet] --> Token
     Token --> Core
@@ -113,16 +110,16 @@ graph TD
     Frontend --> Aleo[Aleo Network]
 ```
 
-- **veilmarkets_factory_v4.aleo**: System registry and permission management.
-- **veilmarkets_v4.aleo**: Core logic for market creation, pool accounting, and pro-rata winnings calculation.
-- **veilmarkets_token_v4.aleo**: Integrated pari-mutuel escrow vault. Handles deposits, bet funding, and secure payouts.
-- **veilmarkets_oracle_v4.aleo**: Optimistic resolution governance with challenge window and escalation.
+- **veilmarkets_factory_v5.aleo**: System registry and permission management.
+- **veilmarkets_v5.aleo**: Core logic for market creation, pool accounting, and pro-rata winnings calculation.
+- **veilmarkets_token_v5.aleo**: Integrated pari-mutuel escrow vault. Handles deposits, bet funding, and secure payouts.
+- **veilmarkets_oracle_v5.aleo**: Optimistic resolution governance with challenge window and escalation.
 
 ## Lifecycle Flow (End-to-End)
 
-1. **Create Market**: Core contract stores market metadata, close block, and resolution block.
+1. **Create Market**: Core contract stores market metadata, close_time, and resolution_time (Unix timestamps).
 2. **Place Bet**: Token contract escrows credits and calls core to update pool state.
-3. **Propose Resolution**: Oracle proposes a binary outcome after `resolution_block`.
+3. **Propose Resolution**: Oracle proposes a binary outcome after `resolution_time`.
 4. **Challenge Window**: Others can dispute; if disputed, oracle votes determine the winning outcome.
 5. **Finalize**: `resolve_on_core` resolves the market on core and locks the pool.
 6. **Claim Winnings**:
@@ -158,7 +155,7 @@ VITE_ALEO_NETWORK=testnet
 4. Deploy contracts to Aleo Testnet (requires Aleo SDK):
 ```bash
 # Order of deployment
-# 1. veilmarkets_factory_v3, 2. veilmarkets_v3, 3. veilmarkets_token_v3, 4. veilmarkets_oracle_v3
+# 1. veilmarkets_factory_v5, 2. veilmarkets_v5, 3. veilmarkets_token_v5, 4. veilmarkets_oracle_v5
 cd leo/factory && leo deploy
 # Repeat for each program in order (veilmarkets, veilmarkets_token, veilmarkets_oracle)
 ```

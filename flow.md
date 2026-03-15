@@ -35,19 +35,19 @@ Traditional platforms (like Polymarket) are public. Everyone can see your wallet
 ## 4. The Market Lifecycle
 
 ### Step 1: Creation
-A creator sets a title, category, and two blocks:
-1. **Closing Block**: When betting stops.
-2. **Resolution Block**: The earliest an oracle can resolve the market.
+A creator sets a title, category, and two timestamps:
+1. **Closing Time**: When betting stops (absolute Unix timestamp).
+2. **Resolution Time**: The earliest an oracle can resolve the market.
 
 ### Step 2: Placing a Bet
 When you place a bet:
 1. One of your **Native Credits** records is spent.
-2. The funds are moved to the `veilmarkets_token_v3.aleo` public balance (Escrow).
+2. The funds are moved to the `veilmarkets_token_v5.aleo` public balance (Escrow).
 3. You receive a **BetPosition** record (private to you).
 
 ### Step 3: Resolution (Optimistic Oracle)
 VeilMarkets uses an **Optimistic Oracle** system (similar to Polymarket):
-- **Proposed Outcome**: Any registered oracle can propose the result of a market.
+- **Proposed Outcome**: Any registered oracle can propose the result of a market after `resolution_time`.
 - **24-Hour Window**: After a proposal, there is a 24-hour "Dispute Period."
 - **Disputing**: If you believe the oracle lied, you can file a dispute by putting up a bond.
 - **Consensus Fallback**: Only if a dispute is filed do other oracles step in to vote.

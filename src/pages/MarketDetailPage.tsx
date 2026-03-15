@@ -557,7 +557,7 @@ export default function MarketDetailPage() {
                     }}
                     className="w-full btn-glow-primary"
                     variant={proposal ? "outline" : "default"}
-                    disabled={marketStatus === "Settled" || !!proposal}
+                    disabled={marketStatus === "Settled" || !!proposal || (market?.resolution_time ? nowTs < market.resolution_time : false)}
                   >
                     {marketStatus === "Settled" ? "Resolved" : (proposal ? "Resolution Proposed" : "Propose Resolution")}
                   </Button>

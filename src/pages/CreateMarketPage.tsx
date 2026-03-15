@@ -69,8 +69,8 @@ export default function CreateMarketPage() {
       return;
     }
 
-    // Resolution begins after a fixed offset from close (e.g. 1 hour)
-    const RESOLUTION_OFFSET_SECONDS = 3600;
+    // Resolution begins after a fixed offset from close (e.g. 1 minute)
+    const RESOLUTION_OFFSET_SECONDS = 60;
     const resolutionTime = closeTime + RESOLUTION_OFFSET_SECONDS;
 
     // Map category string to u8
@@ -365,14 +365,14 @@ export default function CreateMarketPage() {
             </div>
 
             <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
-              <div className="text-xs text-muted-foreground mb-1">Market ID</div>
+              <div className="text-xs text-muted-foreground mb-">Transaction ID</div>
               <code className="text-sm font-mono text-primary break-all">
-                {creationResult?.marketId || "Generating..."}
-              </code>
-              <div className="text-xs text-muted-foreground mt-3 mb-1">Transaction ID</div>
-              <code className="text-xs font-mono text-muted-foreground break-all">
                 {creationResult?.transactionId || "aleo1tx..."}
               </code>
+              {/* <div className="text-xs text-muted-foreground mt-3 mb-1">Market ID</div>
+              <code className="text-xs font-mono text-muted-foreground break-all">
+                {creationResult?.marketId || "Generating..."}
+              </code> */}
             </div>
 
             <div className="flex gap-3">

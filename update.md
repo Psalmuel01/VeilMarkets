@@ -11,10 +11,10 @@
 ### 2. Working Demo
 **Deployment**: Integrated with Aleo Testnet using the Shield Wallet adapter.  
 **Functional Leo Contracts**:
-- `veilmarkets_factory.aleo`: Central registry for system contracts.
-- `veilmarkets.aleo`: Core logic for market creation and pool accounting.
-- `veilmarkets_token.aleo`: Integrated pari-mutuel escrow vault and credit system.
-- `veilmarkets_oracle.aleo`: Governance framework for trusted resolution and disputes.
+- `veilmarkets_factory_v5.aleo`: Central registry for system contracts.
+- `veilmarkets_v5.aleo`: Core logic for market creation and pool accounting.
+- `veilmarkets_token_v5.aleo`: Integrated pari-mutuel escrow vault and credit system.
+- `veilmarkets_oracle_v5.aleo`: Governance framework for trusted resolution and disputes.
 **Core Features**:
 - Real-time on-chain market discovery.
 - Fully private bet placement (ZK proofs).
@@ -26,27 +26,25 @@
 **Architecture Overview**: A modular 4-program architecture separating **Registry** (Factory), **Logic** (Markets), **Finance** (Token Escrow), and **Governance** (Oracle).  
 **Privacy Model**: Uses shielded records and transition inputs to ensure that bet outcomes and wager amounts are never revealed to the public, while maintaining verifiable pool integrity.
 
-### 4. Progress Changelog (Wave 2)
-**What's New (Today's Updates)**:
-- **Modular 4-Program Architecture**: Successfully refactored and built the entire contract suite, including a new `veilmarkets_factory.aleo` for centralized registry management.
-- **Aleo Build Readiness**: Resolved all syntax, type, and cross-contract communication errors to achieve a 100% successful build across all programs.
-- **Two-Step Betting Flow**: Implemented a secure funds escrow system where money is locked in `veilmarkets_token.aleo` before the bet is recorded in the core contract.
-- **Supabase Metadata Sync**: Developed a robust off-chain sync using Transaction (Shield) IDs to link rich metadata (titles, descriptions, sources) with on-chain market data.
-- **Robust Aleo Record Parsing**: Implemented a defensive parsing engine that handles varying record formats (plaintext, objects, fields) across different wallet adapters.
-- **Real-Time Pool Analytics**: Integrated live `PoolState` fetching to display Yes/No ratios, implied probabilities, and participant counts directly from the substrate mappings.
-- **Dynamic On-Chain Dashboards**: Replaced static placeholders with real-timeJoined market metadata and private history.
-- **Shielded Balance Tracking**: Integrated real-time tracking of Aleo Credits (Shielded) to provide clear feedback before and after betting.
-- **Testnet Faucet**: Added a built-in credit faucet to the UI for immediate testnet participation.
+### 4. Progress Changelog (Wave 3 - v5 Upgrade)
+**What's New (v5 Implementation)**:
+- **Absolute Timestamp Transition**: Fully migrated from block-height based deadlines to `block.timestamp` (Unix seconds) for 100% accurate market closing and resolution.
+- **v5 Modular Architecture**: Deployed and integrated the latest v5 suite of Aleo contracts across the system.
+- **Friendly UX Refinements**: Implemented short-hand human-friendly dates (e.g., "Mar 15, 9:40pm") and optimized card layouts for readability.
+- **Robust Creation Flow**: Refactored the market creation deep-linking to use the persistent on-chain Market ID for immediate discovery.
+- **Comprehensive Technical Cleanup**: Resolved all legacy TypeScript lint errors and optimized internal transaction parsing for v5 record structures.
+- **Metadata Traceability**: Added real-time logging for Supabase synchronization to ensure data integrity during market creation.
 
 **Feedback Incorporated**:
-- **ID Standardization**: Resolved market-bet matching issues caused by Aleo "field" suffixes through unified normalization.
-- Refined the redirection flow to use transaction hashes for reliable deep-linking immediately after market creation.
-- Improved error handling for wallet authorization failures and transaction discovery.
+- **Chronological Assertions**: Implemented a mandatory 60-second resolution offset to satisfy on-chain chronological invariants.
+- **Short-form Datetimes**: Responding to PR feedback, simplified date formats by removing redundant labels and shortening month names.
+- **Iconic Visual Cues**: Replaced general clock icons with status-driven Timer icons to better communicate market urgency.
 
 ### 5. Progress Status
 - [x] **Wave 1**: Architecture & Core Logic
 - [x] **Wave 2**: UI/UX & Integration
-- [/] **Wave 3**: Market Metrics & Analytics (Active)
+- [x] **Wave 3**: Market Metrics & Analytics (v5 Timestamps)
+- [/] **Wave 4**: Automation & Governance (In Progress)
 
 ### 5. Future Roadmap
 
