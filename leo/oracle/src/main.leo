@@ -1,10 +1,10 @@
 // VeilMarkets Oracle: Optimistic Edition
 // Fast, game-theoretic resolution with 24h dispute window
 import credits.aleo;
-import veilmarkets_v4.aleo;
-import veilmarkets_factory_v4.aleo;
+import veilmarkets_v5.aleo;
+import veilmarkets_factory_v5.aleo;
 
-program veilmarkets_oracle_v4.aleo {
+program veilmarkets_oracle_v5.aleo {
     // Records & Structs
     struct ResolutionProposal {
         market_id: field,
@@ -35,7 +35,7 @@ program veilmarkets_oracle_v4.aleo {
 
     // Constants
     const MIN_ORACLE_STAKE: u64 = 30000000u64; // 30 Credits (for testing)
-    const DISPUTE_WINDOW: u64 = 20u64; // ~5 minutes (for testing)
+    const DISPUTE_WINDOW: u64 = 300u64; // 5 minutes in seconds
     const CORE_CONTRACT_TYPE: u8 = 3u8;
 
     // Initialize
@@ -90,7 +90,7 @@ program veilmarkets_oracle_v4.aleo {
         let proposal: ResolutionProposal = ResolutionProposal {
             market_id: market_id,
             proposed_outcome: proposed_outcome,
-            challenge_deadline: block.height as u64 + DISPUTE_WINDOW,
+            challenge_deadline: block.timestamp as u64 + DISPUTE_WINDOW,
             is_disputed: false,
             proposer: proposer,
         };
@@ -125,7 +125,7 @@ program veilmarkets_oracle_v4.aleo {
         transfer_future.await();
         let proposal: ResolutionProposal = Mapping::get(proposals, market_id);
         assert(!proposal.is_disputed);
-        assert(block.height as u64 < proposal.challenge_deadline);
+        assert(block.timestamp as u64 < proposal.challenge_deadline);
         proposal.is_disputed = true;
         Mapping::set(proposals, market_id, proposal);
         let dispute: Dispute = Dispute {
@@ -168,7 +168,7 @@ program veilmarkets_oracle_v4.aleo {
     async transition resolve_on_core(public market_id: field, public outcome: u8) -> Future {
         assert_eq(self.caller, aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n);
         // One transition calls another
-        let f_core: Future = veilmarkets_v4.aleo/resolve_market(
+        let f_core: Future = veilmarkets_v5.aleo/resolve_market(
             market_id,
             outcome,
             self.address,
@@ -195,7 +195,7 @@ program veilmarkets_oracle_v4.aleo {
             assert_eq(outcome, winning_outcome);
         } else {
             // If not disputed, check deadline and outcome
-            assert(block.height as u64 >= proposal.challenge_deadline);
+            assert(block.timestamp as u64 >= proposal.challenge_deadline);
             assert_eq(outcome, proposal.proposed_outcome);
         }
     }

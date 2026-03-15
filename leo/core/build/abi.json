@@ -1,5 +1,5 @@
 {
-  "program": "veilmarkets_v4.aleo",
+  "program": "veilmarkets_v5.aleo",
   "structs": [
     {
       "path": [
@@ -27,7 +27,7 @@
           }
         },
         {
-          "name": "close_block",
+          "name": "close_time",
           "ty": {
             "Primitive": {
               "UInt": "U64"
@@ -35,7 +35,7 @@
           }
         },
         {
-          "name": "resolution_block",
+          "name": "resolution_time",
           "ty": {
             "Primitive": {
               "UInt": "U64"
@@ -220,7 +220,7 @@
           "path": [
             "MarketInfo"
           ],
-          "program": "veilmarkets_v4"
+          "program": "veilmarkets_v5"
         }
       }
     },
@@ -234,7 +234,7 @@
           "path": [
             "PoolState"
           ],
-          "program": "veilmarkets_v4"
+          "program": "veilmarkets_v5"
         }
       }
     },
@@ -295,7 +295,7 @@
           "mode": "Public"
         },
         {
-          "name": "close_block",
+          "name": "close_time",
           "ty": {
             "Plaintext": {
               "Primitive": {
@@ -306,7 +306,7 @@
           "mode": "Public"
         },
         {
-          "name": "resolution_block",
+          "name": "resolution_time",
           "ty": {
             "Plaintext": {
               "Primitive": {
@@ -445,7 +445,7 @@
               "path": [
                 "BetPosition"
               ],
-              "program": "veilmarkets_v4"
+              "program": "veilmarkets_v5"
             }
           },
           "mode": "None"
@@ -504,7 +504,7 @@
               "path": [
                 "BetPosition"
               ],
-              "program": "veilmarkets_v4"
+              "program": "veilmarkets_v5"
             }
           },
           "mode": "Private"
@@ -517,7 +517,7 @@
               "path": [
                 "WinningsClaim"
               ],
-              "program": "veilmarkets_v4"
+              "program": "veilmarkets_v5"
             }
           },
           "mode": "None"

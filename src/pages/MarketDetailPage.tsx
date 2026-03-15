@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -73,8 +74,8 @@ export default function MarketDetailPage() {
     betsPlaced: number;
     createdAt: string;
     resolutionSource: string;
-    closeBlock?: number;
-    resolutionBlock?: number;
+    close_time: number;
+    resolution_time: number;
     is_resolved: boolean;
     winningOutcome?: number;
   } | null>(null);
@@ -82,7 +83,8 @@ export default function MarketDetailPage() {
   const [loadingMarket, setLoadingMarket] = useState(true);
   const [pool, setPool] = useState<PoolInfo | null>(null);
   const [isOracle, setIsOracle] = useState<boolean | null>(null);
-  const { fetchMarkets, fetchPoolStats, fetchResolutionProposal, fetchUserBets, resolveMarket, currentHeight, blockTimeSeconds, isOracleRegistered, publicKey } = useAleoPrograms();
+  const { fetchMarkets, fetchPoolStats, fetchResolutionProposal, fetchUserBets, resolveMarket, currentHeight, isOracleRegistered } = useAleoPrograms();
+  const { address } = useWallet();
 
   const loadMarket = useCallback(async (opts?: { silent?: boolean }) => {
     if (!id) {
@@ -108,7 +110,7 @@ export default function MarketDetailPage() {
       const currentId = cleanId(id);
 
       const found = allMarkets.find((chainMarket) =>
-        cleanId(chainMarket.id) === currentId || cleanId(chainMarket.transactionId ?? "") === currentId
+        cleanId(chainMarket.id) === currentId
       );
 
         if (found) {
@@ -149,13 +151,13 @@ export default function MarketDetailPage() {
             description: found.description,
             category: categoryRevMap[found.category] || "Tech",
             status: found.is_resolved ? "Settled" : "Open",
-            closingTime: `Block ${found.close_block}`,
-            closingDate: "On-chain block time",
+            closingTime: new Date(found.close_time * 1000).toLocaleString(),
+            closingDate: new Date(found.close_time * 1000).toLocaleDateString(),
             betsPlaced: stats?.participant_count || 0,
             createdAt: "On-chain",
-            resolutionSource: found.source || "Creator",
-            closeBlock: found.close_block,
-            resolutionBlock: found.resolution_block || found.close_block + 100, // Fallback if 0
+            resolutionSource: found.resolutionSource || "Creator",
+            close_time: found.close_time,
+            resolution_time: found.resolution_time || found.close_time + 3600, // Fallback if 0
             is_resolved: found.is_resolved,
             winningOutcome: found.winning_outcome,
           });
@@ -183,15 +185,16 @@ export default function MarketDetailPage() {
   }, [loadMarket, loadProposal]);
 
   useEffect(() => {
-    if (!publicKey) return;
-    const normalized = publicKey.toString().replace(/address/g, "").trim().toLowerCase();
-    const isAdmin = normalized === ADMIN_ADDRESS.toLowerCase();
-    console.log("[MarketDetailPage] admin check:", { address: normalized, isAdmin });
-  }, [publicKey]);
+    if (!address) return;
+    const normalized = address.replace(/address/g, "").trim().toLowerCase();
+    const isAdminAddress = normalized === ADMIN_ADDRESS.toLowerCase();
+    console.log("[MarketDetailPage] admin check:", { address: normalized, isAdmin: isAdminAddress });
+  }, [address]);
 
   // Calculate status
+  const nowTs = Math.floor(Date.now() / 1000);
   const isSettled = !!market?.is_resolved;
-  const isClosed = !isSettled && currentHeight && market?.closeBlock && currentHeight >= market.closeBlock;
+  const isClosed = !isSettled && market?.close_time && nowTs >= market.close_time;
   const marketStatus = isSettled ? "Settled" : isClosed ? "Closed" : "Open";
 
   // Calculate stats
@@ -207,28 +210,28 @@ export default function MarketDetailPage() {
         market?.winningOutcome === 3 ? "CANCELLED" :
           null;
 
-  const isAdmin = publicKey
-    ? publicKey.toString().replace(/address/g, "").trim().toLowerCase() === ADMIN_ADDRESS.toLowerCase()
+  const isAdmin = address
+    ? address.replace(/address/g, "").trim().toLowerCase() === ADMIN_ADDRESS.toLowerCase()
     : false;
-  const isFinalizable = proposal && (!proposal.is_disputed ? currentHeight >= proposal.challenge_deadline : true);
+  const isFinalizable = proposal && (!proposal.is_disputed ? nowTs >= proposal.challenge_deadline : true);
 
   // Countdown logic
-  const blocksRemaining = market?.closeBlock && currentHeight
-    ? market.closeBlock - currentHeight
+  const secondsRemaining = market?.close_time && nowTs
+    ? market.close_time - nowTs
     : null;
 
   const timeRemainingStr = (() => {
-    if (blocksRemaining === null) return "Loading...";
-    if (blocksRemaining <= 0) return "Expired";
+    if (secondsRemaining === null) return "Loading...";
+    if (secondsRemaining <= 0) return "Expired";
 
-    const totalSeconds = blocksRemaining * (blockTimeSeconds || 15);
+    const totalSeconds = secondsRemaining;
     const days = Math.floor(totalSeconds / 86400);
     const hours = Math.floor((totalSeconds % 86400) / 3600);
     const mins = Math.floor((totalSeconds % 3600) / 60);
 
-    if (days > 0) return `~${days}d ${hours}h remaining`;
-    if (hours > 0) return `~${hours}h ${mins}m remaining`;
-    return `~${mins}m remaining`;
+    if (days > 0) return `${days}d ${hours}h remaining`;
+    if (hours > 0) return `${hours}h ${mins}m remaining`;
+    return `${mins}m remaining`;
   })();
 
   const handleFinalize = async () => {
@@ -325,7 +328,7 @@ export default function MarketDetailPage() {
           <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
             <div className="flex items-center gap-1.5">
               <Clock className="w-4 h-4" />
-              <span className={cn(blocksRemaining !== null && blocksRemaining < 100 ? "text-warning" : "")}>
+              <span className={cn(secondsRemaining !== null && secondsRemaining < 3600 ? "text-warning" : "")}>
                 {timeRemainingStr}
               </span>
             </div>
@@ -541,8 +544,8 @@ export default function MarketDetailPage() {
                     <p className="text-sm text-muted-foreground">
                       {marketStatus === "Settled"
                         ? "This market is resolved."
-                        : currentHeight && market?.resolutionBlock && currentHeight < market.resolutionBlock
-                          ? `Proposals open at resolution block ${market.resolutionBlock}.`
+                        : market?.resolution_time && nowTs < market.resolution_time
+                          ? `Proposals open at ${new Date(market.resolution_time * 1000).toLocaleString()}.`
                           : "Oracles can now propose the true outcome."
                       }
                     </p>
@@ -586,7 +589,7 @@ export default function MarketDetailPage() {
 
                   {isAdmin && proposal && !isFinalizable && !proposal.is_disputed && (
                     <p className="text-[10px] text-center text-muted-foreground">
-                      Challenge window active until block {proposal.challenge_deadline}.
+                      Challenge window active until {new Date(proposal.challenge_deadline * 1000).toLocaleString()}.
                     </p>
                   )}
 
@@ -637,12 +640,12 @@ export default function MarketDetailPage() {
         market={{
           id: market.id,
           title: market.title,
-          close_block: market.closeBlock || 0,
-          resolution_block: market.resolutionBlock || 0,
+          close_block: market.close_time || 0,
+          resolution_block: market.resolution_time || 0,
           is_resolved: market.is_resolved,
-        }}
+        } as any}
         proposal={proposal}
-        currentHeight={currentHeight || 0}
+        nowTs={nowTs}
         isOracle={isOracle}
         onUpdate={async () => {
           await Promise.all([loadMarket({ silent: true }), loadProposal()]);
@@ -677,9 +680,9 @@ export default function MarketDetailPage() {
                   </span>
                 </div>
               )}
-              {proposal && !proposal.is_disputed && currentHeight && currentHeight < proposal.challenge_deadline && (
+              {proposal && !proposal.is_disputed && nowTs < proposal.challenge_deadline && (
                 <p className="text-xs text-amber-500">
-                  Challenge window active until block {proposal.challenge_deadline}. Finalization may fail if submitted early.
+                  Challenge window active until {new Date(proposal.challenge_deadline * 1000).toLocaleString()}. Finalization may fail if submitted early.
                 </p>
               )}
               <Button onClick={handleFinalize} className="w-full btn-glow-success" disabled={!proposal}>

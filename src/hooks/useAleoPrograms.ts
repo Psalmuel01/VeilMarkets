@@ -1,5 +1,4 @@
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
-import { ORACLE_PROGRAM_ID, PROGRAM_ID, TOKEN_PROGRAM_ID } from "../lib/constants";
 import { toast } from "sonner";
 import type { TxHistoryResult } from "@provablehq/aleo-types";
 import {
@@ -38,20 +37,29 @@ interface ParsedBetRecord {
   position_spent?: boolean;
 }
 
-interface ChainMarket {
-  id: string;
+// Aleo Program IDs from constants
+import {
+  PROGRAM_ID,
+  ORACLE_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
+  FACTORY_PROGRAM_ID,
+} from "../lib/constants";
+
+export interface ChainMarket {
   creator: string;
   title_hash: string;
   category: number;
-  close_block: number;
-  resolution_block: number;
+  close_time: number;
+  resolution_time: number;
   is_resolved: boolean;
   winning_outcome: number;
   resolved_by_oracle: boolean;
-  transactionId?: string;
-  title: string;
-  description: string;
-  source: string;
+  // Computed fields from metadata
+  id: string;
+  title?: string;
+  description?: string;
+  resolutionSource?: string;
+  closesAtTs?: number;
 }
 
 interface ExecuteWalletTransactionOptions {
@@ -365,11 +373,12 @@ export const useAleoPrograms = () => {
 
           return {
             ...parsed,
-            transactionId: row.transaction_id,
+            id: parsed.id || fieldId,
             title: row.title || `Market ${row.market_id.slice(0, 8)}...`,
             description: row.description || 'No description.',
-            source: row.source || 'Creator',
-          } satisfies ChainMarket;
+            resolutionSource: row.source || 'Creator',
+            closesAtTs: row.expiry_time || parsed.close_time * 1000,
+          } as ChainMarket;
         } catch (err) {
           console.error(`[fetchMarkets] Failed for market_id ${row.market_id}:`, err);
           return null;
@@ -388,42 +397,16 @@ export const useAleoPrograms = () => {
     }
   }, []);
 
-  // Poll for current height + estimate block time
-
   const [currentHeight, setCurrentHeight] = useState<number | null>(null);
-  const [blockTimeSeconds, setBlockTimeSeconds] = useState<number>(DEFAULT_BLOCK_TIME_SECONDS);
-  const lastHeightRef = useRef<number | null>(null);
-  const lastSampleTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
     const updateHeight = async () => {
       const h = await fetchCurrentBlockHeight();
       if (!h) return;
-
-      const now = Date.now();
-      const lastHeight = lastHeightRef.current;
-      const lastTime = lastSampleTimeRef.current;
-
-      if (lastHeight !== null && lastTime !== null && h > lastHeight) {
-        const deltaHeight = h - lastHeight;
-        const deltaSeconds = (now - lastTime) / 1000;
-        const estimate = deltaSeconds / deltaHeight;
-        if (Number.isFinite(estimate)) {
-          const clamped = Math.min(30, Math.max(2, estimate));
-          setBlockTimeSeconds((prev) => {
-            const base = Number.isFinite(prev) ? prev : clamped;
-            const smoothed = (base * 3 + clamped) / 4;
-            return Math.round(smoothed * 100) / 100;
-          });
-        }
-      }
-
-      lastHeightRef.current = h;
-      lastSampleTimeRef.current = now;
       setCurrentHeight(h);
     };
     updateHeight();
-    const interval = setInterval(updateHeight, 15000); // 15s
+    const interval = setInterval(updateHeight, 30000); // 30s is enough now that we don't estimate
     return () => clearInterval(interval);
   }, []);
 
@@ -537,8 +520,8 @@ export const useAleoPrograms = () => {
     title: string,
     description: string,
     category: number,
-    closeBlock: number,
-    resolutionBlock: number,
+    closeTime: number, // Unix timestamp in seconds
+    resolutionTime: number, // Unix timestamp in seconds
     resolutionSource: string,
   ) => {
     if (!address) {
@@ -554,7 +537,7 @@ export const useAleoPrograms = () => {
       const result = await executeAndPoll({
         program: PROGRAM_ID,
         function: "create_market",
-        inputs: [titleHash, formatU8(category), formatU64(closeBlock), formatU64(resolutionBlock)],
+        inputs: [titleHash, formatU8(category), formatU64(closeTime), formatU64(resolutionTime)],
         fee: 2_000_000,
         privateFee: false,
       }, PROGRAM_ID, "create_market");
@@ -566,7 +549,15 @@ export const useAleoPrograms = () => {
 
         if (match) {
           const marketId = match[1];
-          await saveMarketMetadata(result.transactionId, marketId, title, description, resolutionSource);
+          // Save metadata including expiry_time
+          await saveMarketMetadata(
+            result.transactionId,
+            marketId,
+            title,
+            description,
+            resolutionSource,
+            closeTime * 1000 // absolute ms for metadata
+          );
           return result.transactionId;
         }
       }
@@ -1047,7 +1038,5 @@ export const useAleoPrograms = () => {
     requestCredits,
     loading,
     currentHeight,
-    blockTimeSeconds,
-    publicKey,
   };
 };

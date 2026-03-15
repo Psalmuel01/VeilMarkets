@@ -1,15 +1,15 @@
 // VeilMarkets Core
 // Private Binary Prediction Markets with full cross-contract integration
-import veilmarkets_factory_v4.aleo;
+import veilmarkets_factory_v5.aleo;
 
-program veilmarkets_v4.aleo {
+program veilmarkets_v5.aleo {
     // Records & Structs
     struct MarketInfo {
         creator: address,
         title_hash: field,
         category: u8,
-        close_block: u64,
-        resolution_block: u64,
+        close_time: u64,
+        resolution_time: u64,
         is_resolved: bool,
         winning_outcome: u8, // 0 = NO, 1 = YES, 2 = unresolved
         resolved_by_oracle: bool,
@@ -61,8 +61,8 @@ program veilmarkets_v4.aleo {
     async transition create_market(
         public title_hash: field,
         public category: u8,
-        public close_block: u64,
-        public resolution_block: u64,
+        public close_time: u64,
+        public resolution_time: u64,
     ) -> (field, Future) {
         let caller_hash: field = BHP256::hash_to_field(self.caller);
         let market_id: field = BHP256::hash_to_field(caller_hash + title_hash);
@@ -71,8 +71,8 @@ program veilmarkets_v4.aleo {
             self.caller,
             title_hash,
             category,
-            close_block,
-            resolution_block,
+            close_time,
+            resolution_time,
         );
         return (market_id, f);
     }
@@ -82,8 +82,8 @@ program veilmarkets_v4.aleo {
         creator: address,
         title_hash: field,
         category: u8,
-        close_block: u64,
-        resolution_block: u64,
+        close_time: u64,
+        resolution_time: u64,
     ) {
         let exists: bool = Mapping::contains(markets, market_id);
         assert(!exists);
@@ -91,15 +91,15 @@ program veilmarkets_v4.aleo {
             creator: creator,
             title_hash: title_hash,
             category: category,
-            close_block: close_block,
-            resolution_block: resolution_block,
+            close_time: close_time,
+            resolution_time: resolution_time,
             is_resolved: false,
             winning_outcome: 2u8,
             resolved_by_oracle: false,
         };
-        // Check blocks in finalize
-        assert(close_block > block.height as u64);
-        assert(resolution_block > close_block);
+        // Check timestamps in finalize
+        assert(close_time > block.timestamp as u64);
+        assert(resolution_time > close_time);
         let pool = PoolState {
             total_no: 0u64,
             total_yes: 0u64,
@@ -121,7 +121,7 @@ program veilmarkets_v4.aleo {
         public bettor: address,
     ) -> Future {
         // Must be called by the registered token contract via factory registry.
-        let auth_future: Future = veilmarkets_factory_v4.aleo/verify_is_registered(
+        let auth_future: Future = veilmarkets_factory_v5.aleo/verify_is_registered(
             TOKEN_CONTRACT_TYPE,
             self.caller,
         );
@@ -150,7 +150,7 @@ program veilmarkets_v4.aleo {
     ) {
         auth_future.await();
         let market: MarketInfo = Mapping::get(markets, market_id);
-        assert(block.height as u64 < market.close_block);
+        assert(block.timestamp as u64 < market.close_time);
         assert(!market.is_resolved);
         let pool: PoolState = Mapping::get(pools, market_id);
         assert(!pool.locked);
@@ -196,7 +196,7 @@ program veilmarkets_v4.aleo {
         public resolver: address,
     ) -> Future {
         // Must be called by the registered oracle contract via factory registry.
-        let auth_future: Future = veilmarkets_factory_v4.aleo/verify_is_registered(
+        let auth_future: Future = veilmarkets_factory_v5.aleo/verify_is_registered(
             ORACLE_CONTRACT_TYPE,
             self.caller,
         );
@@ -212,7 +212,7 @@ program veilmarkets_v4.aleo {
         auth_future.await();
         let market: MarketInfo = Mapping::get(markets, market_id);
         // Only oracle can resolve (creator cannot directly resolve anymore)
-        assert(block.height as u64 >= market.resolution_block);
+        assert(block.timestamp as u64 >= market.resolution_time);
         assert(!market.is_resolved);
         market.is_resolved = true;
         market.winning_outcome = winning_outcome;
@@ -291,7 +291,7 @@ program veilmarkets_v4.aleo {
 
     // For token contract to verify payout amount
     async transition verify_claim(public nullifier: field, public payout_amount: u64) -> Future {
-        let auth_future: Future = veilmarkets_factory_v4.aleo/verify_is_registered(
+        let auth_future: Future = veilmarkets_factory_v5.aleo/verify_is_registered(
             TOKEN_CONTRACT_TYPE,
             self.caller,
         );
@@ -312,7 +312,7 @@ program veilmarkets_v4.aleo {
     async function finalize_cancel_market(market_id: field, caller: address) {
         let market: MarketInfo = Mapping::get(markets, market_id);
         assert_eq(caller, market.creator);
-        assert(block.height as u64 < market.close_block);
+        assert(block.timestamp as u64 < market.close_time);
         assert(!market.is_resolved);
         // Mark as resolved with special cancel code (3u8)
         market.is_resolved = true;

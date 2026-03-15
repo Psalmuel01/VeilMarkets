@@ -2,10 +2,10 @@
 // Integrated escrow with native credits.aleo integration
 // Handles betting and pro-rata payouts using global credits.aleo
 import credits.aleo;
-import veilmarkets_v4.aleo;
-import veilmarkets_factory_v4.aleo;
+import veilmarkets_v5.aleo;
+import veilmarkets_factory_v5.aleo;
 
-program veilmarkets_token_v4.aleo {
+program veilmarkets_token_v5.aleo {
     // Structs
     struct EscrowInfo {
         holder: address,
@@ -45,7 +45,7 @@ program veilmarkets_token_v4.aleo {
 
     // Verify caller is oracle contract
     async transition verify_oracle_caller() -> Future {
-        let f: Future = veilmarkets_factory_v4.aleo/verify_is_registered(
+        let f: Future = veilmarkets_factory_v5.aleo/verify_is_registered(
             ORACLE_CONTRACT_TYPE,
             self.caller,
         );
@@ -68,7 +68,7 @@ program veilmarkets_token_v4.aleo {
         assert(bet_amount >= MIN_BET);
         assert(outcome == 0u8 || outcome == 1u8);
         // Move funds to contract (publicly tracked for pro-rata payouts)
-        // Recipient is this program's address: veilmarkets_token_v4.aleo
+        // Recipient is this program's address: veilmarkets_token_v5.aleo
         let (change, transfer_future): (credits.aleo/credits, Future) = credits.aleo/transfer_private_to_public(
             input_credits,
             self.address,
@@ -79,7 +79,7 @@ program veilmarkets_token_v4.aleo {
             self.caller as field + market_id + bet_amount as field,
         );
         // Call core contract to register bet
-        let core_future: Future = veilmarkets_v4.aleo/place_bet(
+        let core_future: Future = veilmarkets_v5.aleo/place_bet(
             market_id,
             outcome,
             bet_amount,
@@ -138,7 +138,7 @@ program veilmarkets_token_v4.aleo {
         Future,
     ) {
         // Call core contract to verify win and amount
-        let core_result: Future = veilmarkets_v4.aleo/verify_claim(nullifier, payout_amount);
+        let core_result: Future = veilmarkets_v5.aleo/verify_claim(nullifier, payout_amount);
         // Verify caller and amounts
         // Recipient is self.caller
         let (payout_record, transfer_future): (credits.aleo/credits, Future) = credits.aleo/transfer_public_to_private(

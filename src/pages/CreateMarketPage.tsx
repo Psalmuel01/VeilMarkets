@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select";
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
-import { DEFAULT_BLOCK_TIME_SECONDS, estimateCloseBlockFromDate, fetchCurrentBlockHeight } from "@/lib/aleo";
+import { getTimestampFromDate } from "@/lib/aleo";
 
 const categories = [
   { value: "crypto", label: "Crypto" },
@@ -51,9 +51,8 @@ export default function CreateMarketPage() {
     resolutionSource: "",
   });
 
-  const { createMarket, currentHeight, blockTimeSeconds } = useAleoPrograms();
+  const { createMarket } = useAleoPrograms();
   const [txId, setTxId] = useState<string | null>(null);
-  const MIN_SECONDS_AHEAD = 10 * 60; // 10 minutes minimum
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,30 +61,17 @@ export default function CreateMarketPage() {
 
   const handleCreate = async () => {
     setStep("creating");
-    const height = currentHeight ?? await fetchCurrentBlockHeight();
-    if (height === null) {
-      toast.error("Unable to fetch current block height. Please try again.");
+
+    const closeTime = getTimestampFromDate(formData.closingDate, formData.closingTime);
+    if (!closeTime) {
+      toast.error("Invalid closing date (must be in future)");
       setStep("form");
       return;
     }
 
-    const closeBlock = estimateCloseBlockFromDate(
-      formData.closingDate,
-      height,
-      formData.closingTime,
-      blockTimeSeconds,
-    );
-    const minBlocksAhead = Math.ceil(MIN_SECONDS_AHEAD / (blockTimeSeconds || DEFAULT_BLOCK_TIME_SECONDS));
-    if (!closeBlock || closeBlock <= height + minBlocksAhead) {
-      toast.error("Closing date and time must be in the future, over 10mins ahead.");
-      setStep("form");
-      return;
-    }
-
-    // Resolution begins after a fixed offset from close.
-    // in production should be 1,440 blocks at ~15s/block is ~6 hours.
-    const RESOLUTION_OFFSET_BLOCKS = 2;
-    const resolutionBlock = closeBlock + RESOLUTION_OFFSET_BLOCKS;
+    // Resolution begins after a fixed offset from close (e.g. 1 hour)
+    const RESOLUTION_OFFSET_SECONDS = 3600;
+    const resolutionTime = closeTime + RESOLUTION_OFFSET_SECONDS;
 
     // Map category string to u8
     const categoryMap: Record<string, number> = {
@@ -101,11 +87,10 @@ export default function CreateMarketPage() {
       formData.title,
       formData.description,
       categoryMap[formData.category] ?? 0,
-      closeBlock,
-      resolutionBlock,
+      closeTime,
+      resolutionTime,
       formData.resolutionSource
     );
-    console.log(result);
 
     if (result) {
       setTxId(result);

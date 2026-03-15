@@ -36,8 +36,9 @@ export default function MarketsPage() {
 
       // Initially map with 0 bets
       const initialMapped: Market[] = realMarkets.map((market) => {
+        const nowTs = Math.floor(Date.now() / 1000);
         const isSettled = market.is_resolved;
-        const isClosed = !isSettled && currentHeight && currentHeight >= market.close_block;
+        const isClosed = !isSettled && nowTs >= market.close_time;
         const status = isSettled ? "Settled" : isClosed ? "Closed" : "Open";
 
         return {
@@ -46,7 +47,7 @@ export default function MarketsPage() {
           description: market.description,
           category: mapCategory(market.category),
           status: status,
-          closingTime: `Block ${market.close_block}`,
+          closingTime: new Date(market.close_time * 1000).toLocaleString(),
           betsPlaced: 0,
           outcome: market.is_resolved ? (market.winning_outcome === 1 ? "Yes" : "No") : undefined,
         };

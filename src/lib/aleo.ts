@@ -31,8 +31,8 @@ export interface MarketInfo {
   creator: string;
   title_hash: string;
   category: number;
-  close_block: number;
-  resolution_block: number;
+  close_time: number;
+  resolution_time: number;
   is_resolved: boolean;
   winning_outcome: number;
   resolved_by_oracle: boolean;
@@ -161,32 +161,22 @@ export const fetchCurrentBlockHeight = async (): Promise<number | null> => {
 };
 
 /**
- * Estimate block height for a close date using current height and average block time.
+ * Get Unix timestamp (seconds) for a close date/time.
  */
-export const estimateCloseBlockFromDate = (
+export const getTimestampFromDate = (
   closingDate: string,
-  currentBlockHeight: number,
   closingTime?: string,
-  blockTimeSeconds: number = DEFAULT_BLOCK_TIME_SECONDS,
 ): number | null => {
   const timeStr = closingTime || "23:59:59";
 
-  // Fix: parse date parts explicitly to avoid UTC vs local timezone misinterpretation
+  // Parse date parts explicitly to avoid timezone issues
   const [year, month, day] = closingDate.split('-').map(Number);
   const [hours, minutes] = timeStr.split(':').map(Number);
   const closeAt = new Date(year, month - 1, day, hours, minutes, 0);
 
   if (Number.isNaN(closeAt.getTime())) return null;
 
-  const deltaSeconds = Math.floor((closeAt.getTime() - Date.now()) / 1000);
-  if (deltaSeconds <= -60) return null;
-
-  const safeBlockTime = Number.isFinite(blockTimeSeconds) && blockTimeSeconds > 0
-    ? blockTimeSeconds
-    : DEFAULT_BLOCK_TIME_SECONDS;
-
-  const blocksUntilClose = Math.max(1, Math.ceil(deltaSeconds / safeBlockTime));
-  return currentBlockHeight + blocksUntilClose;
+  return Math.floor(closeAt.getTime() / 1000);
 };
 
 export const extractMarketIdFromTx = (tx: AleoTransaction | null): string | null => {
@@ -283,8 +273,8 @@ export const parseMarketInfo = (raw: string | object, marketId: string): MarketI
     creator: "",
     title_hash: "",
     category: 0,
-    close_block: 0,
-    resolution_block: 0,
+    close_time: 0,
+    resolution_time: 0,
     is_resolved: false,
     winning_outcome: 2,
     resolved_by_oracle: false,
@@ -299,8 +289,8 @@ export const parseMarketInfo = (raw: string | object, marketId: string): MarketI
       creator: stripTypeSuffixes(String(obj.creator ?? "")),
       title_hash: stripTypeSuffixes(String(obj.title_hash ?? "")),
       category: parseAleoInt(obj.category),
-      close_block: parseAleoInt(obj.close_block),
-      resolution_block: parseAleoInt(obj.resolution_block),
+      close_time: parseAleoInt(obj.close_time),
+      resolution_time: parseAleoInt(obj.resolution_time),
       is_resolved: parseAleoBool(obj.is_resolved),
       winning_outcome: parseAleoInt(obj.winning_outcome),
       resolved_by_oracle: parseAleoBool(obj.resolved_by_oracle),
@@ -321,7 +311,7 @@ export const parseMarketInfo = (raw: string | object, marketId: string): MarketI
 
     if (key === "category" || key === "winning_outcome") {
       data[key] = parseAleoInt(value);
-    } else if (key === "close_block" || key === "resolution_block") {
+    } else if (key === "close_time" || key === "resolution_time") {
       data[key] = parseAleoInt(value);
     } else if (key === "is_resolved" || key === "resolved_by_oracle") {
       data[key] = parseAleoBool(value);

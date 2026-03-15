@@ -6,10 +6,14 @@ export interface MarketMetadata {
   source?: string;
 }
 
-export interface MarketMetadataRow extends MarketMetadata {
-  market_id: string;
+export interface MarketMetadataRow {
   transaction_id: string;
+  market_id: string;
+  title: string;
+  description: string;
+  source: string;
   created_at?: string;
+  expiry_time?: number; // Added for v5 timestamp support
 }
 
 export const saveMarketMetadata = async (
@@ -17,30 +21,33 @@ export const saveMarketMetadata = async (
   marketId: string,
   title: string,
   description: string,
-  source?: string,
+  source: string,
+  expiryTime?: number,
 ) => {
-  try {
-    const { error } = await supabase
-      .from("markets")
-      .insert([{
-        market_id: marketId,
+  const { data, error } = await supabase
+    .from('markets_new')
+    .insert([
+      {
         transaction_id: transactionId,
+        market_id: marketId,
         title,
         description,
-        source: source || "Creator",
-      }]);
+        source,
+        expiry_time: expiryTime
+      },
+    ]);
 
-    if (error) console.error("[saveMarketMetadata] Error:", error.message);
-    else console.log("[saveMarketMetadata] Saved:", marketId);
-  } catch (e) {
-    console.error("[saveMarketMetadata] Failed:", e);
+  if (error) {
+    console.error('Error saving market metadata:', error);
+    throw error;
   }
+  return data;
 };
 
 export const getAllMarketMetadata = async (): Promise<MarketMetadataRow[]> => {
   try {
     const { data, error } = await supabase
-      .from("markets")
+      .from("markets_new")
       .select("market_id, transaction_id, title, description, source, created_at")
       .order("created_at", { ascending: false });
 
@@ -66,7 +73,7 @@ export const getAllMarketMetadata = async (): Promise<MarketMetadataRow[]> => {
 export const getMarketMetadata = async (marketId: string): Promise<MarketMetadataRow | null> => {
   try {
     const { data, error } = await supabase
-      .from("markets")
+      .from("markets_new")
       .select("market_id, transaction_id, title, description, source")
       .eq("market_id", marketId)
       .maybeSingle();

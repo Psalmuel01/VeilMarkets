@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { Wallet, TrendingUp, Clock, Trophy, CheckCircle2, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -41,11 +42,12 @@ export default function DashboardPage() {
       is_resolved: boolean;
     }>
   >([]);
-  const { fetchUserBets, fetchMarkets, fetchTokenBalance, loading, publicKey, claimWinnings } = useAleoPrograms();
+  const { fetchUserBets, fetchMarkets, fetchTokenBalance, loading, claimWinnings } = useAleoPrograms();
+  const { address } = useWallet();
 
   useEffect(() => {
     const loadData = async () => {
-      if (!publicKey) return;
+      if (!address) return;
 
       try {
         const [records, allMarkets, balance] = await Promise.all([
@@ -125,7 +127,7 @@ export default function DashboardPage() {
         ]);
 
         // Filter created markets
-        const currentAddr = publicKey.toString().replace(/address/g, "").trim();
+        const currentAddr = (address || "").replace(/address/g, "").trim();
         const filtered = allMarkets.filter((market) =>
           market.creator && market.creator.replace(/address/g, "").trim() === currentAddr
         );
@@ -144,7 +146,7 @@ export default function DashboardPage() {
     };
 
     loadData();
-  }, [fetchUserBets, fetchMarkets, fetchTokenBalance, publicKey]);
+  }, [fetchUserBets, fetchMarkets, fetchTokenBalance, address]);
 
   const filteredBets = userBets.filter((bet) => {
     if (activeTab === "all") return true;

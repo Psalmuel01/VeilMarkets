@@ -21,8 +21,8 @@ interface ResolutionModalProps {
   market: {
     id: string;
     title: string;
-    close_block: number;
-    resolution_block: number;
+    close_time: number;
+    resolution_time: number;
     is_resolved: boolean;
   };
   proposal: {
@@ -31,7 +31,7 @@ interface ResolutionModalProps {
     is_disputed: boolean;
     proposer: string;
   } | null;
-  currentHeight: number;
+  nowTs: number;
   isOracle: boolean;
   onUpdate: () => void;
 }
@@ -44,7 +44,7 @@ export function ResolutionModal({
   onClose,
   market,
   proposal,
-  currentHeight,
+  nowTs,
   isOracle,
   onUpdate,
 }: ResolutionModalProps) {
@@ -92,20 +92,20 @@ export function ResolutionModal({
   };
 
   const isResolved = market.is_resolved;
-  const isWindowActive = proposal && currentHeight < proposal.challenge_deadline && !proposal.is_disputed && !isResolved;
-  const isFinalizable = proposal && currentHeight >= proposal.challenge_deadline && !proposal.is_disputed && !isResolved;
-  const canPropose = !proposal && currentHeight >= market.resolution_block && !isResolved;
+  const isWindowActive = proposal && nowTs < proposal.challenge_deadline && !proposal.is_disputed && !isResolved;
+  const isFinalizable = proposal && nowTs >= proposal.challenge_deadline && !proposal.is_disputed && !isResolved;
+  const canPropose = !proposal && nowTs >= market.resolution_time && !isResolved;
 
-  const blocksToResolution = currentHeight && market.resolution_block
-    ? market.resolution_block - currentHeight
+  const secondsToResolution = nowTs && market.resolution_time
+    ? market.resolution_time - nowTs
     : null;
 
   const proposeDisabledReason = (() => {
     if (isResolved) return "Market is already resolved.";
     if (proposal) return "Resolution already proposed.";
-    if (!currentHeight) return "Waiting for current block height...";
-    if (blocksToResolution !== null && blocksToResolution > 0) {
-      return `Proposals open at resolution block ${market.resolution_block} (${blocksToResolution} blocks remaining).`;
+    if (!nowTs) return "Waiting for network time...";
+    if (secondsToResolution !== null && secondsToResolution > 0) {
+      return `Proposals open at ${new Date(market.resolution_time * 1000).toLocaleString()}.`;
     }
     if (!isOracle) return "Only registered oracles can propose outcomes.";
     if (selectedOutcome === null) return "Select an outcome to propose.";
@@ -179,9 +179,9 @@ export function ResolutionModal({
                     {!proposal.is_disputed && (
                       <div className="pt-3 border-t border-border/10">
                         <div className="flex justify-between items-center text-sm">
-                          <span className="text-muted-foreground">Blocks remaining</span>
+                          <span className="text-muted-foreground">Challenge Deadline</span>
                           <span className="font-mono">
-                            {isWindowActive ? (proposal.challenge_deadline - currentHeight).toLocaleString() : "None"}
+                            {isWindowActive ? new Date(proposal.challenge_deadline * 1000).toLocaleString() : "Ended"}
                           </span>
                         </div>
                       </div>

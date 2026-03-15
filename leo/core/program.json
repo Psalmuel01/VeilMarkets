@@ -1,12 +1,12 @@
 {
-  "program": "veilmarkets_v4.aleo",
+  "program": "veilmarkets_v5.aleo",
   "version": "0.1.0",
   "description": "",
   "license": "MIT",
   "leo": "3.5.0",
   "dependencies": [
     {
-      "name": "veilmarkets_factory_v4.aleo",
+      "name": "veilmarkets_factory_v5.aleo",
       "location": "network",
       "network": "testnet",
       "path": null
