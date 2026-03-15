@@ -26,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
+import { cn, formatDateFriendly } from "@/lib/utils";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { ADMIN_ADDRESS } from "@/lib/constants";
 import { PoolInfo } from "@/lib/aleo";
@@ -151,7 +151,7 @@ export default function MarketDetailPage() {
             description: found.description,
             category: categoryRevMap[found.category] || "Tech",
             status: found.is_resolved ? "Settled" : "Open",
-            closingTime: new Date(found.close_time * 1000).toLocaleString(),
+            closingTime: formatDateFriendly(found.close_time),
             closingDate: new Date(found.close_time * 1000).toLocaleDateString(),
             betsPlaced: stats?.participant_count || 0,
             createdAt: "On-chain",
@@ -545,7 +545,7 @@ export default function MarketDetailPage() {
                       {marketStatus === "Settled"
                         ? "This market is resolved."
                         : market?.resolution_time && nowTs < market.resolution_time
-                          ? `Proposals open at ${new Date(market.resolution_time * 1000).toLocaleString()}.`
+                          ? `Proposals open ${formatDateFriendly(market.resolution_time)}.`
                           : "Oracles can now propose the true outcome."
                       }
                     </p>
@@ -589,7 +589,7 @@ export default function MarketDetailPage() {
 
                   {isAdmin && proposal && !isFinalizable && !proposal.is_disputed && (
                     <p className="text-[10px] text-center text-muted-foreground">
-                      Challenge window active until {new Date(proposal.challenge_deadline * 1000).toLocaleString()}.
+                      Challenge window active until {formatDateFriendly(proposal.challenge_deadline)}.
                     </p>
                   )}
 
@@ -682,7 +682,7 @@ export default function MarketDetailPage() {
               )}
               {proposal && !proposal.is_disputed && nowTs < proposal.challenge_deadline && (
                 <p className="text-xs text-amber-500">
-                  Challenge window active until {new Date(proposal.challenge_deadline * 1000).toLocaleString()}. Finalization may fail if submitted early.
+                  Challenge window active until {formatDateFriendly(proposal.challenge_deadline)}. Finalization may fail if submitted early.
                 </p>
               )}
               <Button onClick={handleFinalize} className="w-full btn-glow-success" disabled={!proposal}>

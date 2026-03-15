@@ -52,7 +52,7 @@ export default function CreateMarketPage() {
   });
 
   const { createMarket } = useAleoPrograms();
-  const [txId, setTxId] = useState<string | null>(null);
+  const [creationResult, setCreationResult] = useState<{ transactionId: string; marketId: string } | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,7 +93,7 @@ export default function CreateMarketPage() {
     );
 
     if (result) {
-      setTxId(result);
+      setCreationResult(result);
       setStep("success");
     } else {
       setStep("failed");
@@ -365,9 +365,13 @@ export default function CreateMarketPage() {
             </div>
 
             <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
-              <div className="text-xs text-muted-foreground mb-1">Transaction ID</div>
+              <div className="text-xs text-muted-foreground mb-1">Market ID</div>
               <code className="text-sm font-mono text-primary break-all">
-                {txId || "aleo1tx..."}
+                {creationResult?.marketId || "Generating..."}
+              </code>
+              <div className="text-xs text-muted-foreground mt-3 mb-1">Transaction ID</div>
+              <code className="text-xs font-mono text-muted-foreground break-all">
+                {creationResult?.transactionId || "aleo1tx..."}
               </code>
             </div>
 
@@ -381,8 +385,10 @@ export default function CreateMarketPage() {
               </Button>
               <Button
                 onClick={() => {
-                  console.log("Navigating to market with ID:", txId);
-                  navigate(`/market/${txId}`);
+                  if (creationResult?.marketId) {
+                    console.log("Navigating to market with ID:", creationResult.marketId);
+                    navigate(`/market/${creationResult.marketId}`);
+                  }
                 }}
                 className="flex-1 btn-glow-primary"
               >

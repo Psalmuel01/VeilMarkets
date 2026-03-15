@@ -11,6 +11,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { AlertTriangle, CheckCircle2, Gavel, Timer, Shield, Loader2, X } from "lucide-react";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
+import { formatDateFriendly } from "@/lib/utils";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { OracleRegistrationModal } from "@/components/resolution/OracleRegistrationModal";
@@ -95,7 +96,6 @@ export function ResolutionModal({
   const isWindowActive = proposal && nowTs < proposal.challenge_deadline && !proposal.is_disputed && !isResolved;
   const isFinalizable = proposal && nowTs >= proposal.challenge_deadline && !proposal.is_disputed && !isResolved;
   const canPropose = !proposal && nowTs >= market.resolution_time && !isResolved;
-
   const secondsToResolution = nowTs && market.resolution_time
     ? market.resolution_time - nowTs
     : null;
@@ -105,7 +105,7 @@ export function ResolutionModal({
     if (proposal) return "Resolution already proposed.";
     if (!nowTs) return "Waiting for network time...";
     if (secondsToResolution !== null && secondsToResolution > 0) {
-      return `Proposals open at ${new Date(market.resolution_time * 1000).toLocaleString()}.`;
+      return `Proposals open ${formatDateFriendly(market.resolution_time)}.`;
     }
     if (!isOracle) return "Only registered oracles can propose outcomes.";
     if (selectedOutcome === null) return "Select an outcome to propose.";
@@ -181,7 +181,7 @@ export function ResolutionModal({
                         <div className="flex justify-between items-center text-sm">
                           <span className="text-muted-foreground">Challenge Deadline</span>
                           <span className="font-mono">
-                            {isWindowActive ? new Date(proposal.challenge_deadline * 1000).toLocaleString() : "Ended"}
+                            {isWindowActive ? formatDateFriendly(proposal.challenge_deadline) : "Ended"}
                           </span>
                         </div>
                       </div>

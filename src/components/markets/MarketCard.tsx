@@ -1,4 +1,4 @@
-import { Clock, Users, TrendingUp, ChevronRight } from "lucide-react";
+import { Clock, Users, Timer, ChevronRight, History } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { ZKBadge } from "@/components/ui/ZKBadge";
@@ -11,6 +11,7 @@ export interface Market {
   category: "Sports" | "Finance" | "Crypto" | "Politics" | "Entertainment" | "Tech";
   status: "Open" | "Closed" | "Settled";
   closingTime: string;
+  creationTime?: string;
   betsPlaced: number;
   outcome?: "Yes" | "No";
 }
@@ -48,38 +49,39 @@ export function MarketCard({ market }: MarketCardProps) {
     >
       <div className="flex items-start justify-between mb-4">
         <div className="flex gap-2">
-          <Badge 
-            variant="outline" 
+          <Badge
+            variant="outline"
             className={cn("text-[10px] uppercase tracking-wider", categoryColors[market.category])}
           >
             {market.category}
           </Badge>
-          <Badge 
-            variant="outline" 
+          <Badge
+            variant="outline"
             className={cn("text-[10px] uppercase tracking-wider", statusColors[market.status])}
           >
             {market.status}
           </Badge>
         </div>
+
         {market.status === "Settled" && <ZKBadge variant="verified" size="sm" />}
       </div>
 
       <h3 className="text-lg font-semibold text-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors">
         {market.title}
       </h3>
-      
+
       <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
         {market.description}
       </p>
 
       <div className="flex items-center justify-between pt-4 border-t border-border/50">
-        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5" />
-            <span>{market.closingTime}</span>
+        <div className="flex items-center gap-4 text-[11px] text-muted-foreground/70">
+          <div className="flex items-center gap-1">
+            <Timer className="w-3 h-3 text-amber-500/70" />
+            {market.closingTime}
           </div>
-          <div className="flex items-center gap-1.5">
-            <Users className="w-3.5 h-3.5" />
+          <div className="flex items-center gap-1">
+            <Users className="w-3 h-3" />
             <span>{market.betsPlaced} bets</span>
           </div>
         </div>

@@ -549,6 +549,14 @@ export const useAleoPrograms = () => {
 
         if (match) {
           const marketId = match[1];
+          console.log("[createMarket] Metadata before saving to Supabase:", {
+            transactionId: result.transactionId,
+            marketId,
+            title,
+            description,
+            resolutionSource,
+            expiry_time: closeTime * 1000
+          });
           // Save metadata including expiry_time
           await saveMarketMetadata(
             result.transactionId,
@@ -558,7 +566,7 @@ export const useAleoPrograms = () => {
             resolutionSource,
             closeTime * 1000 // absolute ms for metadata
           );
-          return result.transactionId;
+          return { transactionId: result.transactionId, marketId };
         }
       }
       return null;

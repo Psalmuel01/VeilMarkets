@@ -4,6 +4,8 @@ import { MarketCard, Market } from "@/components/markets/MarketCard";
 import { MarketFilters } from "@/components/markets/MarketFilters";
 import { motion } from "framer-motion";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
+import { formatDateFriendly } from "@/lib/utils";
+import { getAllMarketMetadata } from "@/lib/metadata";
 
 const mapCategory = (value: number): Market["category"] => {
   switch (value) {
@@ -32,14 +34,23 @@ export default function MarketsPage() {
 
   useEffect(() => {
     const loadMarkets = async () => {
-      const realMarkets = await fetchMarkets();
+      const [realMarkets, metadata] = await Promise.all([
+        fetchMarkets(),
+        getAllMarketMetadata()
+      ]);
+
+      const metadataMap = new Map((metadata || []).map(m => [m.market_id, m]));
 
       // Initially map with 0 bets
       const initialMapped: Market[] = realMarkets.map((market) => {
         const nowTs = Math.floor(Date.now() / 1000);
+        const meta = metadataMap.get(market.id);
+        
         const isSettled = market.is_resolved;
         const isClosed = !isSettled && nowTs >= market.close_time;
         const status = isSettled ? "Settled" : isClosed ? "Closed" : "Open";
+
+        const createdTs = meta?.created_at ? Math.floor(new Date(meta.created_at).getTime() / 1000) : null;
 
         return {
           id: market.id,
@@ -47,7 +58,8 @@ export default function MarketsPage() {
           description: market.description,
           category: mapCategory(market.category),
           status: status,
-          closingTime: new Date(market.close_time * 1000).toLocaleString(),
+          closingTime: formatDateFriendly(market.close_time),
+          creationTime: createdTs ? formatDateFriendly(createdTs) : undefined,
           betsPlaced: 0,
           outcome: market.is_resolved ? (market.winning_outcome === 1 ? "Yes" : "No") : undefined,
         };
