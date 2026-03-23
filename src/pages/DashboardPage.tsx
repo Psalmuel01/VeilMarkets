@@ -42,7 +42,7 @@ export default function DashboardPage() {
       is_resolved: boolean;
     }>
   >([]);
-  const { fetchUserBets, fetchMarkets, fetchTokenBalance, loading, claimWinnings } = useAleoPrograms();
+  const { fetchUserBets, fetchMarkets, fetchTokenBalance, loading, claimWinnings, refreshSignal } = useAleoPrograms();
   const { address } = useWallet();
 
   useEffect(() => {
@@ -146,7 +146,7 @@ export default function DashboardPage() {
     };
 
     loadData();
-  }, [fetchUserBets, fetchMarkets, fetchTokenBalance, address]);
+  }, [fetchUserBets, fetchMarkets, fetchTokenBalance, address, refreshSignal]);
 
   const filteredBets = userBets.filter((bet) => {
     if (activeTab === "all") return true;

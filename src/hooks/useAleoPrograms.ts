@@ -17,6 +17,7 @@ import {
   type MarketMetadataRow,
 } from "../lib/metadata";
 import { useState, useCallback, useEffect, useRef } from "react";
+import { useRefresh } from "../context/RefreshContext";
 
 type TxHistoryTransaction = TxHistoryResult["transactions"][number];
 
@@ -190,6 +191,7 @@ const extractRecordAmount = (record: WalletRecord): number => {
 
 export const useAleoPrograms = () => {
   const { address, executeTransaction, requestRecords, requestTransactionHistory } = useWallet();
+  const { refreshSignal, triggerRefresh } = useRefresh();
   const publicKey = address;
   const [loading, setLoading] = useState(false);
 
@@ -566,6 +568,7 @@ export const useAleoPrograms = () => {
             resolutionSource,
             closeTime * 1000 // absolute ms for metadata
           );
+          triggerRefresh();
           return { transactionId: result.transactionId, marketId };
         }
       }
@@ -764,6 +767,7 @@ export const useAleoPrograms = () => {
         privateFee: false,
       }, TOKEN_PROGRAM_ID, "place_bet");
 
+      if (betResult) triggerRefresh();
       return betResult ? betResult.transactionId : null;
     } catch (error) {
       console.error("Place bet failed:", error);
@@ -786,6 +790,7 @@ export const useAleoPrograms = () => {
         privateFee: false,
       }, ORACLE_PROGRAM_ID, "propose_resolution");
 
+      if (result) triggerRefresh();
       return result ? result.transactionId : null;
     } catch (error) {
       console.error("Propose resolution failed:", error);
@@ -817,6 +822,7 @@ export const useAleoPrograms = () => {
         privateFee: false,
       }, ORACLE_PROGRAM_ID, "dispute_resolution");
 
+      if (result) triggerRefresh();
       return result ? result.transactionId : null;
     } catch (error) {
       console.error("Dispute failed:", error);
@@ -837,6 +843,7 @@ export const useAleoPrograms = () => {
         privateFee: false,
       }, ORACLE_PROGRAM_ID, "resolve_on_core");
 
+      if (result) triggerRefresh();
       return result ? result.transactionId : null;
     } catch (error) {
       console.error("Final resolution failed:", error);
@@ -866,6 +873,7 @@ export const useAleoPrograms = () => {
         privateFee: false,
       }, ORACLE_PROGRAM_ID, "register_oracle");
 
+      if (result) triggerRefresh();
       return result ? result.transactionId : null;
     } catch (error) {
       console.error("Oracle registration failed:", error);
@@ -888,6 +896,7 @@ export const useAleoPrograms = () => {
         privateFee: false,
       }, "credits.aleo", "transfer_public_to_private");
 
+      if (result) triggerRefresh();
       return result ? result.transactionId : null;
     } catch (error) {
       console.error("Shield credits failed:", error);
@@ -961,13 +970,15 @@ export const useAleoPrograms = () => {
       const claimRecord = await waitForWinningsClaimRecord(marketId);
       if (!claimRecord) {
         toast.error("Claim record not found in wallet yet. Please retry in a moment.");
-        return claimResult.transactionId;
+        triggerRefresh();
+        return { transactionId: claimResult.transactionId, payoutAmount: 0 };
       }
 
       const nullifierRaw = parseRecordField(claimRecord, "nullifier");
       if (!nullifierRaw) {
         toast.error("Unable to read claim nullifier from wallet record.");
-        return claimResult.transactionId;
+        triggerRefresh();
+        return { transactionId: claimResult.transactionId, payoutAmount: 0 };
       }
 
       const nullifierField = formatField(nullifierRaw);
@@ -975,7 +986,8 @@ export const useAleoPrograms = () => {
 
       if (!payoutAmount || payoutAmount <= 0) {
         toast.error("Payout not available yet. Please retry shortly.");
-        return claimResult.transactionId;
+        triggerRefresh();
+        return { transactionId: claimResult.transactionId, payoutAmount: 0 };
       }
 
       toast.info("Step 2/2: Collecting payout from token contract...");
@@ -994,6 +1006,7 @@ export const useAleoPrograms = () => {
 
       const payoutAleo = payoutAmount / 1_000_000;
       toast.success(`Payout claimed! ${payoutAleo.toFixed(4)} ALEO`);
+      triggerRefresh();
       return { transactionId: payoutResult.transactionId, payoutAmount: payoutAleo };
     } catch (error) {
       console.error("Claim winnings failed:", error);
@@ -1020,7 +1033,7 @@ export const useAleoPrograms = () => {
       const raw = await fetchMappingValue(ORACLE_PROGRAM_ID, "proposals", cleanMarketId);
       if (!raw) return null;
 
-      return parseResolutionProposal(raw);
+      return parseResolutionProposal(raw as any);
     } catch (error) {
       console.error("Failed to fetch resolution proposal:", error);
       return null;
@@ -1044,6 +1057,8 @@ export const useAleoPrograms = () => {
     fetchPoolStats,
     isOracleRegistered,
     requestCredits,
+    refreshSignal,
+    publicKey,
     loading,
     currentHeight,
   };

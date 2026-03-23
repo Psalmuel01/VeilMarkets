@@ -30,7 +30,7 @@ export default function MarketsPage() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [markets, setMarkets] = useState<Market[]>([]);
-  const { fetchMarkets, fetchPoolStats, loading, currentHeight } = useAleoPrograms();
+  const { fetchMarkets, fetchPoolStats, loading, currentHeight, refreshSignal } = useAleoPrograms();
 
   useEffect(() => {
     const loadMarkets = async () => {
@@ -83,7 +83,7 @@ export default function MarketsPage() {
       }
     };
     loadMarkets();
-  }, [fetchMarkets, fetchPoolStats, currentHeight]);
+  }, [fetchMarkets, fetchPoolStats, currentHeight, refreshSignal]);
 
   const filteredMarkets = markets.filter((market) => {
     const matchesCategory = activeCategory === "all" || market.category === activeCategory;

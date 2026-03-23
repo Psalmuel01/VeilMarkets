@@ -83,7 +83,7 @@ export default function MarketDetailPage() {
   const [loadingMarket, setLoadingMarket] = useState(true);
   const [pool, setPool] = useState<PoolInfo | null>(null);
   const [isOracle, setIsOracle] = useState<boolean | null>(null);
-  const { fetchMarkets, fetchPoolStats, fetchResolutionProposal, fetchUserBets, resolveMarket, currentHeight, isOracleRegistered } = useAleoPrograms();
+  const { fetchMarkets, fetchPoolStats, fetchResolutionProposal, fetchUserBets, resolveMarket, currentHeight, isOracleRegistered, refreshSignal } = useAleoPrograms();
   const { address } = useWallet();
 
   const loadMarket = useCallback(async (opts?: { silent?: boolean }) => {
@@ -182,7 +182,7 @@ export default function MarketDetailPage() {
   useEffect(() => {
     loadMarket();
     loadProposal();
-  }, [loadMarket, loadProposal]);
+  }, [loadMarket, loadProposal, refreshSignal]);
 
   useEffect(() => {
     if (!address) return;

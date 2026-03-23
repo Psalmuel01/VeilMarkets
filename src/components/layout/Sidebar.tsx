@@ -26,7 +26,7 @@ const navItems = [
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
-  const { requestCredits, fetchMarkets, fetchBalances, shieldCredits, publicKey, isOracleRegistered, registerAsOracle } = useAleoPrograms();
+  const { requestCredits, fetchMarkets, fetchBalances, shieldCredits, publicKey, isOracleRegistered, registerAsOracle, refreshSignal } = useAleoPrograms();
   const [activeMarketsCount, setActiveMarketsCount] = useState<number | null>(null);
   const [balances, setBalances] = useState<{ private: number; public: number } | null>(null);
   const [isOracle, setIsOracle] = useState<boolean | null>(null);
@@ -49,7 +49,7 @@ export function Sidebar() {
       }
     };
     loadStats();
-  }, [fetchMarkets, fetchBalances, isOracleRegistered, publicKey]);
+  }, [fetchMarkets, fetchBalances, isOracleRegistered, publicKey, refreshSignal]);
 
   return (
     <aside

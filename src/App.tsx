@@ -11,12 +11,14 @@ import CreateMarketPage from "./pages/CreateMarketPage";
 import DocsPage from "./pages/DocsPage";
 import NotFound from "./pages/NotFound";
 import { WalletGuard } from "./components/auth/WalletGuard";
+import { RefreshProvider } from "./context/RefreshContext";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
+    <RefreshProvider>
+      <TooltipProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter>
@@ -31,7 +33,8 @@ const App = () => (
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
-    </TooltipProvider>
+      </TooltipProvider>
+    </RefreshProvider>
   </QueryClientProvider>
 );
 
