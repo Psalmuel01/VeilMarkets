@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, Loader2, CheckCircle2, X } from "lucide-react";
+import { Shield, Loader2, CheckCircle2, X, Wallet } from "lucide-react";
+import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
+import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +27,7 @@ interface PlaceBetModalProps {
 type Step = "select" | "confirm" | "processing" | "success" | "failed";
 
 export function PlaceBetModal({ open, onClose, marketTitle, marketId, onBetPlaced }: PlaceBetModalProps) {
+  const { address } = useWallet();
   const [step, setStep] = useState<Step>("select");
   const [selectedOutcome, setSelectedOutcome] = useState<"Yes" | "No" | null>(null);
   const [wagerAmount, setWagerAmount] = useState(5);
@@ -98,7 +101,24 @@ export function PlaceBetModal({ open, onClose, marketTitle, marketId, onBetPlace
         </div>
 
         <AnimatePresence mode="wait">
-          {step === "select" && (
+          {!address ? (
+            <motion.div
+              key="connect"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="text-center py-6 space-y-3"
+            >
+              <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <Wallet className="w-6 h-6 text-primary" />
+              </div>
+              <h3 className="text-lg font-semibold">Wallet Required</h3>
+              <p className="text-sm text-muted-foreground pb-4">
+                You need to connect an Aleo wallet to place private bets.
+              </p>
+              <ConnectWalletButton className="w-full justify-center" />
+            </motion.div>
+          ) : step === "select" && (
             <motion.div
               key="select"
               initial={{ opacity: 0, y: 20 }}
@@ -142,9 +162,9 @@ export function PlaceBetModal({ open, onClose, marketTitle, marketId, onBetPlace
                       </p>
                     </div>
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="w-full border-amber-500/30 hover:bg-amber-500/10 text-amber-500 text-xs py-4 transition-all duration-200"
                     onClick={() => shieldCredits(wagerAmount)}
                   >

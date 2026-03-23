@@ -20,6 +20,7 @@ import { ZKBadge } from "@/components/ui/ZKBadge";
 import { OutcomeCard } from "@/components/betting/OutcomeCard";
 import { PlaceBetModal } from "@/components/betting/PlaceBetModal";
 import { ResolutionModal } from "@/components/resolution/ResolutionModal";
+import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import {
   Dialog,
   DialogContent,
@@ -94,13 +95,13 @@ export default function MarketDetailPage() {
     }
     if (!opts?.silent) setLoadingMarket(true);
 
-      try {
-        const [allMarkets, stats, oracleStatus, userBets] = await Promise.all([
-          fetchMarkets(),
-          fetchPoolStats(id),
-          isOracleRegistered(),
-          fetchUserBets()
-        ]);
+    try {
+      const [allMarkets, stats, oracleStatus, userBets] = await Promise.all([
+        fetchMarkets(),
+        fetchPoolStats(id),
+        isOracleRegistered(),
+        fetchUserBets()
+      ]);
 
       setPool(stats);
       setIsOracle(oracleStatus);
@@ -113,54 +114,54 @@ export default function MarketDetailPage() {
         cleanId(chainMarket.id) === currentId
       );
 
-        if (found) {
-          const categoryRevMap: Record<number, keyof typeof categoryColors> = {
-            0: "Crypto",
-            1: "Finance",
-            2: "Sports",
-            3: "Politics",
-            4: "Entertainment",
-            5: "Tech",
-          };
+      if (found) {
+        const categoryRevMap: Record<number, keyof typeof categoryColors> = {
+          0: "Crypto",
+          1: "Finance",
+          2: "Sports",
+          3: "Politics",
+          4: "Entertainment",
+          5: "Tech",
+        };
 
-          const userBet = userBets.find((b) => cleanId(b.market_id) === currentId);
-          if (userBet) {
-            setHasUserBet(true);
-            const outcomeLabel = userBet.outcome === "1" ? "Yes" : "No";
-            setUserBetOutcome(outcomeLabel);
-            if (found.is_resolved) {
-              if (found.winning_outcome === 3) {
-                setUserBetResult("Cancelled");
-              } else if (found.winning_outcome === (userBet.outcome === "1" ? 1 : 0)) {
-                setUserBetResult("Won");
-              } else {
-                setUserBetResult("Lost");
-              }
+        const userBet = userBets.find((b) => cleanId(b.market_id) === currentId);
+        if (userBet) {
+          setHasUserBet(true);
+          const outcomeLabel = userBet.outcome === "1" ? "Yes" : "No";
+          setUserBetOutcome(outcomeLabel);
+          if (found.is_resolved) {
+            if (found.winning_outcome === 3) {
+              setUserBetResult("Cancelled");
+            } else if (found.winning_outcome === (userBet.outcome === "1" ? 1 : 0)) {
+              setUserBetResult("Won");
             } else {
-              setUserBetResult(null);
+              setUserBetResult("Lost");
             }
           } else {
-            setHasUserBet(false);
-            setUserBetOutcome(null);
             setUserBetResult(null);
           }
+        } else {
+          setHasUserBet(false);
+          setUserBetOutcome(null);
+          setUserBetResult(null);
+        }
 
-          setMarket({
-            id: found.id,
-            title: found.title,
-            description: found.description,
-            category: categoryRevMap[found.category] || "Tech",
-            status: found.is_resolved ? "Settled" : "Open",
-            closingTime: formatDateFriendly(found.close_time),
-            closingDate: new Date(found.close_time * 1000).toLocaleDateString(),
-            betsPlaced: stats?.participant_count || 0,
-            createdAt: "On-chain",
-            resolutionSource: found.resolutionSource || "Creator",
-            close_time: found.close_time,
-            resolution_time: found.resolution_time || found.close_time + 3600, // Fallback if 0
-            is_resolved: found.is_resolved,
-            winningOutcome: found.winning_outcome,
-          });
+        setMarket({
+          id: found.id,
+          title: found.title,
+          description: found.description,
+          category: categoryRevMap[found.category] || "Tech",
+          status: found.is_resolved ? "Settled" : "Open",
+          closingTime: formatDateFriendly(found.close_time),
+          closingDate: new Date(found.close_time * 1000).toLocaleDateString(),
+          betsPlaced: stats?.participant_count || 0,
+          createdAt: "On-chain",
+          resolutionSource: found.resolutionSource || "Creator",
+          close_time: found.close_time,
+          resolution_time: found.resolution_time || found.close_time + 3600, // Fallback if 0
+          is_resolved: found.is_resolved,
+          winningOutcome: found.winning_outcome,
+        });
         setNotFound(false);
       } else {
         setNotFound(true);
@@ -247,10 +248,10 @@ export default function MarketDetailPage() {
       setFinalizeStep("failed");
     }
   };
-  
+
   if (notFound) {
     return (
-      <MainLayout requireWallet={true}>
+      <MainLayout>
         <div className="max-w-4xl mx-auto py-16 text-center">
           <AlertCircle className="w-12 h-12 text-warning mx-auto mb-4" />
           <h2 className="text-2xl font-bold mb-2">Market Not Found</h2>
@@ -270,7 +271,7 @@ export default function MarketDetailPage() {
 
   if (loadingMarket) {
     return (
-      <MainLayout requireWallet={true}>
+      <MainLayout>
         <div className="max-w-4xl mx-auto py-16 text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading market details...</p>
@@ -282,7 +283,7 @@ export default function MarketDetailPage() {
   if (!market) return null;
 
   return (
-    <MainLayout requireWallet={true}>
+    <MainLayout>
       <div className="max-w-4xl mx-auto">
         {/* Back Navigation */}
         <Link
@@ -500,6 +501,14 @@ export default function MarketDetailPage() {
                   )}
                   <ZKBadge variant="proof" className="w-full justify-center py-2" />
                 </div>
+              ) : !address ? (
+                <div className="text-center py-6 space-y-3">
+                  <Shield className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">
+                    Connect your wallet to place a bet or view your position
+                  </p>
+                  <ConnectWalletButton className="w-full justify-center" />
+                </div>
               ) : (
                 <div className="text-center py-6">
                   <Shield className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
@@ -519,38 +528,41 @@ export default function MarketDetailPage() {
 
             {/* Resolution Control (Propose/Dispute/Finalize) */}
             <div className="p-6 rounded-xl bg-card border border-border/50">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold">Resolution</h2>
-                  <ZKBadge variant="verified" size="sm" />
-                </div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">Resolution</h2>
+                <ZKBadge variant="verified" size="sm" />
+              </div>
 
-                <div className="space-y-3">
-                  {proposal ? (
-                    <div className="p-3 rounded-lg bg-muted/20 border border-border/50 text-sm">
-                      <div className="flex justify-between mb-2">
-                        <span className="text-muted-foreground">Resolution Already Proposed</span>
-                        <span className={cn("font-bold", proposal.proposed_outcome === 1 ? "text-success" : "text-destructive")}>
-                          {proposal.proposed_outcome === 1 ? "YES" : "NO"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Challenge Window</span>
-                        <span className="text-amber-500 font-medium">
-                          {proposal.is_disputed ? "Disputed" : (currentHeight && currentHeight >= proposal.challenge_deadline) ? "Ended" : "Active"}
-                        </span>
-                      </div>
+              <div className="space-y-3">
+                {proposal ? (
+                  <div className="p-3 rounded-lg bg-muted/20 border border-border/50 text-sm">
+                    <div className="flex justify-between mb-2">
+                      <span className="text-muted-foreground">Resolution Already Proposed</span>
+                      <span className={cn("font-bold", proposal.proposed_outcome === 1 ? "text-success" : "text-destructive")}>
+                        {proposal.proposed_outcome === 1 ? "YES" : "NO"}
+                      </span>
                     </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      {marketStatus === "Settled"
-                        ? "This market is resolved."
-                        : market?.resolution_time && nowTs < market.resolution_time
-                          ? `Proposals open ${formatDateFriendly(market.resolution_time)}.`
-                          : "Oracles can now propose the true outcome."
-                      }
-                    </p>
-                  )}
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Challenge Window</span>
+                      <span className="text-amber-500 font-medium">
+                        {proposal.is_disputed ? "Disputed" : (currentHeight && currentHeight >= proposal.challenge_deadline) ? "Ended" : "Active"}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {marketStatus === "Settled"
+                      ? "This market is resolved."
+                      : market?.resolution_time && nowTs < market.resolution_time
+                        ? `Proposals open ${formatDateFriendly(market.resolution_time)}.`
+                        : "Oracles can now propose the true outcome."
+                    }
+                  </p>
+                )}
 
+                {!address ? (
+                  <ConnectWalletButton className="w-full justify-center" />
+                ) : (
                   <Button
                     onClick={() => {
                       if (marketStatus !== "Settled") setShowResolutionModal(true);
@@ -561,45 +573,46 @@ export default function MarketDetailPage() {
                   >
                     {marketStatus === "Settled" ? "Resolved" : (proposal ? "Resolution Proposed" : "Propose Resolution")}
                   </Button>
+                )}
 
-                  {proposal && marketStatus !== "Settled" && (
-                    <Button
-                      variant="link"
-                      className="w-full text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => setShowResolutionModal(true)}
-                    >
-                      Manage / Dispute Resolution
-                    </Button>
-                  )}
+                {proposal && marketStatus !== "Settled" && (
+                  <Button
+                    variant="link"
+                    className="w-full text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowResolutionModal(true)}
+                  >
+                    Manage / Dispute Resolution
+                  </Button>
+                )}
 
-                  {isAdmin && (
-                    <Button
-                      onClick={() => {
-                        if (proposal) {
-                          setFinalizeStep("confirm");
-                          setShowFinalizeModal(true);
-                        }
-                      }}
-                      className="w-full btn-glow-success"
-                      disabled={!proposal || !isFinalizable || proposal.is_disputed || marketStatus === "Settled"}
-                    >
-                      Resolve Market
-                    </Button>
-                  )}
+                {isAdmin && (
+                  <Button
+                    onClick={() => {
+                      if (proposal) {
+                        setFinalizeStep("confirm");
+                        setShowFinalizeModal(true);
+                      }
+                    }}
+                    className="w-full btn-glow-success"
+                    disabled={!proposal || !isFinalizable || proposal.is_disputed || marketStatus === "Settled"}
+                  >
+                    Resolve Market
+                  </Button>
+                )}
 
-                  {isAdmin && proposal && !isFinalizable && !proposal.is_disputed && (
-                    <p className="text-[10px] text-center text-muted-foreground">
-                      Challenge window active until {formatDateFriendly(proposal.challenge_deadline)}.
-                    </p>
-                  )}
+                {isAdmin && proposal && !isFinalizable && !proposal.is_disputed && (
+                  <p className="text-[10px] text-center text-muted-foreground">
+                    Challenge window active until {formatDateFriendly(proposal.challenge_deadline)}.
+                  </p>
+                )}
 
-                  {isAdmin && !proposal && (
-                    <p className="text-[10px] text-center text-muted-foreground">
-                      A resolution proposal is required before finalization.
-                    </p>
-                  )}
-                </div>
+                {isAdmin && !proposal && (
+                  <p className="text-[10px] text-center text-muted-foreground">
+                    A resolution proposal is required before finalization.
+                  </p>
+                )}
               </div>
+            </div>
 
             {/* Privacy Info */}
             <div className="p-6 rounded-xl bg-muted/20 border border-border/50">

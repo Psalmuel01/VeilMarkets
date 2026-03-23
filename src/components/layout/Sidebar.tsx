@@ -112,20 +112,22 @@ export function Sidebar() {
                   {activeMarketsCount !== null ? activeMarketsCount : "..."}
                 </span>
               </div>
-              <div className="space-y-2 pt-2 border-t border-border/10">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Betting Balance</span>
-                  <span className="font-bold text-primary">
-                    {balances !== null ? `${balances.private.toLocaleString()} Credits` : "..."}
-                  </span>
-                </div>
-                {balances && balances.public > 0 && (
-                  <div className="flex justify-between text-[10px] text-muted-foreground/60">
-                    <span>Available to Shield</span>
-                    <span>{balances.public.toLocaleString()} Credits</span>
+              {publicKey && (
+                <div className="space-y-2 pt-2 border-t border-border/10">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Betting Balance</span>
+                    <span className="font-bold text-primary">
+                      {balances !== null ? `${balances.private.toLocaleString()} Credits` : "..."}
+                    </span>
                   </div>
-                )}
-              </div>
+                  {balances && balances.public > 0 && (
+                    <div className="flex justify-between text-[10px] text-muted-foreground/60">
+                      <span>Available to Shield</span>
+                      <span>{balances.public.toLocaleString()} Credits</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
