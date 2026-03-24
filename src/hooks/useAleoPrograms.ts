@@ -43,6 +43,7 @@ import {
   PROGRAM_ID,
   ORACLE_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
+  USDCX_TOKEN_PROGRAM_ID,
   FACTORY_PROGRAM_ID,
 } from "../lib/constants";
 
@@ -55,6 +56,7 @@ export interface ChainMarket {
   is_resolved: boolean;
   winning_outcome: number;
   resolved_by_oracle: boolean;
+  token_id: string;
   // Computed fields from metadata
   id: string;
   title?: string;
@@ -194,6 +196,7 @@ export const useAleoPrograms = () => {
   const { refreshSignal, triggerRefresh } = useRefresh();
   const publicKey = address;
   const [loading, setLoading] = useState(false);
+  const [usdcxBalance, setUsdcxBalance] = useState({ private: 0, public: 0, total: 0 });
 
   const logProgramRecordSummary = async (programId: string, label: string) => {
     try {
@@ -517,6 +520,22 @@ export const useAleoPrograms = () => {
     return balances.total;
   }, [fetchBalances]);
 
+  const fetchUSDCxBalance = useCallback(async (): Promise<number> => {
+    if (!address) return 0;
+    try {
+      // Mocking or fetching from the specific program if it supports mappings
+      // For now, let's try to fetch if it has a mapping similar to credits
+      const rawValue = await fetchMappingValue("test_usdcx_stablecoin.aleo", "account", address);
+      if (rawValue) {
+        const clean = String(rawValue).replace(/u64/g, "").trim();
+        return (Number.parseInt(clean, 10) || 0) / 1_000_000;
+      }
+    } catch (e) {
+       console.warn("[USDCx Balance] mapping fetch failed");
+    }
+    return 0;
+  }, [address]);
+
 
   const createMarket = async (
     title: string,
@@ -525,6 +544,7 @@ export const useAleoPrograms = () => {
     closeTime: number, // Unix timestamp in seconds
     resolutionTime: number, // Unix timestamp in seconds
     resolutionSource: string,
+    tokenId: string,
   ) => {
     if (!address) {
       toast.error("Please connect your wallet first");
@@ -539,8 +559,8 @@ export const useAleoPrograms = () => {
       const result = await executeAndPoll({
         program: PROGRAM_ID,
         function: "create_market",
-        inputs: [titleHash, formatU8(category), formatU64(closeTime), formatU64(resolutionTime)],
-        fee: 2_000_000,
+        inputs: [titleHash, formatU8(category), formatU64(closeTime), formatU64(resolutionTime), tokenId],
+        fee: 2_500_000,
         privateFee: false,
       }, PROGRAM_ID, "create_market");
 
@@ -580,50 +600,39 @@ export const useAleoPrograms = () => {
   };
 
   const requestCredits = async () => {
-    toast.info("Please use the Aleo Faucet to get native credits for betting.");
+    toast.info("Opening Aleo Faucet...");
     window.open("https://faucet.aleo.org/", "_blank");
   };
 
-  const findCreditsRecord = async (requiredAmountMicro: number): Promise<WalletRecord | null> => {
+  const requestUSDCx = async () => {
+    toast.info("USDCx can be obtained via the official USDCx bridge/faucet on testnet.");
+    // In a real app, link to the specific USDCx faucet/bridge if available
+  };
+
+  const findTokenRecord = async (tokenProgramId: string, requiredAmountMicro: number): Promise<WalletRecord | null> => {
     if (!address) return null;
 
     try {
-      // NOTE: Some wallets block "credits.aleo" requestRecords for security.
-      // If this fails, we ask the user to ensure they have enough unspent credits in a single record.
-      let rawRecords: any[] = [];
-      try {
-        rawRecords = await requestRecords("credits.aleo", true);
-      } catch (walletError: any) {
-        console.error("[findCreditsRecord] Wallet Error:", walletError);
-        if (walletError.message?.includes("Program not allowed")) {
-          toast.error("Wallet blocked access to Credits. Please ensure your wallet allows 'credits.aleo' access or try a different wallet.");
-        }
-        throw walletError;
-      }
-
+      const label = tokenProgramId === "credits.aleo" ? "Credits" : "USDCx";
+      const rawRecords = await requestRecordsWithRetry(requestRecords, tokenProgramId, label);
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
-      const unspent = records.filter((record) => !record.spent);
-
-      console.log(`[findCreditsRecord] Found ${unspent.length} unspent records from credits.aleo`);
-
-      // Log all unspent records for debugging
-      for (const record of unspent) {
-        const amount = extractRecordAmount(record);
-        console.log(`[findCreditsRecord] Record amount: ${amount}, required: ${requiredAmountMicro}`, record);
-      }
-
+      
+      const unspent = records.filter(r => !r.spent);
+      
       const matchingRecord = unspent.find((record) => extractRecordAmount(record) >= requiredAmountMicro);
 
       if (!matchingRecord) {
-        console.warn(`[findCreditsRecord] No record with >= ${requiredAmountMicro} microcredits found among ${unspent.length} unspent records`);
+        console.warn(`[findTokenRecord] No record with >= ${requiredAmountMicro} for ${tokenProgramId} found among ${unspent.length} unspent records`);
       }
 
       return matchingRecord ?? null;
     } catch (error) {
-      console.error("Error in findCreditsRecord:", error);
+      console.error(`[findTokenRecord] Error for ${tokenProgramId}:`, error);
       return null;
     }
   };
+
+  const findCreditsRecord = (amountMicro: number) => findTokenRecord("credits.aleo", amountMicro);
 
   const findClaimablePositionRecord = async (marketId: string): Promise<WalletRecord | null> => {
     if (!address) return null;
@@ -728,7 +737,7 @@ export const useAleoPrograms = () => {
     return 0;
   };
 
-  const placeBet = async (marketId: string, outcome: number, amountCredits: number) => {
+  const placeBet = async (marketId: string, outcome: number, amountCredits: number, tokenId: string) => {
     if (!address) {
       toast.error("Please connect your wallet first");
       return;
@@ -739,33 +748,29 @@ export const useAleoPrograms = () => {
     const amountMicro = toMicrocredits(amountCredits);
 
     try {
-      toast.info("Placing private bet...");
+      toast.info(`Placing bet using ${tokenId === TOKEN_PROGRAM_ID ? 'Credits' : 'USDCx'}...`);
 
-      const creditsRecord = await findCreditsRecord(amountMicro);
+      // Determine the base token program to fetch records from
+      const baseTokenProgram = tokenId === TOKEN_PROGRAM_ID ? "credits.aleo" : "test_usdcx_stablecoin.aleo";
+      const tokenRecord = await findTokenRecord(baseTokenProgram, amountMicro);
 
-      if (!creditsRecord) {
-        // Double check if they have public funds
-        const balance = await fetchTokenBalance();
-        if (balance >= amountCredits) {
-          toast.error("Your credits are PUBLIC. You must convert them to PRIVATE first to place a bet.");
-        } else {
-          toast.error("Insufficient balance. Total: " + balance + " Credits");
-        }
+      if (!tokenRecord) {
+        toast.error(`Insufficient private balance in ${tokenId === TOKEN_PROGRAM_ID ? 'Credits' : 'USDCx'}.`);
         return;
       }
 
       const betResult = await executeAndPoll({
-        program: TOKEN_PROGRAM_ID,
+        program: tokenId,
         function: "place_bet",
         inputs: [
-          creditsRecord.recordPlaintext || creditsRecord.plaintext,
+          tokenRecord.recordPlaintext || tokenRecord.plaintext,
           cleanMarketId,
           formatU8(outcome),
           formatU64(amountMicro),
         ],
         fee: 1_500_000,
         privateFee: false,
-      }, TOKEN_PROGRAM_ID, "place_bet");
+      }, tokenId, "place_bet");
 
       if (betResult) triggerRefresh();
       return betResult ? betResult.transactionId : null;
@@ -1054,9 +1059,11 @@ export const useAleoPrograms = () => {
     fetchMarkets,
     fetchUserBets,
     fetchTokenBalance,
+    fetchUSDCxBalance,
     fetchPoolStats,
     isOracleRegistered,
     requestCredits,
+    requestUSDCx,
     refreshSignal,
     publicKey,
     loading,

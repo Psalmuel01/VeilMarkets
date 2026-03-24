@@ -6,12 +6,12 @@
     {
       "name": "contracts",
       "key": {
+        "Primitive": "Address"
+      },
+      "value": {
         "Primitive": {
           "UInt": "U8"
         }
-      },
-      "value": {
-        "Primitive": "Address"
       }
     }
   ],

@@ -26,22 +26,25 @@ const navItems = [
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
-  const { requestCredits, fetchMarkets, fetchBalances, shieldCredits, publicKey, isOracleRegistered, registerAsOracle, refreshSignal } = useAleoPrograms();
+  const { requestCredits, requestUSDCx, fetchMarkets, fetchBalances, fetchUSDCxBalance, shieldCredits, publicKey, isOracleRegistered, registerAsOracle, refreshSignal } = useAleoPrograms();
   const [activeMarketsCount, setActiveMarketsCount] = useState<number | null>(null);
   const [balances, setBalances] = useState<{ private: number; public: number } | null>(null);
+  const [usdcxBalance, setUsdcxBalance] = useState<number | null>(null);
   const [isOracle, setIsOracle] = useState<boolean | null>(null);
   const [isOracleModalOpen, setIsOracleModalOpen] = useState(false);
 
   useEffect(() => {
     const loadStats = async () => {
       try {
-        const [markets, bal, oracleStatus] = await Promise.all([
+        const [markets, bal, usdcx, oracleStatus] = await Promise.all([
           fetchMarkets(),
           fetchBalances(),
+          fetchUSDCxBalance(),
           isOracleRegistered()
         ]);
         setActiveMarketsCount(markets.length);
         setBalances(bal);
+        setUsdcxBalance(usdcx);
         setIsOracle(oracleStatus);
         // console.log(oracleStatus);
       } catch (error) {
@@ -115,15 +118,21 @@ export function Sidebar() {
               {publicKey && (
                 <div className="space-y-2 pt-2 border-t border-border/10">
                   <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Betting Balance</span>
+                    <span className="text-muted-foreground">Credits Balance</span>
                     <span className="font-bold text-primary">
-                      {balances !== null ? `${balances.private.toLocaleString()} Credits` : "..."}
+                      {balances !== null ? `${balances.private.toLocaleString()}` : "..."}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">USDCx Balance</span>
+                    <span className="font-bold text-success">
+                      {usdcxBalance !== null ? `${usdcxBalance.toLocaleString()}` : "..."}
                     </span>
                   </div>
                   {balances && balances.public > 0 && (
-                    <div className="flex justify-between text-[10px] text-muted-foreground/60">
-                      <span>Available to Shield</span>
-                      <span>{balances.public.toLocaleString()} Credits</span>
+                    <div className="flex justify-between text-[10px] text-muted-foreground/60 pt-1 border-t border-border/5">
+                      <span>Credits to Shield</span>
+                      <span>{balances.public.toLocaleString()}</span>
                     </div>
                   )}
                 </div>

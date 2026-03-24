@@ -12,8 +12,8 @@ program veilmarkets_v5.aleo {
         resolution_time: u64,
         is_resolved: bool,
         winning_outcome: u8, // 0 = NO, 1 = YES, 2 = unresolved
-        resolved_by_oracle: bool,
-        // True if resolved via oracle
+        resolved_by_oracle: bool, // True if resolved via oracle
+        token_id: address, // The authorized token contract for this market
     }
 
     record BetPosition {
@@ -38,8 +38,12 @@ program veilmarkets_v5.aleo {
         total_yes: u64,
         participant_count: u64,
         locked: bool,
-        escrowed_amount: u64,
-        // Total in escrow (must match token contract)
+        escrowed_amount: u64, // Total in escrow (must match token contract)
+    }
+
+    struct PayoutClaim {
+        amount: u64,
+        token_id: address,
     }
 
     // Mappings
@@ -47,7 +51,7 @@ program veilmarkets_v5.aleo {
     mapping pools: field => PoolState;
     mapping spent_nullifiers: field => bool; // Anti-replay protection
     mapping position_to_escrow: field => field; // Maps position hash to escrow id
-    mapping pending_payouts: field => u64; // nullifier => payout_amount (for token contract)
+    mapping pending_payouts: field => PayoutClaim; // nullifier => PayoutClaim (for token contract)
 
     // Constants
     const TOKEN_CONTRACT_TYPE: u8 = 1u8;
@@ -63,18 +67,24 @@ program veilmarkets_v5.aleo {
         public category: u8,
         public close_time: u64,
         public resolution_time: u64,
-    ) -> (field, Future) {
-        let caller_hash: field = BHP256::hash_to_field(self.caller);
-        let market_id: field = BHP256::hash_to_field(caller_hash + title_hash);
-        let f: Future = finalize_create_market(
+        public token_id: address,
+    ) -> Future {
+        // Verify the token contract is officially registered via factory
+        let auth_future: Future = veilmarkets_factory_v5.aleo/verify_is_registered(
+            TOKEN_CONTRACT_TYPE,
+            token_id,
+        );
+        let market_id: field = BHP256::hash_to_field(title_hash + self.caller as field);
+        return finalize_create_market(
             market_id,
             self.caller,
             title_hash,
             category,
             close_time,
             resolution_time,
+            token_id,
+            auth_future,
         );
-        return (market_id, f);
     }
 
     async function finalize_create_market(
@@ -84,10 +94,14 @@ program veilmarkets_v5.aleo {
         category: u8,
         close_time: u64,
         resolution_time: u64,
+        token_id: address,
+        auth_future: Future,
     ) {
+        auth_future.await();
         let exists: bool = Mapping::contains(markets, market_id);
         assert(!exists);
         let market: MarketInfo = MarketInfo {
+            id: market_id,
             creator: creator,
             title_hash: title_hash,
             category: category,
@@ -96,6 +110,7 @@ program veilmarkets_v5.aleo {
             is_resolved: false,
             winning_outcome: 2u8,
             resolved_by_oracle: false,
+            token_id: token_id,
         };
         // Check timestamps in finalize
         assert(close_time > block.timestamp as u64);
@@ -120,11 +135,6 @@ program veilmarkets_v5.aleo {
         public escrow_id: field, // From token contract
         public bettor: address,
     ) -> Future {
-        // Must be called by the registered token contract via factory registry.
-        let auth_future: Future = veilmarkets_factory_v5.aleo/verify_is_registered(
-            TOKEN_CONTRACT_TYPE,
-            self.caller,
-        );
         assert(outcome == 0u8 || outcome == 1u8);
         assert(amount > 0u64);
         let bettor_hash: field = BHP256::hash_to_field(bettor);
@@ -135,7 +145,7 @@ program veilmarkets_v5.aleo {
             amount,
             escrow_id,
             position_hash,
-            auth_future,
+            self.caller,
         );
         return f;
     }
@@ -146,10 +156,12 @@ program veilmarkets_v5.aleo {
         amount: u64,
         escrow_id: field,
         position_hash: field,
-        auth_future: Future,
+        caller: address,
     ) {
-        auth_future.await();
         let market: MarketInfo = Mapping::get(markets, market_id);
+        // Only the matched token contract can place bets for this market
+        assert_eq(market.token_id, caller);
+        
         assert(block.timestamp as u64 < market.close_time);
         assert(!market.is_resolved);
         let pool: PoolState = Mapping::get(pools, market_id);
@@ -286,22 +298,29 @@ program veilmarkets_v5.aleo {
         // Pro-rata payout validation
         let payout: u64 = (bet_amount * total_pool) / winning_pool;
         assert(payout > 0u64);
-        Mapping::set(pending_payouts, nullifier, payout);
+        let claim: PayoutClaim = PayoutClaim {
+            amount: payout,
+            token_id: market.token_id,
+        };
+        Mapping::set(pending_payouts, nullifier, claim);
     }
 
     // For token contract to verify payout amount
     async transition verify_claim(public nullifier: field, public payout_amount: u64) -> Future {
-        let auth_future: Future = veilmarkets_factory_v5.aleo/verify_is_registered(
-            TOKEN_CONTRACT_TYPE,
-            self.caller,
-        );
-        return finalize_verify_claim(nullifier, payout_amount, auth_future);
+        return finalize_verify_claim(nullifier, payout_amount, self.caller);
     }
 
-    async function finalize_verify_claim(nullifier: field, payout_amount: u64, auth_future: Future) {
-        auth_future.await();
-        let stored: u64 = Mapping::get(pending_payouts, nullifier);
-        assert_eq(stored, payout_amount);
+    async function finalize_verify_claim(nullifier: field, payout_amount: u64, caller: address) {
+        let stored: PayoutClaim = Mapping::get(pending_payouts, nullifier);
+        assert_eq(stored.amount, payout_amount);
+        assert_eq(stored.token_id, caller);
+        
+        // Mark as effectively consumed
+        let empty_claim: PayoutClaim = PayoutClaim {
+            amount: 0u64,
+            token_id: caller,
+        };
+        Mapping::set(pending_payouts, nullifier, empty_claim);
     }
 
     // Emergency cancel market (only creator, before close)

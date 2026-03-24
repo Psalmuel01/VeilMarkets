@@ -19,14 +19,22 @@ import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 interface PlaceBetModalProps {
   open: boolean;
   onClose: () => void;
-  marketTitle: string;
   marketId: string;
+  marketTitle: string;
+  tokenId: string; // The specific token contract for this market
   onBetPlaced?: () => void;
 }
 
 type Step = "select" | "confirm" | "processing" | "success" | "failed";
 
-export function PlaceBetModal({ open, onClose, marketTitle, marketId, onBetPlaced }: PlaceBetModalProps) {
+export const PlaceBetModal = ({
+  open,
+  onClose,
+  marketId,
+  marketTitle,
+  tokenId,
+  onBetPlaced,
+}: PlaceBetModalProps) => {
   const { address } = useWallet();
   const [step, setStep] = useState<Step>("select");
   const [selectedOutcome, setSelectedOutcome] = useState<"Yes" | "No" | null>(null);
@@ -67,7 +75,8 @@ export function PlaceBetModal({ open, onClose, marketTitle, marketId, onBetPlace
     const result = await placeBet(
       marketId,
       selectedOutcome === "Yes" ? 1 : 0,
-      wagerAmount
+      wagerAmount,
+      tokenId
     );
 
     if (result) {

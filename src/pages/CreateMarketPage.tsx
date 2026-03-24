@@ -14,6 +14,7 @@ import {
 import { MainLayout } from "@/components/layout/MainLayout";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -27,6 +28,7 @@ import {
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { getTimestampFromDate } from "@/lib/aleo";
+import { TOKEN_PROGRAM_ID, USDCX_TOKEN_PROGRAM_ID } from "@/lib/constants";
 
 const categories = [
   { value: "crypto", label: "Crypto" },
@@ -49,6 +51,7 @@ export default function CreateMarketPage() {
     closingDate: "",
     closingTime: "23:59",
     resolutionSource: "",
+    tokenId: TOKEN_PROGRAM_ID,
   });
 
   const { createMarket } = useAleoPrograms();
@@ -89,7 +92,8 @@ export default function CreateMarketPage() {
       categoryMap[formData.category] ?? 0,
       closeTime,
       resolutionTime,
-      formData.resolutionSource
+      formData.resolutionSource,
+      formData.tokenId
     );
 
     if (result) {
@@ -220,17 +224,50 @@ export default function CreateMarketPage() {
                   As a market creator, your identity remains private. All betting activity
                   in your market will be encrypted using ZK proofs.
                 </p>
+              <div className="space-y-4 pt-4 border-t border-border/50">
+                <div className="flex items-center gap-2 mb-2">
+                  <Shield className="w-4 h-4 text-primary" />
+                  <Label>Betting Currency</Label>
+                </div>
+                <Select
+                  value={formData.tokenId}
+                  onValueChange={(value) => setFormData({ ...formData, tokenId: value })}
+                >
+                  <SelectTrigger className="bg-background/50 border-border/50">
+                    <SelectValue placeholder="Select Token" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border/50">
+                    <SelectItem value={TOKEN_PROGRAM_ID}>
+                      <div className="flex items-center gap-2">
+                        <span>Aleo Credits</span>
+                        <Badge variant="outline" className="text-[10px] h-4">Native</Badge>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value={USDCX_TOKEN_PROGRAM_ID}>
+                      <div className="flex items-center gap-2">
+                        <span>USDCx</span>
+                        <Badge variant="outline" className="text-[10px] h-4">Stablecoin</Badge>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  The currency users will use to place bets on this market.
+                </p>
+              </div>
               </div>
             </div>
 
-            <Button
-              type="submit"
-              disabled={!isFormValid}
-              className="w-full btn-glow-primary"
-            >
-              Continue to Review
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
+            <div className="pt-6">
+                <Button
+                  type="submit"
+                  className="w-full h-12 text-base font-semibold"
+                  disabled={!formData.title || !formData.category || !formData.closingDate || !formData.resolutionSource}
+                >
+                  Review Market
+                  <ArrowRight className="ml-2 w-4 h-4" />
+                </Button>
+              </div>
           </motion.form>
         )}
 

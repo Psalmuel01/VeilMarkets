@@ -61,6 +61,12 @@
           "ty": {
             "Primitive": "Boolean"
           }
+        },
+        {
+          "name": "token_id",
+          "ty": {
+            "Primitive": "Address"
+          }
         }
       ]
     },
@@ -105,6 +111,27 @@
             "Primitive": {
               "UInt": "U64"
             }
+          }
+        }
+      ]
+    },
+    {
+      "path": [
+        "PayoutClaim"
+      ],
+      "fields": [
+        {
+          "name": "amount",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "token_id",
+          "ty": {
+            "Primitive": "Address"
           }
         }
       ]
@@ -262,8 +289,11 @@
         "Primitive": "Field"
       },
       "value": {
-        "Primitive": {
-          "UInt": "U64"
+        "Struct": {
+          "path": [
+            "PayoutClaim"
+          ],
+          "program": "veilmarkets_v5"
         }
       }
     }
@@ -312,6 +342,15 @@
               "Primitive": {
                 "UInt": "U64"
               }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "token_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Address"
             }
           },
           "mode": "Public"

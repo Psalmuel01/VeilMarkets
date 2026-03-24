@@ -1,5 +1,6 @@
-import veilmarkets_factory_v5.aleo;
-program veilmarkets_v5.aleo;
+import veilmarkets_factory_v4.aleo;
+
+program veilmarkets_v4.aleo;
 
 record BetPosition:
     owner as address.private;
@@ -20,12 +21,11 @@ struct MarketInfo:
     creator as address;
     title_hash as field;
     category as u8;
-    close_time as u64;
-    resolution_time as u64;
+    close_block as u64;
+    resolution_block as u64;
     is_resolved as boolean;
     winning_outcome as u8;
     resolved_by_oracle as boolean;
-    token_id as address;
 
 struct PoolState:
     total_no as u64;
@@ -33,10 +33,6 @@ struct PoolState:
     participant_count as u64;
     locked as boolean;
     escrowed_amount as u64;
-
-struct PayoutClaim:
-    amount as u64;
-    token_id as address;
 
 mapping markets:
     key as field.public;
@@ -56,21 +52,19 @@ mapping position_to_escrow:
 
 mapping pending_payouts:
     key as field.public;
-    value as PayoutClaim.public;
+    value as u64.public;
 
 function create_market:
     input r0 as field.public;
     input r1 as u8.public;
     input r2 as u64.public;
     input r3 as u64.public;
-    input r4 as address.public;
-    call veilmarkets_factory_v5.aleo/verify_is_registered 1u8 r4 into r5;
-    hash.bhp256 self.caller into r6 as field;
-    add r6 r0 into r7;
-    hash.bhp256 r7 into r8 as field;
-    async create_market r8 self.caller r0 r1 r2 r3 r4 r5 into r9;
-    output r8 as field.private;
-    output r9 as veilmarkets_v5.aleo/create_market.future;
+    hash.bhp256 self.caller into r4 as field;
+    add r4 r0 into r5;
+    hash.bhp256 r5 into r6 as field;
+    async create_market r6 self.caller r0 r1 r2 r3 into r7;
+    output r6 as field.private;
+    output r7 as veilmarkets_v4.aleo/create_market.future;
 
 finalize create_market:
     input r0 as field.public;
@@ -79,21 +73,18 @@ finalize create_market:
     input r3 as u8.public;
     input r4 as u64.public;
     input r5 as u64.public;
-    input r6 as address.public;
-    input r7 as veilmarkets_factory_v5.aleo/verify_is_registered.future;
-    await r7;
-    contains markets[r0] into r8;
-    not r8 into r9;
-    assert.eq r9 true;
-    cast r1 r2 r3 r4 r5 false 2u8 false r6 into r10 as MarketInfo;
-    cast block.timestamp into r11 as u64;
-    gt r4 r11 into r12;
-    assert.eq r12 true;
-    gt r5 r4 into r13;
-    assert.eq r13 true;
-    cast 0u64 0u64 0u64 false 0u64 into r14 as PoolState;
-    set r10 into markets[r0];
-    set r14 into pools[r0];
+    contains markets[r0] into r6;
+    not r6 into r7;
+    assert.eq r7 true;
+    cast r1 r2 r3 r4 r5 false 2u8 false into r8 as MarketInfo;
+    cast block.height into r9 as u64;
+    gt r4 r9 into r10;
+    assert.eq r10 true;
+    gt r5 r4 into r11;
+    assert.eq r11 true;
+    cast 0u64 0u64 0u64 false 0u64 into r12 as PoolState;
+    set r8 into markets[r0];
+    set r12 into pools[r0];
 
 function place_bet:
     input r0 as field.public;
@@ -101,18 +92,19 @@ function place_bet:
     input r2 as u64.public;
     input r3 as field.public;
     input r4 as address.public;
-    is.eq r1 0u8 into r5;
-    is.eq r1 1u8 into r6;
-    or r5 r6 into r7;
-    assert.eq r7 true;
-    gt r2 0u64 into r8;
+    call veilmarkets_factory_v4.aleo/verify_is_registered 1u8 self.caller into r5;
+    is.eq r1 0u8 into r6;
+    is.eq r1 1u8 into r7;
+    or r6 r7 into r8;
     assert.eq r8 true;
-    hash.bhp256 r4 into r9 as field;
-    add r9 r0 into r10;
-    add r10 r3 into r11;
-    hash.bhp256 r11 into r12 as field;
-    async place_bet r0 r1 r2 r3 r12 self.caller into r13;
-    output r13 as veilmarkets_v5.aleo/place_bet.future;
+    gt r2 0u64 into r9;
+    assert.eq r9 true;
+    hash.bhp256 r4 into r10 as field;
+    add r10 r0 into r11;
+    add r11 r3 into r12;
+    hash.bhp256 r12 into r13 as field;
+    async place_bet r0 r1 r2 r3 r13 r5 into r14;
+    output r14 as veilmarkets_v4.aleo/place_bet.future;
 
 finalize place_bet:
     input r0 as field.public;
@@ -120,11 +112,11 @@ finalize place_bet:
     input r2 as u64.public;
     input r3 as field.public;
     input r4 as field.public;
-    input r5 as address.public;
+    input r5 as veilmarkets_factory_v4.aleo/verify_is_registered.future;
+    await r5;
     get markets[r0] into r6;
-    assert.eq r6.token_id r5;
-    cast block.timestamp into r7 as u64;
-    lt r7 r6.close_time into r8;
+    cast block.height into r7 as u64;
+    lt r7 r6.close_block into r8;
     assert.eq r8 true;
     not r6.is_resolved into r9;
     assert.eq r9 true;
@@ -159,26 +151,26 @@ function resolve_market:
     input r0 as field.public;
     input r1 as u8.public;
     input r2 as address.public;
-    call veilmarkets_factory_v5.aleo/verify_is_registered 2u8 self.caller into r3;
+    call veilmarkets_factory_v4.aleo/verify_is_registered 2u8 self.caller into r3;
     is.eq r1 0u8 into r4;
     is.eq r1 1u8 into r5;
     or r4 r5 into r6;
     assert.eq r6 true;
     async resolve_market r0 r1 r3 into r7;
-    output r7 as veilmarkets_v5.aleo/resolve_market.future;
+    output r7 as veilmarkets_v4.aleo/resolve_market.future;
 
 finalize resolve_market:
     input r0 as field.public;
     input r1 as u8.public;
-    input r2 as veilmarkets_factory_v5.aleo/verify_is_registered.future;
+    input r2 as veilmarkets_factory_v4.aleo/verify_is_registered.future;
     await r2;
     get markets[r0] into r3;
-    cast block.timestamp into r4 as u64;
-    gte r4 r3.resolution_time into r5;
+    cast block.height into r4 as u64;
+    gte r4 r3.resolution_block into r5;
     assert.eq r5 true;
     not r3.is_resolved into r6;
     assert.eq r6 true;
-    cast r3.creator r3.title_hash r3.category r3.close_time r3.resolution_time true r1 true r3.token_id into r7 as MarketInfo;
+    cast r3.creator r3.title_hash r3.category r3.close_block r3.resolution_block true r1 true into r7 as MarketInfo;
     set r7 into markets[r0];
     get pools[r0] into r8;
     cast r8.total_no r8.total_yes r8.participant_count true r8.escrowed_amount into r9 as PoolState;
@@ -201,7 +193,7 @@ function claim_winnings:
     hash.bhp256 r11 into r13 as group;
     cast r0.owner r0.market_id 0u64 r11 r13 into r14 as WinningsClaim.record;
     output r14 as WinningsClaim.record;
-    output r12 as veilmarkets_v5.aleo/claim_winnings.future;
+    output r12 as veilmarkets_v4.aleo/claim_winnings.future;
 
 finalize claim_winnings:
     input r0 as field.public;
@@ -227,41 +219,39 @@ finalize claim_winnings:
     div r14 r12 into r15;
     gt r15 0u64 into r16;
     assert.eq r16 true;
-    cast r15 r9.token_id into r17 as PayoutClaim;
-    set r17 into pending_payouts[r4];
+    set r15 into pending_payouts[r4];
 
 function verify_claim:
     input r0 as field.public;
     input r1 as u64.public;
-    async verify_claim r0 r1 self.caller into r2;
-    output r2 as veilmarkets_v5.aleo/verify_claim.future;
+    call veilmarkets_factory_v4.aleo/verify_is_registered 1u8 self.caller into r2;
+    async verify_claim r0 r1 r2 into r3;
+    output r3 as veilmarkets_v4.aleo/verify_claim.future;
 
 finalize verify_claim:
     input r0 as field.public;
     input r1 as u64.public;
-    input r2 as address.public;
+    input r2 as veilmarkets_factory_v4.aleo/verify_is_registered.future;
+    await r2;
     get pending_payouts[r0] into r3;
-    assert.eq r3.amount r1;
-    assert.eq r3.token_id r2;
-    cast 0u64 r2 into r4 as PayoutClaim;
-    set r4 into pending_payouts[r0];
+    assert.eq r3 r1;
 
 function cancel_market:
     input r0 as field.public;
     async cancel_market r0 self.caller into r1;
-    output r1 as veilmarkets_v5.aleo/cancel_market.future;
+    output r1 as veilmarkets_v4.aleo/cancel_market.future;
 
 finalize cancel_market:
     input r0 as field.public;
     input r1 as address.public;
     get markets[r0] into r2;
     assert.eq r1 r2.creator;
-    cast block.timestamp into r3 as u64;
-    lt r3 r2.close_time into r4;
+    cast block.height into r3 as u64;
+    lt r3 r2.close_block into r4;
     assert.eq r4 true;
     not r2.is_resolved into r5;
     assert.eq r5 true;
-    cast r2.creator r2.title_hash r2.category r2.close_time r2.resolution_time true 3u8 r2.resolved_by_oracle r2.token_id into r6 as MarketInfo;
+    cast r2.creator r2.title_hash r2.category r2.close_block r2.resolution_block true 3u8 r2.resolved_by_oracle into r6 as MarketInfo;
     set r6 into markets[r0];
     get pools[r0] into r7;
     cast r7.total_no r7.total_yes r7.participant_count true r7.escrowed_amount into r8 as PoolState;

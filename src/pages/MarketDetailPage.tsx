@@ -79,6 +79,7 @@ export default function MarketDetailPage() {
     resolution_time: number;
     is_resolved: boolean;
     winningOutcome?: number;
+    token_id: string;
   } | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [loadingMarket, setLoadingMarket] = useState(true);
@@ -161,6 +162,7 @@ export default function MarketDetailPage() {
           resolution_time: found.resolution_time || found.close_time + 3600, // Fallback if 0
           is_resolved: found.is_resolved,
           winningOutcome: found.winning_outcome,
+          token_id: found.token_id,
         });
         setNotFound(false);
       } else {
@@ -645,6 +647,7 @@ export default function MarketDetailPage() {
         onBetPlaced={() => setHasUserBet(true)}
         marketTitle={market.title}
         marketId={market.id}
+        tokenId={market.token_id}
       />
 
       <ResolutionModal
