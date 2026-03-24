@@ -1,4 +1,4 @@
-import { Clock, Users, Timer, ChevronRight, History } from "lucide-react";
+import { Clock, Users, Timer, ChevronRight, History, CheckCircle2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { ZKBadge } from "@/components/ui/ZKBadge";
@@ -40,7 +40,12 @@ export function MarketCard({ market }: MarketCardProps) {
         "flex flex-col h-full min-h-[280px]"
       )}>
         {/* Hover Gradient Effect */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        <div className={cn(
+          "absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500",
+          market.status === "Settled" && market.outcome === "No" 
+            ? "bg-gradient-to-br from-destructive/10 via-transparent to-destructive/5" 
+            : "bg-gradient-to-br from-primary/5 via-transparent to-accent/5"
+        )} />
         
         {/* Top Header */}
         <div className="flex items-center justify-between mb-6 relative z-10">
@@ -59,7 +64,10 @@ export function MarketCard({ market }: MarketCardProps) {
           </div>
           
           {market.status === "Settled" ? (
-            <ZKBadge variant="verified" size="sm" />
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-success/10 border border-success/20">
+              <CheckCircle2 className="w-3 h-3 text-success" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-success">Settled</span>
+            </div>
           ) : (
             <div className="flex items-center gap-1.5">
               <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
@@ -105,9 +113,18 @@ export function MarketCard({ market }: MarketCardProps) {
         {/* Settled Outcome Banner */}
         {market.status === "Settled" && market.outcome && (
           <div className="absolute top-0 right-0 left-0 bottom-0 bg-black/60 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center p-6 text-center">
-            <div className="bg-success/20 border border-success/30 px-6 py-3 rounded-2xl">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-success/80 mb-1">Final Result</div>
-              <div className="text-2xl font-bold text-success">{market.outcome}</div>
+            <div className={cn(
+              "px-6 py-3 rounded-2xl border",
+              market.outcome === "Yes" ? "bg-success/20 border-success/30" : "bg-destructive/20 border-destructive/30"
+            )}>
+              <div className={cn(
+                "text-[10px] font-semibold uppercase tracking-[0.2em] mb-1",
+                market.outcome === "Yes" ? "text-success/80" : "text-destructive/80"
+              )}>Final Result</div>
+              <div className={cn(
+                "text-2xl font-bold font-heading",
+                market.outcome === "Yes" ? "text-success" : "text-destructive"
+              )}>{market.outcome.toUpperCase()}</div>
             </div>
           </div>
         )}

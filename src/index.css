@@ -34,10 +34,10 @@
 
     /* Muted Text & Surfaces */
     --muted: 222 47% 12%;
-    --muted-foreground: 215 20% 65%;
+    --muted-foreground: 215 25% 75%;
 
     /* Borders & Interaction */
-    --border: 217 33% 17%;
+    --border: 217 33% 22%;
     --input: 217 33% 17%;
     --ring: 168 100% 45% / 0.4;
     --radius: 1rem;

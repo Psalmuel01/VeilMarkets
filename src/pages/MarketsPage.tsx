@@ -111,10 +111,10 @@ export default function MarketsPage() {
                 <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                 <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary/80">Live Prediction Ecosystem</span>
               </div>
-              <h1 className="text-5xl font-semibold tracking-tight text-white mb-4">
+              <h1 className="text-4xl font-semibold tracking-tight text-white mb-2">
                 Explore <span className="text-gradient">Markets</span>
               </h1>
-              <p className="text-lg text-muted-foreground max-w-2xl leading-relaxed">
+              <p className="text-md text-muted-foreground max-w-2xl leading-relaxed">
                 Discover and participate in decentralized, privacy-preserving prediction markets powered by zero-knowledge proofs on Aleo.
               </p>
             </div>

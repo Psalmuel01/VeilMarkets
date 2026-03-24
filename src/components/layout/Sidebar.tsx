@@ -68,8 +68,8 @@ export function Sidebar() {
       {/* Logo */}
       <div className="h-20 flex items-center px-6 border-b border-white/5 bg-white/[0.02]">
         <NavLink to="/" className="flex items-center gap-4 group">
-          <div className="w-10 h-10 rounded-xl btn-premium flex items-center justify-center rotate-3 group-hover:rotate-0 transition-transform">
-            <Shield className="w-6 h-6 text-white" />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#00e4b4] to-[#6c8eff] flex items-center justify-center rotate-3 group-hover:rotate-0 transition-transform">
+            <Shield className="w-6 h-6 text-[#080b10]" />
           </div>
           {!collapsed && (
             <span className="font-semibold text-xl tracking-tight font-heading text-white bg-clip-text text-transparent bg-gradient-to-br from-white to-white/60">

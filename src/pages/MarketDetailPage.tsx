@@ -326,7 +326,7 @@ export default function MarketDetailPage() {
                 <ZKBadge variant="proof" size="sm" />
               </div>
 
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-[1.1] tracking-tight">
+              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white leading-[1.1] tracking-tight">
                 {market.title}
               </h1>
 

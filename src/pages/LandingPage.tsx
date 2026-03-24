@@ -229,14 +229,29 @@ export default function LandingPage() {
     <>
       <style>{`
         /* ── Base reset for landing ── */
-        .vm-root { background: var(--background); color: var(--foreground); font-family: var(--font-body); min-height: 100vh; overflow-x: hidden; }
+        .vm-root { 
+          background: var(--background); color: var(--foreground); font-family: var(--font-body); min-height: 100vh; overflow-x: hidden;
+          --vm-text: #ffffff;
+          --vm-text-muted: #cbd5e1;
+          --vm-text-dim: #94a3b8;
+          --vm-bg: #030711;
+          --vm-surface: #0a0f1d;
+          --vm-surface2: #1e293b;
+          --vm-border: rgba(255,255,255,0.12);
+          --vm-border-accent: rgba(0,228,180,0.25);
+          --vm-accent: #00e4b4;
+          --vm-accent2: #6c8eff;
+          --vm-accent-bg: rgba(0,228,180,0.06);
+          --vm-green: #10b981;
+          --vm-amber: #f59e0b;
+        }
 
         /* ── Grid background ── */
         .vm-grid-bg {
           position: fixed; inset: 0; pointer-events: none; z-index: 0;
           background-image:
-            linear-gradient(rgba(0,228,180,0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(0,228,180,0.03) 1px, transparent 1px);
+            linear-gradient(rgba(0,228,180,0.05) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0,228,180,0.05) 1px, transparent 1px);
           background-size: 48px 48px;
         }
         .vm-grid-fade-top {
@@ -269,11 +284,10 @@ export default function LandingPage() {
         .vm-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
         .vm-logo-icon {
           width: 32px; height: 32px; border-radius: 8px;
-          background: linear-gradient(135deg, var(--vm-accent), var(--vm-accent2));
+          background: linear-gradient(135deg, #00e4b4, #6c8eff);
           display: flex; align-items: center; justify-content: center;
         }
         .vm-logo-text {
-          font-family: var(--font-display);
           font-size: 14px; font-weight: 600;
           color: var(--foreground); letter-spacing: 0.05em;
         }
@@ -335,14 +349,13 @@ export default function LandingPage() {
         @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
 
         .vm-h1 {
-          font-family: var(--font-display);
           font-size: clamp(36px, 6vw, 72px);
           font-weight: 600; line-height: 1.08;
           letter-spacing: -0.02em;
           color: var(--foreground); margin-bottom: 10px;
         }
         .vm-h1-accent {
-          background: linear-gradient(90deg, var(--vm-accent), var(--vm-accent2));
+          background: linear-gradient(90deg, #00e4b4, #6c8eff);
           -webkit-background-clip: text; -webkit-text-fill-color: transparent;
           background-clip: text;
         }
@@ -404,7 +417,7 @@ export default function LandingPage() {
           margin-bottom: 12px; display: block;
         }
         .vm-h2 {
-          font-family: var(--font-display); font-size: clamp(26px, 4vw, 42px);
+           font-size: clamp(26px, 4vw, 42px);
           font-weight: 600; color: var(--foreground); line-height: 1.15;
           letter-spacing: -0.02em; margin-bottom: 16px;
         }
@@ -435,7 +448,7 @@ export default function LandingPage() {
           background: var(--vm-surface); border: 1px solid var(--vm-border);
           transition: border-color 0.25s;
         }
-        .vm-privacy-card:hover { border-color: rgba(0,228,180,0.2); }
+        .vm-privacy-card:hover { border-color: rgba(0,228,180,0.4); box-shadow: 0 0 20px rgba(0,228,180,0.05); }
         .vm-privacy-card-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
         .vm-privacy-card h3 { font-family: var(--vm-font-display); font-size: 16px; font-weight: 600; color: var(--vm-text); margin-bottom: 10px; }
         .vm-privacy-card p { font-size: 14px; color: var(--vm-text-muted); line-height: 1.65; }
@@ -451,7 +464,7 @@ export default function LandingPage() {
         .vm-cta-glow {
           position: absolute; top: -60px; left: 50%; transform: translateX(-50%);
           width: 400px; height: 200px; border-radius: 50%;
-          background: radial-gradient(circle, rgba(0,228,180,0.1) 0%, transparent 70%);
+          background: radial-gradient(circle, rgba(0,228,180,0.15) 0%, transparent 70%);
           pointer-events: none;
         }
         .vm-cta-section h2 { font-family: var(--vm-font-display); font-size: clamp(24px, 4vw, 40px); font-weight: 700; color: var(--vm-text); margin-bottom: 16px; }
@@ -591,7 +604,7 @@ export default function LandingPage() {
               <span className="vm-section-label">Zero-knowledge privacy</span>
               <h2 className="vm-h2">Your bet is yours alone</h2>
               <p className="vm-section-sub" style={{ marginBottom: 32 }}>
-                VeilMarkets uses Aleo's ZK proof system so your on-chain footprint reveals nothing — 
+                VeilMarkets uses Aleo's ZK proof system so your on-chain footprint reveals nothing —
                 not your identity, not your amount, not your predicted outcome.
               </p>
               <ZKVisual />
@@ -627,7 +640,7 @@ export default function LandingPage() {
             viewport={{ once: true }}
           >
             <div className="vm-cta-glow" />
-            <ZKBadge variant="verified" size="lg" style={{ marginBottom: 24 }} />
+            <ZKBadge variant="verified" size="lg" className="mb-4" />
             <h2>Ready to bet privately?</h2>
             <p>
               Join thousands of participants on VeilMarkets — the only prediction market
