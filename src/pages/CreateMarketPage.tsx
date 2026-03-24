@@ -109,244 +109,260 @@ export default function CreateMarketPage() {
   return (
     <MainLayout requireWallet={true}>
       <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Create Market</h1>
-          <p className="text-muted-foreground">
-            Launch a new private prediction market on Aleo
+        {/* Header Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-12 text-center"
+        >
+          <Badge variant="outline" className="mb-4 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] border-primary/20 text-primary bg-primary/5">
+            Market Creation Portal
+          </Badge>
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-tight tracking-tight mb-4">
+            Launch Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">Prediction</span>
+          </h1>
+          <p className="text-muted-foreground text-lg max-w-lg mx-auto leading-relaxed">
+            Deploy a private, ZK-powered prediction market on Aleo in seconds.
           </p>
-        </div>
+        </motion.div>
 
         {step === "form" && (
-          <motion.form
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            onSubmit={handleSubmit}
-            className="space-y-6"
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="glass-card p-8 md:p-12 rounded-[3rem] border border-white/5 relative overflow-hidden"
           >
-            {/* Title */}
-            <div className="space-y-2">
-              <Label htmlFor="title" className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-primary" />
-                Market Question
-              </Label>
-              <Input
-                id="title"
-                placeholder="Will Bitcoin reach $100,000 by end of 2024?"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="bg-muted/50 border-border/50 focus:border-primary/50"
-              />
-              <p className="text-xs text-muted-foreground">
-                Phrase as a yes/no question with a clear resolution criteria
-              </p>
-            </div>
+            {/* Background Decorative Element */}
+            <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/5 blur-[100px] rounded-full" />
 
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="description">Description & Resolution Criteria</Label>
-              <Textarea
-                id="description"
-                placeholder="This market resolves YES if Bitcoin's price exceeds $100,000 USD on any major exchange before December 31, 2024..."
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="bg-muted/50 border-border/50 focus:border-primary/50 min-h-[120px]"
-              />
-            </div>
-
-            {/* Category & Date Row */}
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <Tag className="w-4 h-4 text-primary" />
-                  Category
+            <form onSubmit={handleSubmit} className="space-y-8 relative z-10">
+              {/* Question Input */}
+              <div className="space-y-3">
+                <Label htmlFor="title" className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 flex items-center gap-2 ml-1">
+                  <FileText className="w-3.5 h-3.5 text-primary" />
+                  Primary Question
                 </Label>
-                <Select
-                  value={formData.category}
-                  onValueChange={(value) => setFormData({ ...formData, category: value })}
-                >
-                  <SelectTrigger className="bg-muted/50 border-border/50">
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat.value} value={cat.value}>
-                        {cat.label}
+                <Input
+                  id="title"
+                  placeholder="e.g. Will Aleo Mainnet launch successfully?"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className="h-14 bg-white/[0.03] border-white/10 rounded-2xl px-6 text-lg font-medium focus:border-primary/50 focus:ring-primary/20 transition-all placeholder:text-white/10"
+                />
+                <p className="text-[10px] text-muted-foreground/40 font-medium ml-1">
+                  Must be a verifiable Yes/No outcome.
+                </p>
+              </div>
+
+              {/* Description Textarea */}
+              <div className="space-y-3">
+                <Label htmlFor="description" className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 flex items-center gap-2 ml-1">
+                  Details & Resolution
+                </Label>
+                <Textarea
+                  id="description"
+                  placeholder="Provide explicit criteria for the outcome resolution..."
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="bg-white/[0.03] border-white/10 rounded-2xl p-6 min-h-[160px] text-base leading-relaxed focus:border-primary/50 transition-all placeholder:text-white/10"
+                />
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-8">
+                {/* Category Selection */}
+                <div className="space-y-3">
+                  <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 flex items-center gap-2 ml-1">
+                    <Tag className="w-3.5 h-3.5 text-primary" />
+                    Market Category
+                  </Label>
+                  <Select
+                    value={formData.category}
+                    onValueChange={(value) => setFormData({ ...formData, category: value })}
+                  >
+                    <SelectTrigger className="h-14 bg-white/[0.03] border-white/10 rounded-2xl px-6">
+                      <SelectValue placeholder="Select context" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-white/10 rounded-2xl">
+                      {categories.map((cat) => (
+                        <SelectItem key={cat.value} value={cat.value} className="h-12 rounded-xl focus:bg-white/10">
+                          {cat.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Closing Date */}
+                <div className="space-y-3">
+                  <Label htmlFor="closingDate" className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 flex items-center gap-2 ml-1">
+                    <Calendar className="w-3.5 h-3.5 text-primary" />
+                    Bidding Concludes
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="closingDate"
+                      type="date"
+                      value={formData.closingDate}
+                      onChange={(e) => setFormData({ ...formData, closingDate: e.target.value })}
+                      className="h-14 bg-white/[0.03] border-white/10 rounded-2xl px-4 focus:border-primary/50 transition-all"
+                    />
+                    <Input
+                      id="closingTime"
+                      type="time"
+                      step="1"
+                      value={formData.closingTime}
+                      onChange={(e) => setFormData({ ...formData, closingTime: e.target.value })}
+                      className="h-14 bg-white/[0.03] border-white/10 rounded-2xl px-4 w-[130px] focus:border-primary/50 transition-all"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Resolution Source & Currency */}
+              <div className="grid md:grid-cols-2 gap-8">
+                <div className="space-y-3">
+                  <Label htmlFor="resolutionSource" className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 ml-1">
+                    Authority Source
+                  </Label>
+                  <Input
+                    id="resolutionSource"
+                    placeholder="e.g. CoinMarketCap"
+                    value={formData.resolutionSource}
+                    onChange={(e) => setFormData({ ...formData, resolutionSource: e.target.value })}
+                    className="h-14 bg-white/[0.03] border-white/10 rounded-2xl px-6 focus:border-primary/50 transition-all"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 ml-1">
+                    Settlement Asset
+                  </Label>
+                  <Select
+                    value={formData.tokenId}
+                    onValueChange={(value) => setFormData({ ...formData, tokenId: value })}
+                  >
+                    <SelectTrigger className="h-14 bg-white/[0.03] border-white/10 rounded-2xl px-6">
+                      <SelectValue placeholder="Token" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-white/10 rounded-2xl">
+                      <SelectItem value={TOKEN_PROGRAM_ID} className="h-12 rounded-xl focus:bg-white/10">
+                        <div className="flex items-center gap-2">
+                          <span>Aleo Credits</span>
+                          <span className="text-[8px] px-1.5 py-0.5 rounded-full border border-primary/30 text-primary uppercase font-black">Native</span>
+                        </div>
                       </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="closingDate" className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-primary" />
-                  Closing Date & Time
-                </Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="closingDate"
-                    type="date"
-                    value={formData.closingDate}
-                    onChange={(e) => setFormData({ ...formData, closingDate: e.target.value })}
-                    className="flex-3 bg-muted/50 border-border/50 focus:border-primary/50"
-                  />
-                  <Input
-                    id="closingTime"
-                    type="time"
-                    step="1"
-                    value={formData.closingTime}
-                    onChange={(e) => setFormData({ ...formData, closingTime: e.target.value })}
-                    className="flex-2 bg-muted/50 border-border/50 focus:border-primary/50"
-                  />
+                      <SelectItem value={USDCX_TOKEN_PROGRAM_ID} className="h-12 rounded-xl focus:bg-white/10">
+                        <div className="flex items-center gap-2">
+                          <span>USDCx Stable</span>
+                          <span className="text-[8px] px-1.5 py-0.5 rounded-full border border-emerald-500/30 text-emerald-400 uppercase font-black">v4</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-            </div>
 
-            {/* Resolution Source */}
-            <div className="space-y-2">
-              <Label htmlFor="resolutionSource">Resolution Source (Optional)</Label>
-              <Input
-                id="resolutionSource"
-                placeholder="e.g., CoinGecko, ESPN, Official Government Website"
-                value={formData.resolutionSource}
-                onChange={(e) => setFormData({ ...formData, resolutionSource: e.target.value })}
-                className="bg-muted/50 border-border/50 focus:border-primary/50"
-              />
-            </div>
-
-            {/* Info Box */}
-            <div className="flex items-start gap-3 p-4 rounded-lg bg-primary/5 border border-primary/20">
-              <AlertCircle className="w-5 h-5 text-primary mt-0.5" />
-              <div className="text-sm">
-                <p className="font-medium text-foreground mb-1">Privacy Note</p>
-                <p className="text-muted-foreground">
-                  As a market creator, your identity remains private. All betting activity
-                  in your market will be encrypted using ZK proofs.
-                </p>
-              <div className="space-y-4 pt-4 border-t border-border/50">
-                <div className="flex items-center gap-2 mb-2">
-                  <Shield className="w-4 h-4 text-primary" />
-                  <Label>Betting Currency</Label>
-                </div>
-                <Select
-                  value={formData.tokenId}
-                  onValueChange={(value) => setFormData({ ...formData, tokenId: value })}
-                >
-                  <SelectTrigger className="bg-background/50 border-border/50">
-                    <SelectValue placeholder="Select Token" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-card border-border/50">
-                    <SelectItem value={TOKEN_PROGRAM_ID}>
-                      <div className="flex items-center gap-2">
-                        <span>Aleo Credits</span>
-                        <Badge variant="outline" className="text-[10px] h-4">Native</Badge>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value={USDCX_TOKEN_PROGRAM_ID}>
-                      <div className="flex items-center gap-2">
-                        <span>USDCx</span>
-                        <Badge variant="outline" className="text-[10px] h-4">Stablecoin</Badge>
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  The currency users will use to place bets on this market.
-                </p>
-              </div>
-              </div>
-            </div>
-
-            <div className="pt-6">
+              <div className="pt-8">
                 <Button
                   type="submit"
-                  className="w-full h-12 text-base font-semibold"
-                  disabled={!formData.title || !formData.category || !formData.closingDate || !formData.resolutionSource}
+                  disabled={!isFormValid}
+                  className="w-full h-16 rounded-[2rem] btn-premium text-lg font-black group"
                 >
-                  Review Market
-                  <ArrowRight className="ml-2 w-4 h-4" />
+                  <span className="tracking-widest uppercase">Validate Market Configuration</span>
+                  <ArrowRight className="ml-3 w-5 h-5 group-hover:translate-x-1.5 transition-transform" />
                 </Button>
               </div>
-          </motion.form>
+            </form>
+          </motion.div>
         )}
 
         {step === "review" && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-6"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="space-y-8"
           >
             {/* Preview Card */}
-            <div className="p-6 rounded-xl bg-card border border-border/50">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold">Market Preview</h2>
+            <div className="glass-card p-10 rounded-[3rem] border border-white/5 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-8 opacity-10">
+                <FileText className="w-24 h-24 text-primary" />
+              </div>
+
+              <div className="flex items-center justify-between mb-8 relative z-10">
+                <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60">Configuration Review</h2>
                 <ZKBadge variant="proof" size="sm" />
               </div>
 
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Question</p>
-                  <p className="font-medium">{formData.title}</p>
+              <div className="grid gap-8 relative z-10">
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Market Question</p>
+                  <p className="text-2xl font-black text-white leading-tight">{formData.title}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Description</p>
-                  <p className="text-sm text-muted-foreground">{formData.description}</p>
+
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Detailed Criteria</p>
+                  <p className="text-sm text-white/70 leading-relaxed bg-white/5 p-5 rounded-2xl border border-white/10">
+                    {formData.description}
+                  </p>
                 </div>
-                <div className="flex gap-8">
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Category</p>
-                    <p className="font-medium capitalize">{formData.category}</p>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Category</p>
+                    <p className="text-sm font-bold text-white capitalize">{formData.category}</p>
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Closes</p>
-                    <p className="font-medium">{formData.closingDate} at {formData.closingTime}</p>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Asset</p>
+                    <p className="text-sm font-bold text-primary font-mono">{formData.tokenId === TOKEN_PROGRAM_ID ? "ALEO" : "USDCx"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Deadline</p>
+                    <p className="text-sm font-bold text-white">{formData.closingDate}</p>
                   </div>
                 </div>
+
                 {formData.resolutionSource && (
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Resolution Source</p>
-                    <p className="font-medium">{formData.resolutionSource}</p>
+                  <div className="pt-6 border-t border-white/5">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-1">Source of Truth</p>
+                    <p className="text-sm font-bold text-white/80">{formData.resolutionSource}</p>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Privacy Confirmation */}
-            <div className="p-6 rounded-xl bg-muted/20 border border-border/50">
-              <div className="flex items-center gap-2 mb-4">
-                <Shield className="w-5 h-5 text-success" />
-                <h3 className="font-semibold">Privacy Guarantees</h3>
+            {/* Security Confirmation */}
+            <div className="glass-card p-8 rounded-[2.5rem] border border-white/5 bg-primary/5">
+              <div className="flex items-center gap-3 mb-6">
+                <Shield className="w-5 h-5 text-primary" />
+                <h3 className="text-xs font-black uppercase tracking-widest text-white/80">ZK Privacy Protocol</h3>
               </div>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-success" />
-                  Your identity as creator will be hidden
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-success" />
-                  All bets will be encrypted with ZK proofs
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-success" />
-                  Market resolution will be verifiable on-chain
-                </li>
-              </ul>
+              <div className="grid md:grid-cols-3 gap-6">
+                {[
+                  "Creator Anonymity",
+                  "Encrypted Wagers",
+                  "On-chain Proofs"
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-success" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">{item}</span>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-4">
               <Button
                 variant="outline"
                 onClick={() => setStep("form")}
-                className="flex-1"
+                className="flex-1 h-16 rounded-2xl border-white/10 text-white font-bold hover:bg-white/5"
               >
-                Back to Edit
+                BACK TO EDIT
               </Button>
               <Button
                 onClick={handleCreate}
-                className="flex-1 btn-glow-primary"
+                className="flex-[2] h-16 rounded-2xl btn-premium text-lg font-black"
               >
-                Create Market
+                CONFIRM & DEPLOY
               </Button>
             </div>
           </motion.div>
@@ -356,80 +372,87 @@ export default function CreateMarketPage() {
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="py-16 text-center space-y-6"
+            className="py-20 text-center space-y-8 glass-card rounded-[3rem] border border-white/5"
           >
-            <div className="relative mx-auto w-24 h-24">
+            <div className="relative mx-auto w-32 h-32">
               <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
-              <div className="relative w-24 h-24 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center">
-                <Loader2 className="w-10 h-10 text-primary animate-spin" />
+              <div className="relative w-32 h-32 rounded-full bg-primary/5 border border-primary/20 flex items-center justify-center backdrop-blur-xl">
+                <Loader2 className="w-12 h-12 text-primary animate-spin" />
               </div>
             </div>
-            <div>
-              <h3 className="text-xl font-semibold mb-2">Creating Market</h3>
-              <p className="text-muted-foreground">
-                Generating ZK proof and deploying to Aleo...
+            <div className="max-w-xs mx-auto space-y-3">
+              <h3 className="text-2xl font-black text-white tracking-tight">Deploying Market</h3>
+              <p className="text-muted-foreground text-sm font-medium leading-relaxed">
+                Generating unique ZK-SNARK proofs and broadcasting transaction to Aleo Network...
               </p>
             </div>
-            <div className="flex justify-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: "0ms" }} />
-              <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: "150ms" }} />
-              <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: "300ms" }} />
+            <div className="flex justify-center gap-3">
+              {[0, 150, 300].map((delay) => (
+                <motion.div
+                  key={delay}
+                  initial={{ opacity: 0.3 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ repeat: Infinity, duration: 0.6, delay: delay / 1000, repeatType: "reverse" }}
+                  className="w-2 h-2 rounded-full bg-primary shadow-[0_0_10px_theme(colors.primary.DEFAULT)]"
+                />
+              ))}
             </div>
           </motion.div>
         )}
 
         {step === "success" && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="py-12 text-center space-y-6"
+            className="py-16 text-center space-y-10 glass-card rounded-[3rem] border border-white/5 overflow-hidden relative"
           >
+            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-success/50 to-transparent" />
+
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
-              transition={{ type: "spring", delay: 0.2 }}
-              className="mx-auto w-24 h-24 rounded-full bg-success/10 border-2 border-success flex items-center justify-center"
+              transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.2 }}
+              className="mx-auto w-24 h-24 rounded-full bg-success/10 border border-success/30 flex items-center justify-center shadow-[0_0_40px_hsla(160,84%,45%,0.2)]"
             >
               <CheckCircle2 className="w-12 h-12 text-success" />
             </motion.div>
 
-            <div>
-              <h3 className="text-xl font-semibold mb-2">Market Created!</h3>
-              <p className="text-muted-foreground mb-4">
-                Your private prediction market is now live on Aleo
+            <div className="space-y-3">
+              <h3 className="text-3xl font-black text-white tracking-tight">Deployment Successful</h3>
+              <p className="text-muted-foreground font-medium max-w-sm mx-auto">
+                Your prediction market is now active and accessible across the network.
               </p>
-              <ZKBadge variant="verified" size="lg" animated />
+              <div className="flex justify-center pt-2">
+                <ZKBadge variant="verified" size="lg" animated />
+              </div>
             </div>
 
-            <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
-              <div className="text-xs text-muted-foreground mb-">Transaction ID</div>
-              <code className="text-sm font-mono text-primary break-all">
-                {creationResult?.transactionId || "aleo1tx..."}
-              </code>
-              {/* <div className="text-xs text-muted-foreground mt-3 mb-1">Market ID</div>
-              <code className="text-xs font-mono text-muted-foreground break-all">
-                {creationResult?.marketId || "Generating..."}
-              </code> */}
+            <div className="max-w-md mx-auto p-6 rounded-[2rem] bg-white/[0.03] border border-white/5 space-y-3">
+              <div className="flex flex-col gap-1 items-center">
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40">Transaction Signature</span>
+                <code className="text-xs font-mono text-primary/80 break-all bg-primary/5 px-4 py-2 rounded-lg border border-primary/10">
+                  {creationResult?.transactionId || "aleo1tx..."}
+                </code>
+              </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-4 max-w-md mx-auto px-6">
               <Button
                 variant="outline"
                 onClick={() => navigate("/markets")}
-                className="flex-1"
+                className="flex-1 h-14 rounded-2xl border-white/10 text-white font-bold"
               >
-                View All Markets
+                MARKETS HUB
               </Button>
               <Button
                 onClick={() => {
                   if (creationResult?.marketId) {
-                    console.log("Navigating to market with ID:", creationResult.marketId);
                     navigate(`/market/${creationResult.marketId}`);
                   }
                 }}
-                className="flex-1 btn-glow-primary"
+                className="flex-[2] h-14 rounded-2xl btn-premium text-base font-black"
               >
-                View Your Market
+                GO TO MARKET
               </Button>
             </div>
           </motion.div>
@@ -437,39 +460,34 @@ export default function CreateMarketPage() {
 
         {step === "failed" && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="py-12 text-center space-y-6"
+            className="py-16 text-center space-y-8 glass-card rounded-[3rem] border border-white/5"
           >
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", delay: 0.2 }}
-              className="mx-auto w-24 h-24 rounded-full bg-destructive/10 border-2 border-destructive flex items-center justify-center"
-            >
-              <AlertCircle className="w-12 h-12 text-destructive" />
-            </motion.div>
+            <div className="mx-auto w-20 h-20 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center">
+              <AlertCircle className="w-10 h-10 text-destructive" />
+            </div>
 
-            <div>
-              <h3 className="text-xl font-semibold mb-2">Transaction Failed</h3>
-              <p className="text-muted-foreground mb-4">
-                Your market could not be created. Please try again or check your wallet connection.
+            <div className="space-y-3">
+              <h3 className="text-2xl font-black text-white tracking-tight">Deployment Error</h3>
+              <p className="text-muted-foreground font-medium max-w-xs mx-auto">
+                The network failed to process your request. Ensure your wallet has sufficient credits and try again.
               </p>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-4 max-w-sm mx-auto">
               <Button
                 variant="outline"
                 onClick={() => setStep("form")}
-                className="flex-1"
+                className="flex-1 h-14 rounded-2xl border-white/10 text-white font-bold"
               >
-                Back to Edit
+                EDIT CONFIG
               </Button>
               <Button
                 onClick={handleCreate}
-                className="flex-1 btn-glow-primary"
+                className="flex-1 h-14 rounded-2xl btn-premium bg-gradient-to-r from-destructive/80 to-destructive text-base font-black"
               >
-                Try Again
+                RETRY
               </Button>
             </div>
           </motion.div>

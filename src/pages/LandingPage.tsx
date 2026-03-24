@@ -103,7 +103,7 @@ export default function LandingPage() {
             <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
               <span className="text-foreground">Private Prediction Markets</span>
               <br />
-              <span className="text-gradient">Powered by Aleo</span>
+              <span className="text-gradient text-3xl">Powered by Aleo</span>
             </h1>
 
             {/* Subtext */}

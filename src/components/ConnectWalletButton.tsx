@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { Network } from "@provablehq/aleo-types";
 import { DecryptPermission } from "@provablehq/aleo-wallet-adaptor-core";
@@ -12,7 +13,7 @@ import {
 import { Wallet, LogOut, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 
-export function ConnectWalletButton({ className }: { className?: string }) {
+export function ConnectWalletButton({ className, collapsed }: { className?: string, collapsed?: boolean }) {
     const { wallets, wallet, address, connected, connecting, selectWallet, connect, disconnect } = useWallet();
     const [showModal, setShowModal] = useState(false);
     const [copied, setCopied] = useState(false);
@@ -51,19 +52,24 @@ export function ConnectWalletButton({ className }: { className?: string }) {
             <div className={`flex items-center gap-2 ${className}`}>
                 <button
                     onClick={handleCopy}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-sm text-primary font-mono hover:bg-primary/20 transition-colors"
+                    className={cn(
+                        "flex items-center gap-2 rounded-lg bg-primary/10 border border-primary/30 text-primary font-mono hover:bg-primary/20 transition-colors",
+                        collapsed ? "p-2 aspect-square" : "px-3 py-1.5 text-sm"
+                    )}
                 >
                     {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    {shortAddress}
+                    {!collapsed && shortAddress}
                 </button>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleDisconnect}
-                    className="text-muted-foreground hover:text-destructive"
-                >
-                    <LogOut className="w-4 h-4" />
-                </Button>
+                {!collapsed && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleDisconnect}
+                        className="text-muted-foreground hover:text-destructive"
+                    >
+                        <LogOut className="w-4 h-4" />
+                    </Button>
+                )}
             </div>
         );
     }
@@ -73,11 +79,12 @@ export function ConnectWalletButton({ className }: { className?: string }) {
             <Button
                 onClick={() => setShowModal(true)}
                 disabled={connecting}
-                className={`gap-2 ${className}`}
+                className={cn("gap-2", className)}
                 variant="outline"
+                size={collapsed ? "icon" : "default"}
             >
                 <Wallet className="w-4 h-4" />
-                {connecting ? "Connecting..." : "Connect Wallet"}
+                {!collapsed && (connecting ? "Connecting..." : "Connect Wallet")}
             </Button>
 
             <Dialog open={showModal} onOpenChange={setShowModal}>

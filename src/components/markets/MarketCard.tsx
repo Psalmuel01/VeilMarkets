@@ -20,86 +20,98 @@ interface MarketCardProps {
   market: Market;
 }
 
-const categoryColors = {
-  Sports: "bg-blue-500/10 text-blue-400 border-blue-500/30",
-  Finance: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
-  Crypto: "bg-orange-500/10 text-orange-400 border-orange-500/30",
-  Politics: "bg-purple-500/10 text-purple-400 border-purple-500/30",
-  Entertainment: "bg-pink-500/10 text-pink-400 border-pink-500/30",
-  Tech: "bg-green-500/10 text-green-400 border-green-500/30"
-};
-
-const statusColors = {
-  Open: "bg-success/10 text-success border-success/30",
-  Closed: "bg-warning/10 text-warning border-warning/30",
-  Settled: "bg-primary/10 text-primary border-primary/30",
+const categoryStyles: Record<string, string> = {
+  Sports: "text-blue-400 bg-blue-400/10 border-blue-400/20",
+  Finance: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
+  Crypto: "text-orange-400 bg-orange-400/10 border-orange-400/20",
+  Politics: "text-purple-400 bg-purple-400/10 border-purple-400/20",
+  Entertainment: "text-pink-400 bg-pink-400/10 border-pink-400/20",
+  Tech: "text-cyan-400 bg-cyan-400/10 border-cyan-400/20"
 };
 
 export function MarketCard({ market }: MarketCardProps) {
   return (
     <Link
       to={`/market/${market.id}`}
-      className={cn(
-        "block p-5 rounded-xl",
-        "bg-card border border-border/50",
-        "hover:border-primary/30 hover:bg-card/80",
-        "transition-all duration-300",
-        "group"
-      )}
+      className="block group"
     >
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex gap-2">
-          <Badge
-            variant="outline"
-            className={cn("text-[10px] uppercase tracking-wider", categoryColors[market.category])}
-          >
-            {market.category}
-          </Badge>
-          <Badge
-            variant="outline"
-            className={cn("text-[10px] uppercase tracking-wider", statusColors[market.status])}
-          >
-            {market.status}
-          </Badge>
+      <div className={cn(
+        "glass-card p-6 rounded-[2rem] overflow-hidden relative",
+        "flex flex-col h-full min-h-[280px]"
+      )}>
+        {/* Hover Gradient Effect */}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        
+        {/* Top Header */}
+        <div className="flex items-center justify-between mb-6 relative z-10">
+          <div className="flex gap-2">
+            <span className={cn(
+              "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border",
+              categoryStyles[market.category] || categoryStyles.Tech
+            )}>
+              {market.category}
+            </span>
+            {market.status === "Open" && (
+              <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-white/5 bg-white/5 text-white/60">
+                Live
+              </span>
+            )}
+          </div>
+          
+          {market.status === "Settled" ? (
+            <ZKBadge variant="verified" size="sm" />
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Active</span>
+            </div>
+          )}
         </div>
 
-        {market.status === "Settled" && <ZKBadge variant="verified" size="sm" />}
+        {/* Title & Description */}
+        <div className="flex-1 relative z-10">
+          <h3 className="text-xl font-bold text-white mb-3 group-hover:text-primary transition-colors duration-300 leading-tight">
+            {market.title}
+          </h3>
+          <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed mb-6 group-hover:text-muted-foreground/80 transition-colors">
+            {market.description}
+          </p>
+        </div>
+
+        {/* Footer Stats */}
+        <div className="pt-6 border-t border-white/5 flex items-center justify-between relative z-10">
+          <div className="flex items-center gap-5">
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60 mb-0.5">Participants</span>
+              <div className="flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-primary" />
+                <span className="text-sm font-bold font-mono text-white">{market.betsPlaced}</span>
+              </div>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60 mb-0.5">Ends In</span>
+              <div className="flex items-center gap-1.5">
+                <Timer className="w-3.5 h-3.5 text-accent" />
+                <span className="text-xs font-bold font-mono text-white/80">{market.closingTime}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-2 rounded-xl bg-primary/10 border border-primary/20 text-primary group-hover:bg-primary group-hover:text-white transition-all duration-300">
+            <ChevronRight className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* Settled Outcome Banner */}
+        {market.status === "Settled" && market.outcome && (
+          <div className="absolute top-0 right-0 left-0 bottom-0 bg-black/60 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center p-6 text-center">
+            <div className="bg-success/20 border border-success/30 px-6 py-3 rounded-2xl">
+              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-success/80 mb-1">Final Result</div>
+              <div className="text-2xl font-bold text-success">{market.outcome}</div>
+            </div>
+          </div>
+        )}
       </div>
-
-      <h3 className="text-lg font-semibold text-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors">
-        {market.title}
-      </h3>
-
-      <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-        {market.description}
-      </p>
-
-      <div className="flex items-center justify-between pt-4 border-t border-border/50">
-        <div className="flex items-center gap-4 text-[11px] text-muted-foreground/70">
-          <div className="flex items-center gap-1">
-            <Timer className="w-3 h-3 text-amber-500/" />
-            {market.closingTime}
-          </div>
-          <div className="flex items-center gap-1">
-            <Users className="w-3 h-3" />
-            <span>{market.betsPlaced} bets</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1 text-sm font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-          Enter Market
-          <ChevronRight className="w-4 h-4" />
-        </div>
-      </div>
-
-      {market.status === "Settled" && market.outcome && (
-        <div className="mt-4 p-3 rounded-lg bg-success/5 border border-success/20">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Resolved Outcome</span>
-            <span className="text-sm font-semibold text-success">{market.outcome}</span>
-          </div>
-        </div>
-      )}
     </Link>
   );
 }

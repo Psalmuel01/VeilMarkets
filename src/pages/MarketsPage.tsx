@@ -95,12 +95,37 @@ export default function MarketsPage() {
   return (
     <MainLayout>
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Prediction Markets</h1>
-          <p className="text-muted-foreground">
-            Browse and participate in private prediction markets
-          </p>
+        {/* Header Section */}
+        <div className="mb-12 relative">
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex flex-col md:flex-row md:items-end justify-between gap-6"
+          >
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary/80">Live Prediction Ecosystem</span>
+              </div>
+              <h1 className="text-5xl font-bold tracking-tight text-white mb-4">
+                Explore <span className="text-gradient">Markets</span>
+              </h1>
+              <p className="text-lg text-muted-foreground max-w-2xl leading-relaxed">
+                Discover and participate in decentralized, privacy-preserving prediction markets powered by zero-knowledge proofs on Aleo.
+              </p>
+            </div>
+            
+            <div className="flex items-center gap-3 bg-white/[0.03] border border-white/5 p-2 rounded-2xl backdrop-blur-sm">
+              <div className="px-4 py-2 text-center border-r border-white/5">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Active</div>
+                <div className="text-xl font-bold font-mono text-white">{markets.length}</div>
+              </div>
+              <div className="px-4 py-2 text-center">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Volume</div>
+                <div className="text-xl font-bold font-mono text-success">1.2M</div>
+              </div>
+            </div>
+          </motion.div>
         </div>
 
         {/* Filters */}

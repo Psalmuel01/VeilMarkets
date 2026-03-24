@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
+import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -11,7 +11,13 @@ import {
   Info,
   AlertCircle,
   CheckCircle2,
-  Loader2
+  Loader2,
+  TrendingUp,
+  ArrowRight,
+  ChevronRight,
+  Activity,
+  Zap,
+  Lock
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -33,19 +39,13 @@ import { ADMIN_ADDRESS } from "@/lib/constants";
 import { PoolInfo } from "@/lib/aleo";
 
 
-const categoryColors = {
-  Sports: "bg-blue-500/10 text-blue-400 border-blue-500/30",
-  Finance: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
-  Crypto: "bg-orange-500/10 text-orange-400 border-orange-500/30",
-  Politics: "bg-purple-500/10 text-purple-400 border-purple-500/30",
-  Entertainment: "bg-pink-500/10 text-pink-400 border-pink-500/30",
-  Tech: "bg-green-500/10 text-green-400 border-green-500/30",
-};
-
-const statusColors = {
-  Open: "bg-success/10 text-success border-success/30",
-  Closed: "bg-warning/10 text-warning border-warning/30",
-  Settled: "bg-primary/10 text-primary border-primary/30",
+const categoryStyles: Record<string, string> = {
+  Sports: "text-blue-400 bg-blue-400/10 border-blue-400/20",
+  Finance: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
+  Crypto: "text-orange-400 bg-orange-400/10 border-orange-400/20",
+  Politics: "text-purple-400 bg-purple-400/10 border-purple-400/20",
+  Entertainment: "text-pink-400 bg-pink-400/10 border-pink-400/20",
+  Tech: "text-cyan-400 bg-cyan-400/10 border-cyan-400/20"
 };
 
 export default function MarketDetailPage() {
@@ -68,8 +68,8 @@ export default function MarketDetailPage() {
     id: string;
     title: string;
     description: string;
-    category: keyof typeof categoryColors;
-    status: keyof typeof statusColors;
+    category: string;
+    status: string;
     closingTime: string;
     closingDate: string;
     betsPlaced: number;
@@ -85,8 +85,9 @@ export default function MarketDetailPage() {
   const [loadingMarket, setLoadingMarket] = useState(true);
   const [pool, setPool] = useState<PoolInfo | null>(null);
   const [isOracle, setIsOracle] = useState<boolean | null>(null);
+  const { publicKey } = useWallet();
+  const address = publicKey;
   const { fetchMarkets, fetchPoolStats, fetchResolutionProposal, fetchUserBets, resolveMarket, currentHeight, isOracleRegistered, refreshSignal } = useAleoPrograms();
-  const { address } = useWallet();
 
   const loadMarket = useCallback(async (opts?: { silent?: boolean }) => {
     if (!id) {
@@ -116,7 +117,7 @@ export default function MarketDetailPage() {
       );
 
       if (found) {
-        const categoryRevMap: Record<number, keyof typeof categoryColors> = {
+        const categoryRevMap: Record<number, string> = {
           0: "Crypto",
           1: "Finance",
           2: "Sports",
@@ -296,78 +297,112 @@ export default function MarketDetailPage() {
           Back to Markets
         </Link>
 
-        {/* Market Header */}
+        {/* Market Header Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
+          className="mb-10 relative"
         >
-          <div className="flex items-center gap-2 mb-4">
-            <Badge
-              variant="outline"
-              className={cn("text-xs uppercase tracking-wider", categoryColors[market.category as keyof typeof categoryColors])}
-            >
-              {market.category}
-            </Badge>
-            <div className="flex items-center gap-3">
-              <Badge
-                variant="outline"
-                className={cn(
-                  "px-3 py-1 text-xs font-bold tracking-wider uppercase border-none bg-opacity-20",
-                  marketStatus === "Open" ? "bg-success text-success-foreground" :
-                    marketStatus === "Closed" ? "bg-warning text-warning-foreground" :
-                      "bg-muted text-muted-foreground"
-                )}
-              >
-                {marketStatus}
-              </Badge>
-              <ZKBadge variant="proof" size="sm" />
-            </div>
-          </div>
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div className="flex-1 space-y-6">
+              <div className="flex flex-wrap items-center gap-3">
+                <Badge
+                  variant="outline"
+                  className={cn("px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] border", categoryStyles[market.category as string] || categoryStyles.Tech)}
+                >
+                  {market.category as string}
+                </Badge>
 
-          <h1 className="text-3xl md:text-4xl font-bold mb-4">{market.title}</h1>
+                <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10">
+                  <div className={cn(
+                    "w-2 h-2 rounded-full animate-pulse",
+                    marketStatus === "Open" ? "bg-success" : "bg-warning"
+                  )} />
+                  <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/80">
+                    {marketStatus}
+                  </span>
+                </div>
 
+                <ZKBadge variant="proof" size="sm" />
+              </div>
 
-          <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <Clock className="w-4 h-4" />
-              <span className={cn(secondsRemaining !== null && secondsRemaining < 3600 ? "text-warning" : "")}>
-                {timeRemainingStr}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Users className="w-4 h-4" />
-              <span>{market.betsPlaced} participants</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Calendar className="w-4 h-4" />
-              <span>Created: {market.createdAt}</span>
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-[1.1] tracking-tight">
+                {market.title}
+              </h1>
+
+              <div className="flex flex-wrap items-center gap-8 text-xs font-bold uppercase tracking-widest text-muted-foreground/60">
+                <div className="flex items-center gap-2.5">
+                  <Clock className="w-4 h-4 text-primary" />
+                  <span className={cn(secondsRemaining !== null && secondsRemaining < 3600 ? "text-warning animate-pulse" : "text-white/80")}>
+                    {timeRemainingStr}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <Users className="w-4 h-4 text-accent" />
+                  <span className="text-white/80 font-mono tracking-normal text-sm">{market.betsPlaced} <span className="text-[10px] font-bold uppercase text-muted-foreground/40 font-sans tracking-widest ml-1">Participants</span></span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <Zap className="w-4 h-4 text-success" />
+                  <span className="text-white/80">Verifiable ZK Proofs</span>
+                </div>
+              </div>
             </div>
           </div>
         </motion.div>
 
-        {/* Analytics Overview (New) */}
-        <div className="grid grid-cols-2 gap-4 mb-8">
-          <div className="p-4 rounded-xl bg-card border border-border/50">
-            <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wider">Yes Ratio</p>
-            <div className="flex items-end justify-between">
-              <span className="text-2xl font-bold text-success">{yesPercent}%</span>
-              <span className="text-xs text-muted-foreground mb-1">Implied Probability</span>
+        {/* Global Probability Bar (New) */}
+        <div className="mb-12">
+          <div className="flex justify-between items-end mb-4 px-2">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-success/60 mb-1">Yes Outcome</span>
+              <span className="text-3xl font-black text-success font-mono">{yesPercent}%</span>
             </div>
-            <div className="mt-2 h-1.5 w-full bg-muted rounded-full overflow-hidden">
-              <div className="h-full bg-success" style={{ width: `${yesPercent}%` }} />
-            </div>
-          </div>
-          <div className="p-4 rounded-xl bg-card border border-border/50">
-            <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wider">No Ratio</p>
-            <div className="flex items-end justify-between">
-              <span className="text-2xl font-bold text-destructive">{noPercent}%</span>
-              <span className="text-xs text-muted-foreground mb-1">Implied Probability</span>
-            </div>
-            <div className="mt-2 h-1.5 w-full bg-muted rounded-full overflow-hidden">
-              <div className="h-full bg-destructive" style={{ width: `${noPercent}%` }} />
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-destructive/60 mb-1">No Outcome</span>
+              <span className="text-3xl font-black text-destructive font-mono">{noPercent}%</span>
             </div>
           </div>
+          <div className="h-4 w-full bg-white/[0.03] rounded-full border border-white/5 p-1 flex overflow-hidden">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${yesPercent}%` }}
+              className="h-full bg-gradient-to-r from-success/40 to-success rounded-l-full shadow-[0_0_20px_hsla(160,84%,45%,0.3)] transition-all duration-1000"
+            />
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${noPercent}%` }}
+              className="h-full bg-gradient-to-l from-destructive/40 to-destructive rounded-r-full shadow-[0_0_20px_hsla(0,84%,60%,0.3)] transition-all duration-1000"
+            />
+          </div>
+        </div>
+
+        {/* Market Stats Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+          {[
+            { label: "Total Volume", value: `${totalVolume.toLocaleString()}`, unit: "ALEO", icon: Activity, color: "text-primary" },
+            { label: "Pool Size", value: "Locked", unit: "ZK-POOL", icon: Lock, color: "text-accent" },
+            { label: "Resolution", value: "Oracle", unit: "SOURCE", icon: Shield, color: "text-success" },
+            { label: "Closing", value: market.closingDate, unit: "EST", icon: Calendar, color: "text-muted-foreground" },
+          ].map((stat, i) => (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 * i }}
+              className="glass-card p-5 rounded-3xl border border-white/5 group hover:border-white/10 transition-colors"
+            >
+              <div className="flex items-center gap-2.5 mb-3">
+                <div className={cn("p-2 rounded-xl bg-white/[0.03] border border-white/5", stat.color)}>
+                  <stat.icon className="w-4 h-4" />
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">{stat.label}</span>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-xl font-bold text-white font-mono">{stat.value}</span>
+                <span className="text-[10px] font-bold text-muted-foreground/40">{stat.unit}</span>
+              </div>
+            </motion.div>
+          ))}
         </div>
 
         {/* Main Content Grid */}
@@ -380,52 +415,78 @@ export default function MarketDetailPage() {
             className="lg:col-span-2 space-y-6"
           >
             {marketStatus === "Settled" && resolvedOutcomeLabel && (
-              <div className="p-6 rounded-xl bg-card border border-border/50">
-                <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-success" />
+              <div className="glass-card p-8 rounded-[2.5rem] border border-white/5 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <CheckCircle2 className="w-16 h-16 text-success" />
+                </div>
+                <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground/60 mb-4 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-success" />
                   Resolved Outcome
                 </h2>
-                <div className={`text-3xl font-bold ${resolvedOutcomeLabel === "YES" ? "text-success" : resolvedOutcomeLabel === "NO" ? "text-destructive" : "text-muted-foreground"}`}>
+                <div className={cn(
+                  "text-5xl font-black font-mono tracking-tighter",
+                  resolvedOutcomeLabel === "YES" ? "text-success" : resolvedOutcomeLabel === "NO" ? "text-destructive" : "text-white/40"
+                )}>
                   {resolvedOutcomeLabel}
                 </div>
+
                 {userBetOutcome && (
-                  <div className="mt-4 pt-4 border-t border-border/50 text-sm flex justify-between">
-                    <span className="text-muted-foreground">Your Bet</span>
-                    <span className="font-medium">{userBetOutcome}</span>
-                  </div>
-                )}
-                {userBetResult && (
-                  <div className="mt-2 text-sm flex justify-between">
-                    <span className="text-muted-foreground">Your Result</span>
-                    <span className={`font-semibold ${userBetResult === "Won" ? "text-success" : userBetResult === "Lost" ? "text-destructive" : "text-muted-foreground"}`}>
-                      {userBetResult}
-                    </span>
+                  <div className="mt-8 pt-6 border-t border-white/5 flex flex-col gap-4">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground font-bold uppercase tracking-widest text-[10px]">Your Selection</span>
+                      <span className="text-white font-mono bg-white/5 px-3 py-1 rounded-lg border border-white/10">{userBetOutcome}</span>
+                    </div>
+                    {userBetResult && (
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground font-bold uppercase tracking-widest text-[10px]">Result</span>
+                        <div className={cn(
+                          "px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                          userBetResult === "Won" ? "bg-success/20 text-success border border-success/30" :
+                            userBetResult === "Lost" ? "bg-destructive/20 text-destructive border border-destructive/30" :
+                              "bg-white/10 text-white/40 border border-white/10"
+                        )}>
+                          {userBetResult}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             )}
 
-            {/* Description */}
-            <div className="p-6 rounded-xl bg-card border border-border/50">
-              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                <Info className="w-5 h-5 text-primary" />
-                Market Details
+            {/* Description Card */}
+            <div className="glass-card p-8 rounded-[2.5rem] border border-white/5">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60 mb-4 flex items-center gap-2">
+                <Info className="w-4 h-4 text-primary" />
+                Market Context
               </h2>
-              <p className="text-muted-foreground leading-relaxed">
+              <p className="text-white/80 leading-relaxed text-lg font-medium mb-6">
                 {market.description}
               </p>
-              <div className="mt-4 pt-4 border-t border-border/50">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Resolution Source</span>
-                  <span className="font-medium">{market.resolutionSource}</span>
+              <div className="pt-6 border-t border-white/5">
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-1">Data Source</span>
+                    <span className="text-sm font-bold text-white/90">{market.resolutionSource}</span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-1">Token ID</span>
+                    <span className="text-xs font-mono text-primary/80">{market.token_id.slice(0, 8)}...{market.token_id.slice(-4)}</span>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Outcome Selection */}
-            <div className="p-6 rounded-xl bg-card border border-border/50">
-              <h2 className="text-lg font-semibold mb-4">Outcomes</h2>
-              <div className="flex gap-4">
+            <div className="glass-card p-8 rounded-[2.5rem] border border-white/5 relative overflow-hidden">
+              {/* Decorative Gradient */}
+              <div className="absolute -top-12 -right-12 w-32 h-32 bg-primary/10 blur-3xl rounded-full" />
+
+              <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60 mb-6 flex items-center gap-2">
+                <Zap className="w-4 h-4 text-accent" />
+                Available Outcomes
+              </h2>
+              <div className="flex gap-6">
                 <OutcomeCard
                   outcome="Yes"
                   selected={false}
@@ -441,27 +502,28 @@ export default function MarketDetailPage() {
               </div>
 
               {marketStatus !== "Open" && (
-                <p className="text-sm text-muted-foreground mt-4 text-center">
-                  This market is no longer accepting bets
-                </p>
+                <div className="mt-8 p-4 rounded-2xl bg-white/5 border border-white/10 text-center">
+                  <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground/60">
+                    Bidding period has concluded
+                  </p>
+                </div>
               )}
             </div>
 
-            {/* Activity (Abstract) */}
-            <div className="p-6 rounded-xl bg-card border border-border/50">
-              <h2 className="text-lg font-semibold mb-4">Market Activity</h2>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center py-3 border-b border-border/50">
-                  <span className="text-muted-foreground">Total Bets</span>
-                  <span className="font-medium">{market.betsPlaced}</span>
+            {/* Activity Table */}
+            <div className="glass-card p-8 rounded-[2.5rem] border border-white/5">
+              <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60 mb-6 flex items-center gap-2">
+                <Activity className="w-4 h-4 text-success" />
+                Market Metrics
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="p-5 rounded-3xl bg-white/[0.02] border border-white/5 flex flex-col gap-1">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Total Cumulative Bets</span>
+                  <span className="text-2xl font-bold text-white font-mono">{market.betsPlaced}</span>
                 </div>
-                <div className="flex justify-between items-center py-3 border-b border-border/50">
-                  <span className="text-muted-foreground">Total Volume</span>
-                  <span className="font-mono text-primary">{totalVolume.toLocaleString()} ALEO</span>
-                </div>
-                <div className="flex justify-between items-center py-3">
-                  <span className="text-muted-foreground">Last Activity</span>
-                  <span className="text-sm">Recently</span>
+                <div className="p-5 rounded-3xl bg-white/[0.02] border border-white/5 flex flex-col gap-1">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Aggregated Volume</span>
+                  <span className="text-2xl font-bold text-primary font-mono">{totalVolume.toLocaleString()} ALEO</span>
                 </div>
               </div>
             </div>
@@ -474,90 +536,109 @@ export default function MarketDetailPage() {
             transition={{ delay: 0.2 }}
             className="space-y-6"
           >
-            {/* User's Bet Status */}
-            <div className="p-6 rounded-xl bg-card border border-border/50">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold">Your Position</h2>
+            {/* User Position Status */}
+            <div className="glass-card p-8 rounded-[2.5rem] border border-white/5 relative overflow-hidden group">
+              {/* Animated Background Pulse */}
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-3xl group-hover:bg-primary/10 transition-all duration-500 rounded-full" />
+
+              <div className="flex items-center justify-between mb-8 relative z-10">
+                <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60">Your Position</h2>
                 <ZKBadge variant="encrypted" size="sm" />
               </div>
 
               {hasUserBet ? (
-                <div className="space-y-3">
-                  <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="text-muted-foreground">Your Bet</span>
-                      <span className="font-mono encrypted-text">{userBetOutcome ?? "Hidden"}</span>
+                <div className="space-y-6 relative z-10">
+                  <div className="p-6 rounded-3xl bg-white/[0.03] border border-white/5 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 font-mono">Prediction</span>
+                      <span className="font-mono encrypted-text text-white">{userBetOutcome ?? "Hidden"}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Amount</span>
-                      <span className="font-mono encrypted-text">•••••• ALEO</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 font-mono">Wager Size</span>
+                      <span className="font-mono encrypted-text text-white">•••••• ALEO</span>
                     </div>
                   </div>
                   {marketStatus === "Settled" && userBetResult && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Result</span>
-                      <span className={`font-semibold ${userBetResult === "Won" ? "text-success" : userBetResult === "Lost" ? "text-destructive" : "text-muted-foreground"}`}>
+                    <div className="flex justify-between items-center p-4 rounded-2xl bg-white/5">
+                      <span className="text-xs font-bold text-muted-foreground/60">Final Outcome</span>
+                      <span className={cn(
+                        "text-sm font-black uppercase tracking-widest",
+                        userBetResult === "Won" ? "text-success" : userBetResult === "Lost" ? "text-destructive" : "text-white"
+                      )}>
                         {userBetResult}
                       </span>
                     </div>
                   )}
-                  <ZKBadge variant="proof" className="w-full justify-center py-2" />
+                  <ZKBadge variant="proof" className="w-full justify-center py-4 rounded-2xl bg-primary/10 text-primary border border-primary/20" />
                 </div>
               ) : !address ? (
-                <div className="text-center py-6 space-y-3">
-                  <Shield className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-sm text-muted-foreground">
-                    Connect your wallet to place a bet or view your position
+                <div className="text-center py-10 space-y-6 relative z-10">
+                  <div className="w-16 h-16 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto">
+                    <Shield className="w-8 h-8 text-muted-foreground/40" />
+                  </div>
+                  <p className="text-sm text-muted-foreground font-medium max-w-[180px] mx-auto">
+                    Link your wallet to access private position data
                   </p>
                   <ConnectWalletButton className="w-full justify-center" />
                 </div>
               ) : (
-                <div className="text-center py-6">
-                  <Shield className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-sm text-muted-foreground mb-4">
-                    You haven't placed a bet on this market yet
+                <div className="text-center py-10 space-y-6 relative z-10">
+                  <div className="w-16 h-16 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto">
+                    <Lock className="w-8 h-8 text-muted-foreground/40" />
+                  </div>
+                  <p className="text-sm text-muted-foreground font-medium mb-2">
+                    No active position detected
                   </p>
                   <Button
                     onClick={() => setShowBetModal(true)}
                     disabled={marketStatus !== "Open"}
-                    className="w-full btn-glow-primary"
+                    className="w-full btn-premium h-14 rounded-2xl group"
                   >
-                    Place Private Bet
+                    <span>Place Bet</span>
+                    <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
                   </Button>
                 </div>
               )}
             </div>
 
-            {/* Resolution Control (Propose/Dispute/Finalize) */}
-            <div className="p-6 rounded-xl bg-card border border-border/50">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold">Resolution</h2>
+            {/* Resolution Mechanics */}
+            <div className="glass-card p-8 rounded-[2.5rem] border border-white/5 relative overflow-hidden">
+              <div className="absolute -bottom-12 -left-12 w-32 h-32 bg-success/5 blur-3xl rounded-full" />
+
+              <div className="flex items-center justify-between mb-8 relative z-10">
+                <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60">Resolution</h2>
                 <ZKBadge variant="verified" size="sm" />
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-6 relative z-10">
                 {proposal ? (
-                  <div className="p-3 rounded-lg bg-muted/20 border border-border/50 text-sm">
-                    <div className="flex justify-between mb-2">
-                      <span className="text-muted-foreground">Resolution Already Proposed</span>
-                      <span className={cn("font-bold", proposal.proposed_outcome === 1 ? "text-success" : "text-destructive")}>
+                  <div className="p-5 rounded-3xl bg-white/[0.03] border border-white/5 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Proposed Outcome</span>
+                      <div className={cn(
+                        "px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border",
+                        proposal.proposed_outcome === 1 ? "bg-success/20 text-success border-success/30" : "bg-destructive/20 text-destructive border-destructive/30"
+                      )}>
                         {proposal.proposed_outcome === 1 ? "YES" : "NO"}
-                      </span>
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Challenge Window</span>
-                      <span className="text-amber-500 font-medium">
-                        {proposal.is_disputed ? "Disputed" : (currentHeight && currentHeight >= proposal.challenge_deadline) ? "Ended" : "Active"}
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Window Status</span>
+                      <span className={cn(
+                        "text-[10px] font-black uppercase tracking-[0.1em]",
+                        proposal.is_disputed ? "text-destructive" : (currentHeight && currentHeight >= proposal.challenge_deadline) ? "text-white/40" : "text-amber-500"
+                      )}>
+                        {proposal.is_disputed ? "Disputed" : (currentHeight && currentHeight >= proposal.challenge_deadline) ? "Closed" : "Active"}
                       </span>
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-muted-foreground leading-relaxed font-medium">
                     {marketStatus === "Settled"
-                      ? "This market is resolved."
+                      ? "Final resolution recorded on-chain."
                       : market?.resolution_time && nowTs < market.resolution_time
-                        ? `Proposals open ${formatDateFriendly(market.resolution_time)}.`
-                        : "Oracles can now propose the true outcome."
+                        ? `Proposals will be accepted after ${formatDateFriendly(market.resolution_time)}.`
+                        : "Oracle nodes may now submit a resolution proposal."
                     }
                   </p>
                 )}
@@ -569,21 +650,23 @@ export default function MarketDetailPage() {
                     onClick={() => {
                       if (marketStatus !== "Settled") setShowResolutionModal(true);
                     }}
-                    className="w-full btn-glow-primary"
-                    variant={proposal ? "outline" : "default"}
+                    className={cn(
+                      "w-full h-14 rounded-2xl font-bold transition-all duration-300",
+                      proposal ? "bg-white/5 border border-white/10 hover:bg-white/10 text-white" : "btn-premium"
+                    )}
                     disabled={marketStatus === "Settled" || !!proposal || (market?.resolution_time ? nowTs < market.resolution_time : false)}
                   >
-                    {marketStatus === "Settled" ? "Resolved" : (proposal ? "Resolution Proposed" : "Propose Resolution")}
+                    {marketStatus === "Settled" ? "Finalized" : (proposal ? "Proposal Submitted" : "Propose Resolution")}
                   </Button>
                 )}
 
                 {proposal && marketStatus !== "Settled" && (
                   <Button
                     variant="link"
-                    className="w-full text-xs text-muted-foreground hover:text-foreground"
+                    className="w-full text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 hover:text-white"
                     onClick={() => setShowResolutionModal(true)}
                   >
-                    Manage / Dispute Resolution
+                    Manage Resolution
                   </Button>
                 )}
 
@@ -595,46 +678,34 @@ export default function MarketDetailPage() {
                         setShowFinalizeModal(true);
                       }
                     }}
-                    className="w-full btn-glow-success"
+                    className="w-full btn-premium bg-gradient-to-r from-success/80 to-success hover:from-success hover:to-success/90 h-14 rounded-2xl"
                     disabled={!proposal || !isFinalizable || proposal.is_disputed || marketStatus === "Settled"}
                   >
                     Resolve Market
                   </Button>
                 )}
-
-                {isAdmin && proposal && !isFinalizable && !proposal.is_disputed && (
-                  <p className="text-[10px] text-center text-muted-foreground">
-                    Challenge window active until {formatDateFriendly(proposal.challenge_deadline)}.
-                  </p>
-                )}
-
-                {isAdmin && !proposal && (
-                  <p className="text-[10px] text-center text-muted-foreground">
-                    A resolution proposal is required before finalization.
-                  </p>
-                )}
               </div>
             </div>
 
-            {/* Privacy Info */}
-            <div className="p-6 rounded-xl bg-muted/20 border border-border/50">
-              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                <Shield className="w-4 h-4 text-primary" />
-                Privacy Protected
-              </h3>
-              <ul className="space-y-2 text-xs text-muted-foreground">
-                <li className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-success" />
-                  Bet amounts are encrypted
-                </li>
-                <li className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-success" />
-                  Your identity is hidden
-                </li>
-                <li className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-success" />
-                  All bets are verifiable on-chain
-                </li>
+            {/* Privacy Compliance Info */}
+            <div className="glass-card p-8 rounded-[2.5rem] border border-white/5 relative">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Shield className="w-4 h-4 text-primary" />
+                </div>
+                <h3 className="text-xs font-bold uppercase tracking-widest text-white/80">Privacy Standard</h3>
+              </div>
+              <ul className="space-y-3">
+                {[
+                  "Double-blind encryption for all wager amounts",
+                  "Anonymized participant identities via ZK-SNARKs",
+                  "Immutable on-chain verification without data leaks"
+                ].map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-4">
+                    <div className="w-1.5 h-1.5 rounded-full bg-success mt-1.5 shadow-[0_0_8px_hsla(160,84%,45%,0.5)]" />
+                    <span className="text-xs font-medium text-muted-foreground/80 leading-relaxed">{item}</span>
+                  </li>
+                ))}
               </ul>
             </div>
           </motion.div>
