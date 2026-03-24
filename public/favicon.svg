@@ -1,3 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="32" height="32" rx="8" fill="#080b10"/>
+  <rect x="0.5" y="0.5" width="31" height="31" rx="7.5" stroke="white" stroke-opacity="0.1"/>
+  <path d="M16 6L8 9V15.5C8 20.21 11.41 24.59 16 26C20.59 24.59 24 20.21 24 15.5V9L16 6Z" fill="url(#paint0_linear)"/>
+  <defs>
+    <linearGradient id="paint0_linear" x1="8" y1="6" x2="24" y2="26" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00e4b4"/>
+      <stop offset="1" stop-color="#6c8eff"/>
+    </linearGradient>
+  </defs>
 </svg>

@@ -72,7 +72,7 @@ export function Sidebar() {
             <Shield className="w-6 h-6 text-white" />
           </div>
           {!collapsed && (
-            <span className="font-bold text-xl tracking-tight font-heading text-white bg-clip-text text-transparent bg-gradient-to-br from-white to-white/60">
+            <span className="font-semibold text-xl tracking-tight font-heading text-white bg-clip-text text-transparent bg-gradient-to-br from-white to-white/60">
               VeilMarkets
             </span>
           )}
@@ -114,12 +114,12 @@ export function Sidebar() {
                 <div className="p-1.5 rounded-lg bg-success/10">
                   <TrendingUp className="w-4 h-4 text-success" />
                 </div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Network Pulse</span>
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Network Pulse</span>
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between items-baseline">
                   <span className="text-xs text-muted-foreground">Markets</span>
-                  <span className="text-lg font-bold font-mono text-white leading-none">
+                  <span className="text-lg font-semibold font-mono text-white leading-none">
                     {activeMarketsCount !== null ? activeMarketsCount : "..."}
                   </span>
                 </div>
@@ -127,13 +127,13 @@ export function Sidebar() {
                   <div className="space-y-3 pt-4 border-t border-white/5">
                     <div className="flex justify-between items-center group/bal">
                       <span className="text-[10px] text-muted-foreground group-hover/bal:text-white transition-colors">Credits</span>
-                      <span className="text-sm font-bold font-mono text-primary">
+                      <span className="text-sm font-semibold font-mono text-primary">
                         {balances !== null ? `${balances.private.toLocaleString()}` : "..."}
                       </span>
                     </div>
                     <div className="flex justify-between items-center group/bal">
                       <span className="text-[10px] text-muted-foreground group-hover/bal:text-white transition-colors">USDCx</span>
-                      <span className="text-sm font-bold font-mono text-accent">
+                      <span className="text-sm font-semibold font-mono text-accent">
                         {usdcxBalance !== null ? `${usdcxBalance.toLocaleString()}` : "..."}
                       </span>
                     </div>

@@ -58,15 +58,15 @@ export function BetCard({ bet, onClaim }: BetCardProps) {
 
       <div className="flex items-center justify-between mb-6 relative z-10">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className={cn("px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border", config.color)}>
+          <Badge variant="outline" className={cn("px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border", config.color)}>
             {config.label}
           </Badge>
           {hasClaimed && (
-            <Badge variant="outline" className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-success/20 text-success border-success/30 animate-pulse">
+            <Badge variant="outline" className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-success/20 text-success border-success/30 animate-pulse">
               Redeemed
             </Badge>
           )}
-          <Badge variant="outline" className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 border-white/5 bg-white/[0.03]">
+          <Badge variant="outline" className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 border-white/5 bg-white/[0.03]">
             {bet.category}
           </Badge>
         </div>
@@ -75,7 +75,7 @@ export function BetCard({ bet, onClaim }: BetCardProps) {
 
       <Link
         to={`/market/${bet.marketId}`}
-        className="block text-xl font-black text-white hover:text-primary transition-colors mb-4 line-clamp-2 leading-tight tracking-tight"
+        className="block text-xl font-bold text-white hover:text-primary transition-colors mb-4 line-clamp-2 leading-tight tracking-tight"
       >
         {bet.marketTitle}
       </Link>

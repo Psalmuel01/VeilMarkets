@@ -4,7 +4,7 @@ import { MarketCard, Market } from "@/components/markets/MarketCard";
 import { MarketFilters } from "@/components/markets/MarketFilters";
 import { motion } from "framer-motion";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
-import { formatDateFriendly } from "@/lib/utils";
+import { formatDateFriendly, formatVolume } from "@/lib/utils";
 import { getAllMarketMetadata } from "@/lib/metadata";
 
 const mapCategory = (value: number): Market["category"] => {
@@ -30,6 +30,7 @@ export default function MarketsPage() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [markets, setMarkets] = useState<Market[]>([]);
+  const [totalVolume, setTotalVolume] = useState<number>(0);
   const { fetchMarkets, fetchPoolStats, loading, currentHeight, refreshSignal } = useAleoPrograms();
 
   useEffect(() => {
@@ -77,6 +78,9 @@ export default function MarketsPage() {
           betsPlaced: allStats[i]?.participant_count || 0
         }));
 
+        const totalEscrowed = allStats.reduce((acc, stat) => acc + (stat?.escrowed_amount || 0), 0);
+        setTotalVolume(totalEscrowed / 1_000_000);
+
         setMarkets(updated);
       } catch (error) {
         console.error("Failed to fetch pool stats for markets:", error);
@@ -105,9 +109,9 @@ export default function MarketsPage() {
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary/80">Live Prediction Ecosystem</span>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary/80">Live Prediction Ecosystem</span>
               </div>
-              <h1 className="text-5xl font-bold tracking-tight text-white mb-4">
+              <h1 className="text-5xl font-semibold tracking-tight text-white mb-4">
                 Explore <span className="text-gradient">Markets</span>
               </h1>
               <p className="text-lg text-muted-foreground max-w-2xl leading-relaxed">
@@ -118,11 +122,11 @@ export default function MarketsPage() {
             <div className="flex items-center gap-3 bg-white/[0.03] border border-white/5 p-2 rounded-2xl backdrop-blur-sm">
               <div className="px-4 py-2 text-center border-r border-white/5">
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Active</div>
-                <div className="text-xl font-bold font-mono text-white">{markets.length}</div>
+                <div className="text-xl font-semibold font-mono text-white">{markets.length}</div>
               </div>
               <div className="px-4 py-2 text-center">
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Volume</div>
-                <div className="text-xl font-bold font-mono text-success">1.2M</div>
+                <div className="text-xl font-semibold font-mono text-success">{formatVolume(totalVolume)}</div>
               </div>
             </div>
           </motion.div>

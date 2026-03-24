@@ -16,14 +16,14 @@
     --popover: 222 47% 5%;
     --popover-foreground: 210 40% 98%;
 
-    /* Brand Colors - Electric Violet & Cyan */
-    --primary: 262 83% 65%;
-    --primary-foreground: 210 40% 98%;
+    /* Brand Colors - Electric Emerald & Blue */
+    --primary: 168 100% 45%;
+    --primary-foreground: 222 47% 4%;
     --secondary: 222 47% 12%;
     --secondary-foreground: 210 40% 98%;
 
     /* Accents & States */
-    --accent: 199 89% 48%;
+    --accent: 225 100% 71%;
     --accent-foreground: 210 40% 98%;
     --success: 160 84% 45%;
     --success-foreground: 210 40% 98%;
@@ -39,19 +39,19 @@
     /* Borders & Interaction */
     --border: 217 33% 17%;
     --input: 217 33% 17%;
-    --ring: 262 83% 65% / 0.4;
+    --ring: 168 100% 45% / 0.4;
     --radius: 1rem;
 
     /* Semantic Specifics */
-    --chart-1: 262 83% 65%;
-    --chart-2: 199 89% 48%;
+    --chart-1: 168 100% 45%;
+    --chart-2: 225 100% 71%;
     --chart-3: 160 84% 45%;
     --chart-4: 38 92% 55%;
     --chart-5: 0 84% 60%;
 
     /* Glow Tokens */
-    --glow-primary: 0 0 30px hsla(262, 83%, 65%, 0.15);
-    --glow-accent: 0 0 30px hsla(199, 89%, 48%, 0.15);
+    --glow-primary: 0 0 30px hsla(168, 100%, 45%, 0.15);
+    --glow-accent: 0 0 30px hsla(225, 100%, 71%, 0.15);
   }
 }
 
@@ -64,8 +64,8 @@
     @apply bg-background text-foreground font-sans antialiased selection:bg-primary/30 selection:text-white;
     font-family: 'Inter', system-ui, sans-serif;
     background-image: 
-      radial-gradient(at 0% 0%, hsla(262, 83%, 65%, 0.05) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, hsla(199, 89%, 48%, 0.05) 0px, transparent 50%);
+      radial-gradient(at 0% 0%, hsla(168, 100%, 45%, 0.05) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(225, 100%, 71%, 0.05) 0px, transparent 50%);
   }
 
   h1, h2, h3, h4, h5, h6 {

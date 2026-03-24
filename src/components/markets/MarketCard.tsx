@@ -46,13 +46,13 @@ export function MarketCard({ market }: MarketCardProps) {
         <div className="flex items-center justify-between mb-6 relative z-10">
           <div className="flex gap-2">
             <span className={cn(
-              "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border",
+              "px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider border",
               categoryStyles[market.category] || categoryStyles.Tech
             )}>
               {market.category}
             </span>
             {market.status === "Open" && (
-              <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-white/5 bg-white/5 text-white/60">
+              <span className="px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider border border-white/5 bg-white/5 text-white/60">
                 Live
               </span>
             )}
@@ -70,7 +70,7 @@ export function MarketCard({ market }: MarketCardProps) {
 
         {/* Title & Description */}
         <div className="flex-1 relative z-10">
-          <h3 className="text-xl font-bold text-white mb-3 group-hover:text-primary transition-colors duration-300 leading-tight">
+          <h3 className="text-xl font-semibold text-white mb-3 group-hover:text-primary transition-colors duration-300 leading-tight">
             {market.title}
           </h3>
           <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed mb-6 group-hover:text-muted-foreground/80 transition-colors">
@@ -106,7 +106,7 @@ export function MarketCard({ market }: MarketCardProps) {
         {market.status === "Settled" && market.outcome && (
           <div className="absolute top-0 right-0 left-0 bottom-0 bg-black/60 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center p-6 text-center">
             <div className="bg-success/20 border border-success/30 px-6 py-3 rounded-2xl">
-              <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-success/80 mb-1">Final Result</div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-success/80 mb-1">Final Result</div>
               <div className="text-2xl font-bold text-success">{market.outcome}</div>
             </div>
           </div>

@@ -207,12 +207,12 @@ export default function DashboardPage() {
         >
           <div>
             <div className="flex items-center gap-3 mb-4">
-              <Badge variant="outline" className="px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] border-primary/20 text-primary bg-primary/5">
+              <Badge variant="outline" className="px-4 py-1.5 rounded-full text-[10px] font-semibold uppercase tracking-[0.2em] border-primary/20 text-primary bg-primary/5">
                 User Dashboard
               </Badge>
               <ZKBadge variant="verified" size="sm" />
             </div>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-tight tracking-tight">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight tracking-tight">
               My <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">Positions</span>
             </h1>
             <p className="text-muted-foreground text-lg mt-2 max-w-md font-medium">
@@ -250,8 +250,8 @@ export default function DashboardPage() {
                   <stat.icon className="w-4 h-4 text-primary" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 mb-1">{stat.label}</p>
-                  <p className="text-2xl font-black text-white font-mono">{stat.value}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 mb-1">{stat.label}</p>
+                  <p className="text-2xl font-bold text-white font-mono">{stat.value}</p>
                 </div>
               </div>
             </motion.div>
@@ -294,12 +294,12 @@ export default function DashboardPage() {
                 <Wallet className="w-8 h-8 text-primary" />
               </div>
               <div className="space-y-1">
-                <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Total Vault Balance</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">Total Vault Balance</p>
                 <div className="flex items-baseline gap-3">
-                  <h2 className="text-4xl md:text-5xl font-black text-white font-mono tracking-tighter">
+                  <h2 className="text-4xl md:text-5xl font-bold text-white font-mono tracking-tighter">
                     {tokenBalance !== null ? tokenBalance.toLocaleString() : "••••••••"}
                   </h2>
-                  <span className="text-lg font-bold text-primary/60 font-mono">ALEO</span>
+                  <span className="text-lg font-semibold text-primary/60 font-mono">ALEO</span>
                 </div>
               </div>
             </div>
@@ -330,7 +330,7 @@ export default function DashboardPage() {
               <TabsTrigger 
                 key={tab.id}
                 value={tab.id} 
-                className="rounded-xl px-6 py-2.5 text-[10px] font-black uppercase tracking-[0.15em] data-[state=active]:bg-primary h-10 data-[state=active]:text-slate-950 transition-all duration-300"
+                className="rounded-xl px-6 py-2.5 text-[10px] font-bold uppercase tracking-[0.15em] data-[state=active]:bg-primary h-10 data-[state=active]:text-slate-950 transition-all duration-300"
               >
                 {tab.label}
               </TabsTrigger>

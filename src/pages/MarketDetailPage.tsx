@@ -308,7 +308,7 @@ export default function MarketDetailPage() {
               <div className="flex flex-wrap items-center gap-3">
                 <Badge
                   variant="outline"
-                  className={cn("px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] border", categoryStyles[market.category as string] || categoryStyles.Tech)}
+                  className={cn("px-4 py-1.5 rounded-full text-[10px] font-semibold uppercase tracking-[0.2em] border", categoryStyles[market.category as string] || categoryStyles.Tech)}
                 >
                   {market.category as string}
                 </Badge>
@@ -318,7 +318,7 @@ export default function MarketDetailPage() {
                     "w-2 h-2 rounded-full animate-pulse",
                     marketStatus === "Open" ? "bg-success" : "bg-warning"
                   )} />
-                  <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/80">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/80">
                     {marketStatus}
                   </span>
                 </div>
@@ -326,11 +326,11 @@ export default function MarketDetailPage() {
                 <ZKBadge variant="proof" size="sm" />
               </div>
 
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-[1.1] tracking-tight">
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-[1.1] tracking-tight">
                 {market.title}
               </h1>
 
-              <div className="flex flex-wrap items-center gap-8 text-xs font-bold uppercase tracking-widest text-muted-foreground/60">
+              <div className="flex flex-wrap items-center gap-8 text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">
                 <div className="flex items-center gap-2.5">
                   <Clock className="w-4 h-4 text-primary" />
                   <span className={cn(secondsRemaining !== null && secondsRemaining < 3600 ? "text-warning animate-pulse" : "text-white/80")}>
@@ -339,7 +339,7 @@ export default function MarketDetailPage() {
                 </div>
                 <div className="flex items-center gap-2.5">
                   <Users className="w-4 h-4 text-accent" />
-                  <span className="text-white/80 font-mono tracking-normal text-sm">{market.betsPlaced} <span className="text-[10px] font-bold uppercase text-muted-foreground/40 font-sans tracking-widest ml-1">Participants</span></span>
+                  <span className="text-white/80 font-mono tracking-normal text-sm">{market.betsPlaced} <span className="text-[10px] font-semibold uppercase text-muted-foreground/40 font-sans tracking-widest ml-1">Participants</span></span>
                 </div>
                 <div className="flex items-center gap-2.5">
                   <Zap className="w-4 h-4 text-success" />
@@ -354,12 +354,12 @@ export default function MarketDetailPage() {
         <div className="mb-12">
           <div className="flex justify-between items-end mb-4 px-2">
             <div className="flex flex-col">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-success/60 mb-1">Yes Outcome</span>
-              <span className="text-3xl font-black text-success font-mono">{yesPercent}%</span>
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-success/60 mb-1">Yes Outcome</span>
+              <span className="text-3xl font-bold text-success font-mono">{yesPercent}%</span>
             </div>
             <div className="flex flex-col items-end">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-destructive/60 mb-1">No Outcome</span>
-              <span className="text-3xl font-black text-destructive font-mono">{noPercent}%</span>
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-destructive/60 mb-1">No Outcome</span>
+              <span className="text-3xl font-bold text-destructive font-mono">{noPercent}%</span>
             </div>
           </div>
           <div className="h-4 w-full bg-white/[0.03] rounded-full border border-white/5 p-1 flex overflow-hidden">
@@ -419,12 +419,12 @@ export default function MarketDetailPage() {
                 <div className="absolute top-0 right-0 p-4 opacity-10">
                   <CheckCircle2 className="w-16 h-16 text-success" />
                 </div>
-                <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground/60 mb-4 flex items-center gap-2">
+                <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/60 mb-4 flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-success" />
                   Resolved Outcome
                 </h2>
                 <div className={cn(
-                  "text-5xl font-black font-mono tracking-tighter",
+                  "text-5xl font-bold font-mono tracking-tighter",
                   resolvedOutcomeLabel === "YES" ? "text-success" : resolvedOutcomeLabel === "NO" ? "text-destructive" : "text-white/40"
                 )}>
                   {resolvedOutcomeLabel}
@@ -440,7 +440,7 @@ export default function MarketDetailPage() {
                       <div className="flex justify-between items-center text-sm">
                         <span className="text-muted-foreground font-bold uppercase tracking-widest text-[10px]">Result</span>
                         <div className={cn(
-                          "px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                          "px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest",
                           userBetResult === "Won" ? "bg-success/20 text-success border border-success/30" :
                             userBetResult === "Lost" ? "bg-destructive/20 text-destructive border border-destructive/30" :
                               "bg-white/10 text-white/40 border border-white/10"
