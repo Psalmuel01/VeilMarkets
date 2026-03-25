@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Lock, AlertCircle } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
@@ -8,16 +7,16 @@ interface WagerSliderProps {
   onChange: (value: number) => void;
   max?: number;
   disabled?: boolean;
+  tokenTicker?: string;
 }
 
 export function WagerSlider({
   value,
   onChange,
   max = 20,
-  disabled = false
+  disabled = false,
+  tokenTicker = "ALEO",
 }: WagerSliderProps) {
-  const percentage = (value / max) * 100;
-
   // Abstract labels instead of actual amounts
   const getWagerLevel = (val: number) => {
     if (val < 5) return { label: "Conservative", color: "text-success" };
@@ -65,7 +64,7 @@ export function WagerSlider({
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Your wager (encrypted)</span>
           <span className="font-mono text-lg encrypted-text">
-            {value} ALEO
+            {value} {tokenTicker}
           </span>
         </div>
       </div>

@@ -1,17 +1,17 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
-import { Wallet, TrendingUp, Clock, Trophy, CheckCircle2, Loader2 } from "lucide-react";
+import { Wallet, TrendingUp, Clock, Trophy, CheckCircle2, Loader2, Activity, ShieldCheck, Zap } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { BetCard, UserBet } from "@/components/dashboard/BetCard";
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { fetchMappingValue, parseMarketInfo } from "@/lib/aleo";
-import { PROGRAM_ID } from "@/lib/constants";
+import { PROGRAM_ID, resolveTokenTicker } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -33,6 +33,7 @@ export default function DashboardPage() {
   ]);
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
   const [claimedAmount, setClaimedAmount] = useState<number | null>(null);
+  const [claimedTicker, setClaimedTicker] = useState<string>("ALEO");
   const [myMarkets, setMyMarkets] = useState<
     Array<{
       id: string;
@@ -42,12 +43,11 @@ export default function DashboardPage() {
       is_resolved: boolean;
     }>
   >([]);
-  const { fetchUserBets, fetchMarkets, fetchTokenBalance, loading, claimWinnings, refreshSignal } = useAleoPrograms();
-  const { address } = useWallet();
+  const { fetchUserBets, fetchMarkets, fetchTokenBalance, loading, claimWinnings, refreshSignal, publicKey } = useAleoPrograms();
 
   useEffect(() => {
     const loadData = async () => {
-      if (!address) return;
+      if (!publicKey) return;
 
       try {
         const [records, allMarkets, balance] = await Promise.all([
@@ -103,6 +103,7 @@ export default function DashboardPage() {
             marketId: record.market_id,
             marketTitle: market?.title || `Market ${record.market_id.substring(0, 8)}...`,
             category: market?.category === 0 ? "Crypto" : market?.category === 1 ? "Sports" : "Misc",
+            tokenTicker: resolveTokenTicker(market?.token_id ?? ""),
             status,
             outcome: outcomeLabel,
             placedAt: "Recorded", // TODO - need timestamp in the record
@@ -127,7 +128,7 @@ export default function DashboardPage() {
         ]);
 
         // Filter created markets
-        const currentAddr = (address || "").replace(/address/g, "").trim();
+        const currentAddr = (publicKey || "").replace(/address/g, "").trim();
         const filtered = allMarkets.filter((market) =>
           market.creator && market.creator.replace(/address/g, "").trim() === currentAddr
         );
@@ -146,7 +147,7 @@ export default function DashboardPage() {
     };
 
     loadData();
-  }, [fetchUserBets, fetchMarkets, fetchTokenBalance, address, refreshSignal]);
+  }, [fetchUserBets, fetchMarkets, fetchTokenBalance, publicKey, refreshSignal]);
 
   const filteredBets = userBets.filter((bet) => {
     if (activeTab === "all") return true;
@@ -160,6 +161,8 @@ export default function DashboardPage() {
 
   const handleClaim = (marketId: string) => {
     setSelectedMarketId(marketId);
+    const bet = userBets.find((entry) => entry.marketId === marketId);
+    if (bet?.tokenTicker) setClaimedTicker(bet.tokenTicker);
     setShowClaimModal(true);
     setClaimStep("confirm");
     setClaimedAmount(null);
@@ -174,6 +177,7 @@ export default function DashboardPage() {
     if (result) {
       setTxId(result.transactionId);
       setClaimedAmount(result.payoutAmount);
+      setClaimedTicker(result.payoutTicker);
       const claimedAt = new Date().toLocaleString();
       setUserBets((prev) =>
         prev.map((bet) =>
@@ -197,109 +201,193 @@ export default function DashboardPage() {
   return (
     <MainLayout requireWallet={true}>
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        {/* Header Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-6"
+        >
           <div>
-            <h1 className="text-3xl font-bold mb-2">My Bets</h1>
-            <p className="text-muted-foreground">
-              Track your private predictions and winnings
+            <div className="flex items-center gap-3 mb-4">
+              <Badge variant="outline" className="px-4 py-1.5 rounded-full text-[10px] font-semibold uppercase tracking-[0.2em] border-primary/20 text-primary bg-primary/5">
+                User Dashboard
+              </Badge>
+              <ZKBadge variant="verified" size="sm" />
+            </div>
+            <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white leading-tight tracking-tight">
+              My <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">Positions</span>
+            </h1>
+            <p className="text-muted-foreground text- mt-2 max-w-md font-medium">
+              Monitor your private predictions and settled winnings.
             </p>
           </div>
-          <ZKBadge variant="verified" size="lg" />
-        </div>
+          
+          <div className="flex items-center gap-4">
+             <div className="flex -space-x-3 pointer-events-none opacity-50">
+               {[1, 2, 3].map(i => (
+                 <div key={i} className="w-10 h-10 rounded-full border-2 border-slate-900 bg-slate-800" />
+               ))}
+             </div>
+             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+               Network Verified <br/> Participant
+             </p>
+          </div>
+        </motion.div>
 
-        {/* Stats Cards */}
-        <div className="grid md:grid-cols-3 gap-4 mb-8">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           {stats.map((stat, index) => (
             <motion.div
               key={stat.label}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="p-5 rounded-xl bg-card border border-border/50"
+              className="glass-card p-6 rounded-3xl border border-white/5 relative group overflow-hidden"
             >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <stat.icon className="w-5 h-5 text-primary" />
+              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                <stat.icon className="w-4 h-4" />
+              </div>
+              <div className="flex flex-col gap-4 relative z-10">
+                <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5 w-fit">
+                  <stat.icon className="w-4 h-4 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">{stat.label}</p>
-                  <p className="text-2xl font-bold">{stat.value}</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 mb-1">{stat.label}</p>
+                  <p className="text-2xl font-bold text-white font-mono">{stat.value}</p>
                 </div>
               </div>
             </motion.div>
           ))}
+          
+          {/* Active Status Card (New) */}
+          {/* <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="glass-card p-6 rounded-3xl border border-white/5 relative group overflow-hidden md:col-span-1 col-span-2"
+          >
+             <div className="flex flex-col h-full justify-between gap-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-success">Active Session</span>
+                  <div className="w-2 h-2 rounded-full bg-success animate-pulse shadow-[0_0_8px_theme(colors.success.DEFAULT)]" />
+                </div>
+                <div className="flex items-center gap-2">
+                   <Activity className="w-4 h-4 text-muted-foreground/40" />
+                   <span className="text-xs font-bold text-white/50">Node 0x4...2a9</span>
+                </div>
+             </div>
+          </motion.div> */}
         </div>
 
-        {/* Wallet Summary */}
+        {/* Vault Summary Card */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="p-6 rounded-xl bg-card-gradient border border-border/50 mb-8"
+          transition={{ delay: 0.5 }}
+          className="glass-card p-5 rounded-[3rem] border border-white/5 mb-6 relative overflow-hidden group"
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
+          {/* Decorative Elements */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[80px] rounded-full -translate-y-1/2 translate-x-1/2 group-hover:bg-primary/10 transition-colors duration-700" />
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-accent/5 blur-[60px] rounded-full translate-y-1/2 -translate-x-1/2" />
+          
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+            <div className="flex items-center gap-6">
+              <div className="w-12 h-12 rounded-[2rem] bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center shadow-[0_0_30px_rgba(var(--primary),0.1)]">
                 <Wallet className="w-6 h-6 text-primary" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Available Balance</p>
-                <p className="text-2xl font-bold font-mono">
-                  {tokenBalance !== null ? `${tokenBalance.toLocaleString()} ALEO` : "•••••••• ALEO"}
-                </p>
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">Total Vault Balance</p>
+                <div className="flex items-baseline gap-3">
+                  <h2 className="text-xl md:text-2xl font-bold text-white font-mono tracking-tighter">
+                    {tokenBalance !== null ? tokenBalance.toLocaleString() : "••••••••"}
+                  </h2>
+                  <span className="text-lg font-semibold text-primary/60 font-mono">ALEO Credits</span>
+                </div>
               </div>
             </div>
-            <ZKBadge variant="encrypted" />
+            
+            <div className="flex flex-col gap-4">
+               <div className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.05] transition-colors cursor-help group/tip">
+                  <ShieldCheck className="w-4 h-4 text-success" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Fully Shielded on Chain</span>
+                  <ZKBadge variant="encrypted" size="sm" />
+               </div>
+               <div className="flex items-center justify-end gap-2">
+                 <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 font-mono">Last Sync: Just Now</span>
+               </div>
+            </div>
           </div>
         </motion.div>
 
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
-          <TabsList className="bg-muted/50">
-            <TabsTrigger value="all">All Bets</TabsTrigger>
-            <TabsTrigger value="pending">Pending</TabsTrigger>
-            <TabsTrigger value="won">Won</TabsTrigger>
-            <TabsTrigger value="lost">Lost</TabsTrigger>
-            <TabsTrigger value="created">My Markets</TabsTrigger>
+        {/* Navigation Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-10">
+          <TabsList className="bg-white/[0.03] border border-white/10 p-1.5 rounded-2xl h-auto gap-1">
+            {[
+              { id: "all", label: "Overview" },
+              { id: "pending", label: "Active" },
+              { id: "won", label: "Winnings" },
+              { id: "lost", label: "Historical" },
+              { id: "created", label: "My Markets" },
+            ].map((tab) => (
+              <TabsTrigger 
+                key={tab.id}
+                value={tab.id} 
+                className="rounded-xl px-6 py-2.5 text-[10px] font-bold uppercase tracking-[0.15em] data-[state=active]:bg-primary h-10 data-[state=active]:text-slate-950 transition-all duration-300"
+              >
+                {tab.label}
+              </TabsTrigger>
+            ))}
           </TabsList>
         </Tabs>
 
         {/* My Markets Content */}
         {activeTab === "created" && (
-          <div className="space-y-6">
+          <div className="grid gap-6">
             {myMarkets.length > 0 ? (
               myMarkets.map((m) => (
-                <div key={m.id} className="p-6 rounded-xl bg-card border border-border/50">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h3 className="text-lg font-semibold">{m.title}</h3>
-                      <p className="text-sm text-muted-foreground">{m.description || `Market ID: ${m.id}`}</p>
-                      <p className="text-xs text-muted-foreground">Title Hash: {m.title_hash}</p>
-                    </div>
-                    <Badge variant="outline" className={m.is_resolved ? "bg-primary/10 text-primary" : "bg-success/10 text-success"}>
-                      {m.is_resolved ? "Settled" : "Open"}
-                    </Badge>
+                <div key={m.id} className="glass-card p-8 rounded-[2.5rem] border border-white/5 relative group overflow-hidden">
+                  <div className="absolute top-0 right-0 p-6 opacity-0 group-hover:opacity-10 transition-opacity">
+                     <Zap className="w-16 h-16 text-primary" />
                   </div>
-                  {!m.is_resolved && (
-                    <p className="text-sm text-muted-foreground">
-                      Resolution is oracle-driven. Finalization is only available after oracle proposal and voting.
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground mt-4 italic">
-                    * Final resolution for on-chain state.
-                  </p>
+                  
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3">
+                         <h3 className="text-xl font-black text-white">{m.title}</h3>
+                         <Badge variant="outline" className={cn(
+                           "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border",
+                           m.is_resolved ? "text-primary border-primary/20 bg-primary/5" : "text-success border-success/20 bg-success/5"
+                         )}>
+                           {m.is_resolved ? "Settled" : "Live"}
+                         </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground max-w-xl font-medium">{m.description || `Market Identifier: ${m.id}`}</p>
+                      <div className="flex items-center gap-2 text-[10px] font-mono text-white/20">
+                         <span>HASH: {m.title_hash}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                       <Button 
+                         variant="outline" 
+                         onClick={() => navigate(`/market/${m.id}`)}
+                         className="rounded-2xl border-white/10 text-white font-bold h-6 px-6 hover:bg-white/5"
+                       >
+                         VIEW DETAILS
+                       </Button>
+                    </div>
+                  </div>
                 </div>
               ))
             ) : (
-              <div className="text-center py-16 p-6 rounded-xl bg-muted/10 border border-dashed border-border">
-                <p className="text-muted-foreground">You haven't created any markets yet</p>
+              <div className="text-center py-24 p-6 rounded-[3rem] bg-white/[0.02] border border-dashed border-white/10">
+                <Activity className="w-6 h-6 text-muted-foreground/20 mx-auto mb-4" />
+                <p className="text-muted-foreground font-medium mb-6">No proprietary markets found in your registry</p>
                 <Button
-                  variant="link"
-                  className="mt-2 text-primary"
                   onClick={() => navigate("/create")}
+                  className="btn-premium h-14 rounded-2xl px-8 font-black uppercase tracking-widest text-xs"
                 >
-                  Create your first market
+                  Initiate New Market
                 </Button>
               </div>
             )}
@@ -331,7 +419,7 @@ export default function DashboardPage() {
 
       {/* Claim Modal */}
       <Dialog open={showClaimModal} onOpenChange={() => setShowClaimModal(false)}>
-        <DialogContent className="sm:max-w-md bg-card border-border/50">
+        <DialogContent className="sm:max-w-md bg-slate-900/90 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-0 overflow-hidden">
           <DialogHeader>
             <DialogTitle>Claim Winnings</DialogTitle>
           </DialogHeader>
@@ -364,7 +452,7 @@ export default function DashboardPage() {
           )}
 
           {claimStep === "processing" && (
-            <div className="py-12 text-center space-y-6">
+            <div className="py-6 text-center space-y-6">
               <div className="relative mx-auto w-20 h-20">
                 <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
                 <div className="relative w-20 h-20 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center">
@@ -406,7 +494,7 @@ export default function DashboardPage() {
               {claimedAmount !== null && (
                 <div className="p-4 rounded-lg bg-success/10 border border-success/30 text-success">
                   <div className="text-xs uppercase tracking-wide mb-1">Claimed Amount</div>
-                  <div className="text-2xl font-bold">+{claimedAmount.toFixed(4)} ALEO</div>
+                  <div className="text-2xl font-bold">+{claimedAmount.toFixed(4)} {claimedTicker}</div>
                 </div>
               )}
 

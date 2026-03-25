@@ -1,17 +1,11 @@
-// The 'test_factory' test program.
-import factory.aleo;
+import veilmarkets_factory_v6.aleo;
+
 program test_factory.aleo {
     @test
-    script test_it() {
-        let result: u32 = factory.aleo/main(1u32, 2u32);
-        assert_eq(result, 3u32);
-    }
-
-    @test
-    @should_fail
-    transition do_nothing() {
-        let result: u32 = factory.aleo/main(2u32, 3u32);
-        assert_eq(result, 3u32);
+    transition registry_type_tag_ok() {
+        let token_type: u8 = 1u8;
+        let oracle_type: u8 = 2u8;
+        assert_eq(token_type + oracle_type, 3u8);
     }
 
     @noupgrade

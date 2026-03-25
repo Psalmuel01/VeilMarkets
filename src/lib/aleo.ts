@@ -36,6 +36,7 @@ export interface MarketInfo {
   is_resolved: boolean;
   winning_outcome: number;
   resolved_by_oracle: boolean;
+  token_id: string;
 }
 
 export interface PoolInfo {
@@ -278,6 +279,7 @@ export const parseMarketInfo = (raw: string | object, marketId: string): MarketI
     is_resolved: false,
     winning_outcome: 2,
     resolved_by_oracle: false,
+    token_id: "",
   };
 
   if (!raw) return base;
@@ -294,31 +296,40 @@ export const parseMarketInfo = (raw: string | object, marketId: string): MarketI
       is_resolved: parseAleoBool(obj.is_resolved),
       winning_outcome: parseAleoInt(obj.winning_outcome),
       resolved_by_oracle: parseAleoBool(obj.resolved_by_oracle),
+      token_id: stripTypeSuffixes(String(obj.token_id ?? "")),
     };
   }
 
   const data: Partial<MarketInfo> = { id: marketId };
-  const cleaned = raw.replace(/\{|\}/g, "");
-  const pairs = cleaned.split(",");
+  const str = String(raw);
 
-  for (const pair of pairs) {
-    const colonIdx = pair.indexOf(":");
-    if (colonIdx === -1) continue;
+  // Extract keys and values using regex
+  const structFields = [
+    "creator:",
+    "title_hash:",
+    "category:",
+    "close_time:",
+    "resolution_time:",
+    "is_resolved:",
+    "winning_outcome:",
+    "resolved_by_oracle:",
+    "token_id:",
+  ];
 
-    const key = pair.slice(0, colonIdx).trim();
-    const value = pair.slice(colonIdx + 1).trim();
-    if (!key || !value) continue;
-
-    if (key === "category" || key === "winning_outcome") {
-      data[key] = parseAleoInt(value);
-    } else if (key === "close_time" || key === "resolution_time") {
-      data[key] = parseAleoInt(value);
-    } else if (key === "is_resolved" || key === "resolved_by_oracle") {
-      data[key] = parseAleoBool(value);
-    } else {
-      data[key as keyof MarketInfo] = stripTypeSuffixes(value) as never;
+  structFields.forEach((key) => {
+    const pattern = new RegExp(`${key}\\s*([^,}]+)`);
+    const match = str.match(pattern);
+    if (match) {
+      const value = match[1].trim();
+      if (key === "close_time:" || key === "resolution_time:" || key === "category:" || key === "winning_outcome:") {
+        data[key.replace(":", "") as keyof MarketInfo] = parseAleoInt(value) as never;
+      } else if (key === "is_resolved:" || key === "resolved_by_oracle:") {
+        data[key.replace(":", "") as keyof MarketInfo] = parseAleoBool(value) as never;
+      } else {
+        data[key.replace(":", "") as keyof MarketInfo] = stripTypeSuffixes(value) as never;
+      }
     }
-  }
+  });
 
   return { ...base, ...data };
 };

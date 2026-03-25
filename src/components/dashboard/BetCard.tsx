@@ -10,6 +10,7 @@ export interface UserBet {
   marketId: string;
   marketTitle: string;
   category: string;
+  tokenTicker: string;
   status: "Pending" | "Won" | "Lost" | "Cancelled";
   outcome: "Yes" | "No";
   placedAt: string;
@@ -26,20 +27,20 @@ interface BetCardProps {
 
 const statusConfig = {
   Pending: {
-    color: "bg-warning/10 text-warning border-warning/30",
-    label: "Pending",
+    color: "text-amber-400 bg-amber-400/10 border-amber-400/20",
+    label: "Active Prediction",
   },
   Won: {
-    color: "bg-success/10 text-success border-success/30",
-    label: "Won",
+    color: "text-success bg-success/10 border-success/20",
+    label: "Winning Prediction",
   },
   Lost: {
-    color: "bg-destructive/10 text-destructive border-destructive/30",
-    label: "Lost",
+    color: "text-destructive bg-destructive/10 border-destructive/20",
+    label: "Incorrect Prediction",
   },
   Cancelled: {
-    color: "bg-muted/10 text-muted-foreground border-border/50",
-    label: "Cancelled",
+    color: "text-muted-foreground bg-white/5 border-white/10",
+    label: "Market Cancelled",
   },
 };
 
@@ -47,25 +48,26 @@ export function BetCard({ bet, onClaim }: BetCardProps) {
   const config = statusConfig[bet.status];
   const hasClaimed = Boolean(bet.isClaimed) || typeof bet.claimedAmount === "number";
   const claimedLabel =
-    typeof bet.claimedAmount === "number" ? `+${bet.claimedAmount.toFixed(4)} ALEO` : "Claimed";
-  // console.log("BetCard render", { bet, hasClaimed, claimedLabel });
+    typeof bet.claimedAmount === "number" ? `+${bet.claimedAmount.toFixed(4)} ${bet.tokenTicker}` : "Claimed";
 
   return (
     <div className={cn(
-      "p-5 rounded-xl bg-card border border-border/50",
-      "hover:border-border transition-colors"
+      "glass-card p-6 md:p-8 rounded-[2.5rem] border border-white/5 relative overflow-hidden group hover:border-white/10 transition-all duration-300"
     )}>
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className={cn("text-[10px] uppercase", config.color)}>
+      {/* Decorative Gradient Pulse */}
+      <div className="absolute -top-12 -right-12 w-32 h-32 bg-primary/5 blur-3xl group-hover:bg-primary/10 transition-all duration-500 rounded-full" />
+
+      <div className="flex items-center justify-between mb-6 relative z-10">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className={cn("px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border", config.color)}>
             {config.label}
           </Badge>
           {hasClaimed && (
-            <Badge variant="outline" className="text-[10px] uppercase bg-success/10 text-success border-success/30">
-              Claimed
+            <Badge variant="outline" className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-success/20 text-success border-success/30 animate-pulse">
+              Redeemed
             </Badge>
           )}
-          <Badge variant="outline" className="text-[10px] uppercase text-muted-foreground border-border">
+          <Badge variant="outline" className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 border-white/5 bg-white/[0.03]">
             {bet.category}
           </Badge>
         </div>
@@ -74,56 +76,61 @@ export function BetCard({ bet, onClaim }: BetCardProps) {
 
       <Link
         to={`/market/${bet.marketId}`}
-        className="block text-lg font-semibold text-foreground hover:text-primary transition-colors mb-2 line-clamp-2"
+        className="block text-xl font-bold text-white hover:text-primary transition-colors mb-4 line-clamp-2 leading-tight tracking-tight"
       >
         {bet.marketTitle}
       </Link>
 
-      <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
-        <div className="flex items-center gap-1.5">
-          <Clock className="w-3.5 h-3.5" />
-          <span>{bet.placedAt}</span>
+      <div className="flex flex-wrap items-center gap-6 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 mb-8">
+        <div className="flex items-center gap-2">
+          <Clock className="w-3.5 h-3.5 text-primary/60" />
+          <span className="font-mono text-xs tracking-normal font-medium">{bet.placedAt}</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span>Your bet:</span>
-          <span className="font-semibold text-foreground">{bet.outcome}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-white/20">Wager:</span>
+          <span className="text-white font-mono bg-white/5 px-2 py-0.5 rounded border border-white/10 uppercase">{bet.outcome} Outcome</span>
         </div>
       </div>
 
-      <div className="pt-4 border-t border-border/50 space-y-3">
+      <div className="pt-6 border-t border-white/5 space-y-3 relative z-10">
         {/* Encrypted bet info */}
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Wager Amount</span>
-          <span className="font-mono encrypted-text">•••••• ALEO</span>
+        <div className="flex justify-between items-center">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Protected Wager</span>
+          <span className="font-mono text-xs text-white/40 encrypted-text">•••••• {bet.tokenTicker}</span>
         </div>
 
-        {bet.status === "Won" && (
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Winnings</span>
-            <span className="font-mono text-success">+•••••• {bet.claimedAmount?.toFixed(4)} ALEO</span>
+        {bet.status === "Won" && !hasClaimed && (
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-success/60">Estimated Payout</span>
+            <span className="font-mono text-xs text-success bg-success/5 px-2 py-1 rounded-lg border border-success/10">+•••••• {bet.tokenTicker}</span>
           </div>
         )}
 
         {hasClaimed && (
-          <div className="p-3 rounded-lg bg-success/10 border border-success/30 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-success text-sm font-medium">
-              <CheckCircle2 className="w-4 h-4" />
-              Reward Claimed
+          <div className="p-4 rounded-2xl bg-success/5 border border-success/20 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-success text-[10px] font-black uppercase tracking-widest">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Assets Transferred
+              </div>
+              <span className="font-mono text-sm font-black text-success">{claimedLabel}</span>
             </div>
-            <span className="font-mono text-success">{claimedLabel}</span>
-          </div>
-        )}
-
-        {hasClaimed && bet.claimedAt && (
-          <div className="text-xs text-muted-foreground flex justify-between">
-            <span>Claimed At</span>
-            <span>{bet.claimedAt}</span>
+            {bet.claimedAt && (
+              <div className="flex justify-between items-center text-[10px] font-medium text-muted-foreground/40 border-t border-success/10 pt-2">
+                <span className="uppercase tracking-widest">Settlement Time</span>
+                <span className="font-mono">{bet.claimedAt}</span>
+              </div>
+            )}
           </div>
         )}
 
         {bet.canClaim && !hasClaimed && (
-          <Button onClick={() => onClaim?.(bet.marketId)} className="w-full btn-glow-primary mt-2">
-            Claim Winnings
+          <Button
+            onClick={() => onClaim?.(bet.marketId)}
+            className="w-full h-14 rounded-2xl btn-premium mt-2 group/btn"
+          >
+            <span className="font-black uppercase tracking-[0.2em] text-xs">Claim Settlement Rewards</span>
+            <ExternalLink className="w-4 h-4 ml-2 group-hover/btn:translate-x-1 group-hover/btn:-translate-y-1 transition-transform" />
           </Button>
         )}
       </div>

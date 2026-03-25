@@ -4,7 +4,7 @@ import { MarketCard, Market } from "@/components/markets/MarketCard";
 import { MarketFilters } from "@/components/markets/MarketFilters";
 import { motion } from "framer-motion";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
-import { formatDateFriendly } from "@/lib/utils";
+import { formatDateFriendly, formatVolume } from "@/lib/utils";
 import { getAllMarketMetadata } from "@/lib/metadata";
 
 const mapCategory = (value: number): Market["category"] => {
@@ -30,6 +30,7 @@ export default function MarketsPage() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [markets, setMarkets] = useState<Market[]>([]);
+  const [totalVolume, setTotalVolume] = useState<number>(0);
   const { fetchMarkets, fetchPoolStats, loading, currentHeight, refreshSignal } = useAleoPrograms();
 
   useEffect(() => {
@@ -77,6 +78,9 @@ export default function MarketsPage() {
           betsPlaced: allStats[i]?.participant_count || 0
         }));
 
+        const totalEscrowed = allStats.reduce((acc, stat) => acc + (stat?.escrowed_amount || 0), 0);
+        setTotalVolume(totalEscrowed / 1_000_000);
+
         setMarkets(updated);
       } catch (error) {
         console.error("Failed to fetch pool stats for markets:", error);
@@ -95,12 +99,37 @@ export default function MarketsPage() {
   return (
     <MainLayout>
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Prediction Markets</h1>
-          <p className="text-muted-foreground">
-            Browse and participate in private prediction markets
-          </p>
+        {/* Header Section */}
+        <div className="mb-12 relative">
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex flex-col md:flex-row md:items-end justify-between gap-6"
+          >
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary/80">Live Prediction Ecosystem</span>
+              </div>
+              <h1 className="text-4xl font-semibold tracking-tight text-white mb-2">
+                Explore <span className="text-gradient">Markets</span>
+              </h1>
+              <p className="text-md text-muted-foreground max-w-2xl leading-relaxed">
+                Discover and participate in decentralized, privacy-preserving prediction markets powered by zero-knowledge proofs on Aleo.
+              </p>
+            </div>
+            
+            <div className="flex items-center gap-3 bg-white/[0.03] border border-white/5 p-2 rounded-2xl backdrop-blur-sm">
+              <div className="px-4 py-2 text-center border-r border-white/5">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Active</div>
+                <div className="text-xl font-semibold font-mono text-white">{markets.length}</div>
+              </div>
+              <div className="px-4 py-2 text-center">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Volume</div>
+                <div className="text-xl font-semibold font-mono text-success">{formatVolume(totalVolume)}</div>
+              </div>
+            </div>
+          </motion.div>
         </div>
 
         {/* Filters */}

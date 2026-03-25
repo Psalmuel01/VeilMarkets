@@ -43,7 +43,11 @@ import {
   PROGRAM_ID,
   ORACLE_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
-  FACTORY_PROGRAM_ID,
+  USDCX_TOKEN_PROGRAM_ID,
+  resolveTokenAdapterProgram,
+  resolveTokenBaseProgram,
+  resolveTokenTicker,
+  resolveTokenDisplayName,
 } from "../lib/constants";
 
 export interface ChainMarket {
@@ -55,6 +59,7 @@ export interface ChainMarket {
   is_resolved: boolean;
   winning_outcome: number;
   resolved_by_oracle: boolean;
+  token_id: string;
   // Computed fields from metadata
   id: string;
   title?: string;
@@ -71,13 +76,19 @@ interface ExecuteWalletTransactionOptions {
   privateFee: boolean;
 }
 
+interface TokenBalanceSummary {
+  private: number;
+  public: number;
+  total: number;
+}
+
 const toObject = (value: unknown): Record<string, unknown> | null =>
   typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 
 const cleanAleoPrimitive = (value: unknown): string => {
   if (typeof value === "string") {
     return value
-      .replace(/u8|u64|field|group|address|\.private|\.public/g, "")
+      .replace(/u8|u64|u128|field|group|address|\.private|\.public/g, "")
       .replace(/["']/g, "")
       .trim();
   }
@@ -87,7 +98,7 @@ const cleanAleoPrimitive = (value: unknown): string => {
 const parseAleoAmount = (value: unknown): number => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
-    const parsed = Number.parseInt(value.replace(/u64/g, "").trim(), 10);
+    const parsed = Number.parseInt(value.replace(/u64|u128|u32/g, "").trim(), 10);
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
@@ -102,7 +113,8 @@ const formatField = (value: string): string => (value.endsWith("field") ? value 
 const parseMappingU64 = (value: unknown): number => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
-    const parsed = Number.parseInt(value.replace(/u64/g, "").trim(), 10);
+    const match = value.match(/-?\d+/);
+    const parsed = match ? Number.parseInt(match[0], 10) : NaN;
     return Number.isFinite(parsed) ? parsed : 0;
   }
   if (typeof value === "object" && value !== null) {
@@ -181,7 +193,7 @@ const extractRecordAmount = (record: WalletRecord): number => {
   for (const field of possibleFields) {
     const raw = parseRecordField(record, field);
     if (raw) {
-      const val = typeof raw === "string" ? raw.replace(/u64|u32|field|group|address|\.private|\.public/g, "").trim() : String(raw);
+      const val = typeof raw === "string" ? raw.replace(/u64|u128|u32|field|group|address|\.private|\.public/g, "").trim() : String(raw);
       const parsed = Number.parseInt(val, 10);
       if (!isNaN(parsed) && parsed > 0) return parsed;
     }
@@ -428,10 +440,19 @@ export const useAleoPrograms = () => {
     if (!address) return [];
     setLoading(true);
     try {
-      // Query TOKEN program for EscrowedBet records (where bets are escrowed)
-      const rawRecords = await requestRecords(TOKEN_PROGRAM_ID, true);
-      const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
-      const unspentRecords = records.filter((record) => !record.spent);
+      // Query both token adapters for EscrowedBet records (where bets are escrowed)
+      const tokenPrograms = [TOKEN_PROGRAM_ID, USDCX_TOKEN_PROGRAM_ID];
+      const unspentRecords: WalletRecord[] = [];
+
+      for (const programId of tokenPrograms) {
+        try {
+          const rawRecords = await requestRecordsWithRetry(requestRecords, programId, "EscrowedBet");
+          const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
+          unspentRecords.push(...records.filter((record) => !record.spent));
+        } catch (error) {
+          console.warn(`[fetchUserBets] Failed to read EscrowedBet records for ${programId}:`, error);
+        }
+      }
 
       const rawPositions = await requestRecordsWithRetry(requestRecords, PROGRAM_ID, "BetPosition");
       const positionRecords = rawPositions.filter(
@@ -446,7 +467,7 @@ export const useAleoPrograms = () => {
         positionSpentByKey.set(key, Boolean(record.spent));
       }
 
-      // console.log(`[fetchUserBets] Found ${records.length} total records from ${TOKEN_PROGRAM_ID}, ${unspentRecords.length} are unspent.`);
+      // console.log(`[fetchUserBets] Found ${unspentRecords.length} unspent EscrowedBet records across token adapters.`);
 
       const results = unspentRecords
         .map((record) => {
@@ -517,6 +538,39 @@ export const useAleoPrograms = () => {
     return balances.total;
   }, [fetchBalances]);
 
+  const fetchUSDCxBalances = useCallback(async (): Promise<TokenBalanceSummary> => {
+    if (!address) return { private: 0, public: 0, total: 0 };
+
+    let privateMicro = 0;
+    try {
+      const rawRecords = await requestRecordsWithRetry(requestRecords, "test_usdcx_stablecoin.aleo", "USDCx");
+      const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
+      privateMicro = records.filter((record) => !record.spent).reduce((acc, record) => acc + extractRecordAmount(record), 0);
+    } catch (e) {
+      console.warn("[USDCx Balance] Private record fetch failed");
+    }
+
+    let publicMicro = 0;
+    try {
+      // ARC-20 stablecoin uses `balances` mapping (address => u128)
+      const rawValue = await fetchMappingValue("test_usdcx_stablecoin.aleo", "balances", address);
+      publicMicro = parseMappingU64(rawValue);
+    } catch (e) {
+      console.warn("[USDCx Balance] Public mapping fetch failed");
+    }
+
+    return {
+      private: privateMicro / 1_000_000,
+      public: publicMicro / 1_000_000,
+      total: (privateMicro + publicMicro) / 1_000_000,
+    };
+  }, [address, requestRecords]);
+
+  const fetchUSDCxBalance = useCallback(async (): Promise<number> => {
+    const balances = await fetchUSDCxBalances();
+    return balances.total;
+  }, [fetchUSDCxBalances]);
+
 
   const createMarket = async (
     title: string,
@@ -525,6 +579,7 @@ export const useAleoPrograms = () => {
     closeTime: number, // Unix timestamp in seconds
     resolutionTime: number, // Unix timestamp in seconds
     resolutionSource: string,
+    tokenId: string,
   ) => {
     if (!address) {
       toast.error("Please connect your wallet first");
@@ -539,8 +594,8 @@ export const useAleoPrograms = () => {
       const result = await executeAndPoll({
         program: PROGRAM_ID,
         function: "create_market",
-        inputs: [titleHash, formatU8(category), formatU64(closeTime), formatU64(resolutionTime)],
-        fee: 2_000_000,
+        inputs: [titleHash, formatU8(category), formatU64(closeTime), formatU64(resolutionTime), tokenId],
+        fee: 2_500_000,
         privateFee: false,
       }, PROGRAM_ID, "create_market");
 
@@ -560,14 +615,23 @@ export const useAleoPrograms = () => {
             expiry_time: closeTime * 1000
           });
           // Save metadata including expiry_time
-          await saveMarketMetadata(
-            result.transactionId,
-            marketId,
-            title,
-            description,
-            resolutionSource,
-            closeTime * 1000 // absolute ms for metadata
-          );
+          try {
+            await saveMarketMetadata(
+              result.transactionId,
+              marketId,
+              title,
+              description,
+              resolutionSource,
+              closeTime * 1000 // absolute ms for metadata
+            );
+          } catch (metadataError) {
+            const maybeError = metadataError as { code?: string; message?: string };
+            if (maybeError?.code === "42501") {
+              toast.warning("Market created on-chain, but metadata save was blocked by Supabase RLS for markets_v6.");
+            } else {
+              toast.warning("Market created on-chain, but metadata save failed.");
+            }
+          }
           triggerRefresh();
           return { transactionId: result.transactionId, marketId };
         }
@@ -580,50 +644,39 @@ export const useAleoPrograms = () => {
   };
 
   const requestCredits = async () => {
-    toast.info("Please use the Aleo Faucet to get native credits for betting.");
+    toast.info("Opening Aleo Faucet...");
     window.open("https://faucet.aleo.org/", "_blank");
   };
 
-  const findCreditsRecord = async (requiredAmountMicro: number): Promise<WalletRecord | null> => {
+  const requestUSDCx = async () => {
+    toast.info("USDCx can be obtained via the official USDCx bridge/faucet on testnet.");
+    // In a real app, link to the specific USDCx faucet/bridge if available
+  };
+
+  const findTokenRecord = async (tokenProgramId: string, requiredAmountMicro: number): Promise<WalletRecord | null> => {
     if (!address) return null;
 
     try {
-      // NOTE: Some wallets block "credits.aleo" requestRecords for security.
-      // If this fails, we ask the user to ensure they have enough unspent credits in a single record.
-      let rawRecords: any[] = [];
-      try {
-        rawRecords = await requestRecords("credits.aleo", true);
-      } catch (walletError: any) {
-        console.error("[findCreditsRecord] Wallet Error:", walletError);
-        if (walletError.message?.includes("Program not allowed")) {
-          toast.error("Wallet blocked access to Credits. Please ensure your wallet allows 'credits.aleo' access or try a different wallet.");
-        }
-        throw walletError;
-      }
-
+      const label = tokenProgramId === "credits.aleo" ? "Credits" : "USDCx";
+      const rawRecords = await requestRecordsWithRetry(requestRecords, tokenProgramId, label);
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
-      const unspent = records.filter((record) => !record.spent);
-
-      console.log(`[findCreditsRecord] Found ${unspent.length} unspent records from credits.aleo`);
-
-      // Log all unspent records for debugging
-      for (const record of unspent) {
-        const amount = extractRecordAmount(record);
-        console.log(`[findCreditsRecord] Record amount: ${amount}, required: ${requiredAmountMicro}`, record);
-      }
-
+      
+      const unspent = records.filter(r => !r.spent);
+      
       const matchingRecord = unspent.find((record) => extractRecordAmount(record) >= requiredAmountMicro);
 
       if (!matchingRecord) {
-        console.warn(`[findCreditsRecord] No record with >= ${requiredAmountMicro} microcredits found among ${unspent.length} unspent records`);
+        console.warn(`[findTokenRecord] No record with >= ${requiredAmountMicro} for ${tokenProgramId} found among ${unspent.length} unspent records`);
       }
 
       return matchingRecord ?? null;
     } catch (error) {
-      console.error("Error in findCreditsRecord:", error);
+      console.error(`[findTokenRecord] Error for ${tokenProgramId}:`, error);
       return null;
     }
   };
+
+  const findCreditsRecord = (amountMicro: number) => findTokenRecord("credits.aleo", amountMicro);
 
   const findClaimablePositionRecord = async (marketId: string): Promise<WalletRecord | null> => {
     if (!address) return null;
@@ -660,14 +713,17 @@ export const useAleoPrograms = () => {
     return null;
   };
 
-  const findEscrowedBetRecord = async (marketId: string): Promise<WalletRecord | null> => {
+  const findEscrowedBetRecord = async (
+    marketId: string,
+    tokenProgramId: string = TOKEN_PROGRAM_ID
+  ): Promise<WalletRecord | null> => {
     if (!address) return null;
 
     const cleanMarketId = marketId.includes("field") ? marketId.replace("field", "") : marketId;
 
     try {
       // Search TOKEN program for EscrowedBet records
-      const rawRecords = await requestRecordsWithRetry(requestRecords, TOKEN_PROGRAM_ID, "EscrowedBet");
+      const rawRecords = await requestRecordsWithRetry(requestRecords, tokenProgramId, "EscrowedBet");
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       const unspent = records.filter((record) => !record.spent);
 
@@ -681,7 +737,7 @@ export const useAleoPrograms = () => {
       if (isWalletNoResponse(error)) {
         toast.error("Wallet did not respond. Unlock/approve the wallet and retry claim.");
       }
-      console.error("Error finding escrowed bet record:", error);
+      console.error(`Error finding escrowed bet record in ${tokenProgramId}:`, error);
       return null;
     }
   };
@@ -728,7 +784,7 @@ export const useAleoPrograms = () => {
     return 0;
   };
 
-  const placeBet = async (marketId: string, outcome: number, amountCredits: number) => {
+  const placeBet = async (marketId: string, outcome: number, amountCredits: number, tokenId: string) => {
     if (!address) {
       toast.error("Please connect your wallet first");
       return;
@@ -739,33 +795,35 @@ export const useAleoPrograms = () => {
     const amountMicro = toMicrocredits(amountCredits);
 
     try {
-      toast.info("Placing private bet...");
+      const tokenProgram = resolveTokenAdapterProgram(tokenId);
+      const baseTokenProgram = resolveTokenBaseProgram(tokenId);
+      const tokenLabel = resolveTokenDisplayName(tokenId);
 
-      const creditsRecord = await findCreditsRecord(amountMicro);
+      if (!tokenProgram || !baseTokenProgram) {
+        toast.error(`Unsupported market token: ${tokenId}`);
+        return;
+      }
 
-      if (!creditsRecord) {
-        // Double check if they have public funds
-        const balance = await fetchTokenBalance();
-        if (balance >= amountCredits) {
-          toast.error("Your credits are PUBLIC. You must convert them to PRIVATE first to place a bet.");
-        } else {
-          toast.error("Insufficient balance. Total: " + balance + " Credits");
-        }
+      toast.info(`Placing bet using ${tokenLabel}...`);
+      const tokenRecord = await findTokenRecord(baseTokenProgram, amountMicro);
+
+      if (!tokenRecord) {
+        toast.error(`Insufficient private ${tokenLabel} balance.`);
         return;
       }
 
       const betResult = await executeAndPoll({
-        program: TOKEN_PROGRAM_ID,
+        program: tokenProgram,
         function: "place_bet",
         inputs: [
-          creditsRecord.recordPlaintext || creditsRecord.plaintext,
+          tokenRecord.recordPlaintext || tokenRecord.plaintext,
           cleanMarketId,
           formatU8(outcome),
           formatU64(amountMicro),
         ],
         fee: 1_500_000,
         privateFee: false,
-      }, TOKEN_PROGRAM_ID, "place_bet");
+      }, tokenProgram, "place_bet");
 
       if (betResult) triggerRefresh();
       return betResult ? betResult.transactionId : null;
@@ -906,18 +964,31 @@ export const useAleoPrograms = () => {
     }
   };
 
-  const claimWinnings = async (marketId: string): Promise<{ transactionId: string; payoutAmount: number } | null> => {
+  const claimWinnings = async (
+    marketId: string,
+  ): Promise<{ transactionId: string; payoutAmount: number; payoutTicker: string } | null> => {
     if (!address) return;
 
     setLoading(true);
     try {
+      const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+      const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
+      const marketInfo = marketRaw ? parseMarketInfo(marketRaw as string | object, cleanMarketId) : null;
+      const payoutTokenProgram = resolveTokenAdapterProgram(marketInfo?.token_id ?? "");
+      const payoutTicker = resolveTokenTicker(marketInfo?.token_id ?? "");
+
+      if (!payoutTokenProgram) {
+        toast.error(`Unsupported payout token for market ${marketId}.`);
+        return null;
+      }
+
       // Step 1: Call core contract claim_winnings with BetPosition record
       let positionRecord = await findClaimablePositionRecord(marketId);
       if (!positionRecord) {
-        const escrowedBet = await findEscrowedBetRecord(marketId);
+        const escrowedBet = await findEscrowedBetRecord(marketId, payoutTokenProgram);
         if (!escrowedBet) {
-          await logProgramRecordSummary(TOKEN_PROGRAM_ID, "EscrowedBet");
-          toast.error("No claimable bet record found for this market in your wallet. Ensure you placed the bet with this wallet and that your wallet allows veilmarkets_token_v4.aleo records.");
+          await logProgramRecordSummary(payoutTokenProgram, "EscrowedBet");
+          toast.error(`No claimable bet record found for this market in your wallet. Ensure you placed the bet with this wallet and that your wallet allows ${payoutTokenProgram} records.`);
           return;
         }
 
@@ -971,14 +1042,14 @@ export const useAleoPrograms = () => {
       if (!claimRecord) {
         toast.error("Claim record not found in wallet yet. Please retry in a moment.");
         triggerRefresh();
-        return { transactionId: claimResult.transactionId, payoutAmount: 0 };
+        return { transactionId: claimResult.transactionId, payoutAmount: 0, payoutTicker };
       }
 
       const nullifierRaw = parseRecordField(claimRecord, "nullifier");
       if (!nullifierRaw) {
         toast.error("Unable to read claim nullifier from wallet record.");
         triggerRefresh();
-        return { transactionId: claimResult.transactionId, payoutAmount: 0 };
+        return { transactionId: claimResult.transactionId, payoutAmount: 0, payoutTicker };
       }
 
       const nullifierField = formatField(nullifierRaw);
@@ -987,17 +1058,17 @@ export const useAleoPrograms = () => {
       if (!payoutAmount || payoutAmount <= 0) {
         toast.error("Payout not available yet. Please retry shortly.");
         triggerRefresh();
-        return { transactionId: claimResult.transactionId, payoutAmount: 0 };
+        return { transactionId: claimResult.transactionId, payoutAmount: 0, payoutTicker };
       }
 
       toast.info("Step 2/2: Collecting payout from token contract...");
       const payoutResult = await executeAndPoll({
-        program: TOKEN_PROGRAM_ID,
+        program: payoutTokenProgram,
         function: "claim_payout",
         inputs: [formatU64(payoutAmount), nullifierField],
         fee: 500_000,
         privateFee: false,
-      }, TOKEN_PROGRAM_ID, "claim_payout");
+      }, payoutTokenProgram, "claim_payout");
 
       if (!payoutResult?.transactionId) {
         toast.error("Token payout failed.");
@@ -1005,9 +1076,9 @@ export const useAleoPrograms = () => {
       }
 
       const payoutAleo = payoutAmount / 1_000_000;
-      toast.success(`Payout claimed! ${payoutAleo.toFixed(4)} ALEO`);
+      toast.success(`Payout claimed! ${payoutAleo.toFixed(4)} ${payoutTicker}`);
       triggerRefresh();
-      return { transactionId: payoutResult.transactionId, payoutAmount: payoutAleo };
+      return { transactionId: payoutResult.transactionId, payoutAmount: payoutAleo, payoutTicker };
     } catch (error) {
       console.error("Claim winnings failed:", error);
       toast.error(`Claim error: ${getErrorMessage(error)}`);
@@ -1054,9 +1125,12 @@ export const useAleoPrograms = () => {
     fetchMarkets,
     fetchUserBets,
     fetchTokenBalance,
+    fetchUSDCxBalances,
+    fetchUSDCxBalance,
     fetchPoolStats,
     isOracleRegistered,
     requestCredits,
+    requestUSDCx,
     refreshSignal,
     publicKey,
     loading,

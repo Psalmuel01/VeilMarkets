@@ -42,7 +42,7 @@ A creator sets a title, category, and two timestamps:
 ### Step 2: Placing a Bet
 When you place a bet:
 1. One of your **Native Credits** records is spent.
-2. The funds are moved to the `veilmarkets_token_v5.aleo` public balance (Escrow).
+2. The funds are moved to the selected token adapter (`veilmarkets_token_credits_v6.aleo` or `veilmarkets_token_usdcx_v6.aleo`) public balance (Escrow).
 3. You receive a **BetPosition** record (private to you).
 
 ### Step 3: Resolution (Optimistic Oracle)
@@ -83,7 +83,7 @@ The "Price" or "Odds" of an outcome (Yes/No) are simply the ratio of money on th
 ---
 
 ## 6. Current Limitations (Alpha)
-- **Native Tokens**: We currently only support `credits.aleo`. Support for stablecoins (USDCx/USAD) is planned for the next phase.
+- **Token Coverage**: We currently support `credits.aleo` and `test_usdcx_stablecoin.aleo` (USDCx adapter).
 - **Oracles**: Currently, the system relies on a set of trusted oracle addresses.
 - **Fees**: A small 1% fee is collected on winnings to maintain the platform and reward oracles.
 

@@ -1,10 +1,10 @@
 // VeilMarkets Oracle: Optimistic Edition
 // Fast, game-theoretic resolution with 24h dispute window
 import credits.aleo;
-import veilmarkets_v5.aleo;
-import veilmarkets_factory_v5.aleo;
+import veilmarkets_v6.aleo;
+import veilmarkets_factory_v6.aleo;
 
-program veilmarkets_oracle_v5.aleo {
+program veilmarkets_oracle_v6.aleo {
     // Records & Structs
     struct ResolutionProposal {
         market_id: field,
@@ -55,10 +55,10 @@ program veilmarkets_oracle_v5.aleo {
             amount,
         );
         let credential: OracleCredential = OracleCredential {
-            owner: self.caller,
+            owner: self.signer,
             staked_amount: amount,
             reputation_score: 100u64,
-            nonce: BHP256::hash_to_group(self.caller as field),
+            nonce: BHP256::hash_to_group(self.signer as field),
         };
         let f: Future = finalize_register_oracle(self.caller, amount, transfer_future);
         return (change, credential, f);
@@ -168,7 +168,7 @@ program veilmarkets_oracle_v5.aleo {
     async transition resolve_on_core(public market_id: field, public outcome: u8) -> Future {
         assert_eq(self.caller, aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n);
         // One transition calls another
-        let f_core: Future = veilmarkets_v5.aleo/resolve_market(
+        let f_core: Future = veilmarkets_v6.aleo/resolve_market(
             market_id,
             outcome,
             self.address,

@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, Loader2, CheckCircle2, X, Wallet } from "lucide-react";
-import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
+import { Shield, Loader2, CheckCircle2, X, Wallet, ArrowRight, TrendingUp } from "lucide-react";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import {
   Dialog,
@@ -15,33 +14,62 @@ import { WagerSlider } from "./WagerSlider";
 import { PrivacyChecklist } from "@/components/ui/PrivacyChecklist";
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
+import { cn } from "@/lib/utils";
+import { resolveTokenDisplayName, resolveTokenKind, resolveTokenTicker } from "@/lib/constants";
 
 interface PlaceBetModalProps {
   open: boolean;
   onClose: () => void;
-  marketTitle: string;
   marketId: string;
+  marketTitle: string;
+  tokenId: string; // The specific token contract for this market
   onBetPlaced?: () => void;
 }
 
 type Step = "select" | "confirm" | "processing" | "success" | "failed";
 
-export function PlaceBetModal({ open, onClose, marketTitle, marketId, onBetPlaced }: PlaceBetModalProps) {
-  const { address } = useWallet();
+export const PlaceBetModal = ({
+  open,
+  onClose,
+  marketId,
+  marketTitle,
+  tokenId,
+  onBetPlaced,
+}: PlaceBetModalProps) => {
   const [step, setStep] = useState<Step>("select");
   const [selectedOutcome, setSelectedOutcome] = useState<"Yes" | "No" | null>(null);
   const [wagerAmount, setWagerAmount] = useState(5);
   const [txId, setTxId] = useState<string | null>(null);
-  const { placeBet, fetchPoolStats, fetchBalances, shieldCredits } = useAleoPrograms();
+  const { placeBet, fetchPoolStats, fetchBalances, fetchUSDCxBalances, publicKey } = useAleoPrograms();
   const [pool, setPool] = useState<{ total_yes: number; total_no: number } | null>(null);
-  const [balances, setBalances] = useState<{ private: number; public: number } | null>(null);
+  const [balances, setBalances] = useState<{ private: number; public: number; total: number } | null>(null);
+  const tokenKind = resolveTokenKind(tokenId);
+  const tokenTicker = resolveTokenTicker(tokenId);
+  const tokenDisplayName = resolveTokenDisplayName(tokenId);
+  const hasLowPrivateBalance = !!balances && balances.private < wagerAmount;
 
   useEffect(() => {
-    if (open) {
-      fetchPoolStats(marketId).then(setPool);
-      fetchBalances().then(setBalances);
-    }
-  }, [marketId, open, fetchPoolStats, fetchBalances]);
+    if (!open) return;
+
+    fetchPoolStats(marketId).then(setPool);
+
+    if (!publicKey) return;
+
+    const loadBalances = async () => {
+      if (tokenKind === "usdcx") {
+        setBalances(await fetchUSDCxBalances());
+        return;
+      }
+      const credits = await fetchBalances();
+      setBalances({
+        private: credits.private,
+        public: credits.public,
+        total: credits.private + credits.public,
+      });
+    };
+
+    loadBalances();
+  }, [marketId, open, publicKey, tokenKind, fetchPoolStats, fetchBalances, fetchUSDCxBalances]);
 
   const calculateReturn = () => {
     if (!pool || !selectedOutcome) return null;
@@ -67,7 +95,8 @@ export function PlaceBetModal({ open, onClose, marketTitle, marketId, onBetPlace
     const result = await placeBet(
       marketId,
       selectedOutcome === "Yes" ? 1 : 0,
-      wagerAmount
+      wagerAmount,
+      tokenId
     );
 
     if (result) {
@@ -88,266 +117,323 @@ export function PlaceBetModal({ open, onClose, marketTitle, marketId, onBetPlace
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-lg bg-card border-border/50">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-primary" />
-            Place Private Bet
-          </DialogTitle>
-        </DialogHeader>
+      <DialogContent className="sm:max-w-xl glass-panel !rounded-[2.5rem] border-white/10 p-0 overflow-hidden">
+        {/* Decorative Background */}
+        <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-primary/10 to-transparent pointer-events-none" />
 
-        <div className="text-sm text-muted-foreground mb-4 line-clamp-2">
-          {marketTitle}
-        </div>
-
-        <AnimatePresence mode="wait">
-          {!address ? (
-            <motion.div
-              key="connect"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="text-center py-6 space-y-3"
-            >
-              <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                <Wallet className="w-6 h-6 text-primary" />
+        <div className="relative p-8">
+          <DialogHeader className="mb-8">
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg btn-premium flex items-center justify-center">
+                    <Shield className="w-5 h-5 text-white" />
+                  </div>
+                  <DialogTitle className="text-2xl font-bold tracking-tight text-white">
+                    Place Private <span className="text-gradient">Bet</span>
+                  </DialogTitle>
+                </div>
+                <p className="text-sm text-muted-foreground font-medium pl-10">
+                  {marketTitle}
+                </p>
               </div>
-              <h3 className="text-lg font-semibold">Wallet Required</h3>
-              <p className="text-sm text-muted-foreground pb-4">
-                You need to connect an Aleo wallet to place private bets.
-              </p>
-              <ConnectWalletButton className="w-full justify-center" />
-            </motion.div>
-          ) : step === "select" && (
-            <motion.div
-              key="select"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-6"
-            >
-              {/* Outcome Selection */}
-              <div>
-                <label className="text-sm font-medium text-muted-foreground mb-3 block">
-                  Select Your Prediction
-                </label>
-                <div className="flex gap-4">
-                  <OutcomeCard
-                    outcome="Yes"
-                    selected={selectedOutcome === "Yes"}
-                    onSelect={() => setSelectedOutcome("Yes")}
-                  />
-                  <OutcomeCard
-                    outcome="No"
-                    selected={selectedOutcome === "No"}
-                    onSelect={() => setSelectedOutcome("No")}
+              {/* <button
+                onClick={handleClose}
+                className="p-2 rounded-full hover:bg-white/5 text-muted-foreground transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button> */}
+            </div>
+          </DialogHeader>
+
+          <AnimatePresence mode="wait">
+            {!publicKey ? (
+              <motion.div
+                key="connect"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="text-center py-12 space-y-6"
+              >
+                <div className="mx-auto w-20 h-20 rounded-3xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4 relative overflow-hidden group">
+                  <div className="absolute inset-0 bg-primary/5 group-hover:bg-primary/10 transition-colors" />
+                  <Wallet className="w-10 h-10 text-primary relative z-10" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white mb-2">Connect Your Wallet</h3>
+                  <p className="text-sm text-muted-foreground max-w-xs mx-auto mb-8">
+                    To place a privacy-preserving bet on Aleo, you'll need to link your wallet.
+                  </p>
+                </div>
+                <ConnectWalletButton className="w-full max-w-sm mx-auto" />
+              </motion.div>
+            ) : step === "select" && (
+              <motion.div
+                key="select"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-8"
+              >
+                {/* Outcome Selection */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="w-1 h-4 rounded-full bg-primary" />
+                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                      Select Your Prediction
+                    </label>
+                  </div>
+                  <div className="flex gap-4">
+                    <OutcomeCard
+                      outcome="Yes"
+                      selected={selectedOutcome === "Yes"}
+                      onSelect={() => setSelectedOutcome("Yes")}
+                    />
+                    <OutcomeCard
+                      outcome="No"
+                      selected={selectedOutcome === "No"}
+                      onSelect={() => setSelectedOutcome("No")}
+                    />
+                  </div>
+                </div>
+
+                {/* Wager Slider */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-2">
+                      <div className="w-1 h-4 rounded-full bg-accent" />
+                      <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                        Wager Amount
+                      </label>
+                    </div>
+                    <span className="text-xs font-mono text-muted-foreground">Max: 1000 {tokenTicker}</span>
+                  </div>
+                  <WagerSlider
+                    value={wagerAmount}
+                    onChange={setWagerAmount}
+                    tokenTicker={tokenTicker}
                   />
                 </div>
-              </div>
 
-              {/* Wager Slider */}
-              <WagerSlider
-                value={wagerAmount}
-                onChange={setWagerAmount}
-              />
+                {hasLowPrivateBalance && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-5 rounded-3xl bg-warning/5 border border-warning/10 space-y-3"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-xl bg-warning/10 mt-0.5">
+                        <Shield className="w-4 h-4 text-warning" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-bold text-warning uppercase tracking-wider">Low Private Balance</p>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          This market requires <span className="text-white font-bold">{wagerAmount} {tokenDisplayName}</span> privately. Available private balance: <span className="text-white font-bold">{balances?.private.toLocaleString()} {tokenTicker}</span>.
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
 
-              {balances && balances.private < wagerAmount && balances.public >= wagerAmount && (
-                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-3">
-                  <div className="flex items-start gap-3">
-                    <Shield className="w-5 h-5 text-amber-500 mt-0.5" />
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-amber-500 uppercase tracking-wider">Top-up Required</p>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        You need **{wagerAmount} Private Credits**. You have enough Public balance to top up now.
-                      </p>
+                <Button
+                  onClick={() => setStep("confirm")}
+                  disabled={!selectedOutcome || hasLowPrivateBalance}
+                  className="w-full btn-premium h-16 rounded-[1.5rem] group"
+                >
+                  <span className="text-base font-bold">Continue to Review</span>
+                  <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </Button>
+              </motion.div>
+            )}
+
+            {step === "confirm" && (
+              <motion.div
+                key="confirm"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-8"
+              >
+                {/* Summary Section */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-6 rounded-3xl bg-white/[0.03] border border-white/5 space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Outcome</span>
+                    <div className={cn(
+                      "text-2xl font-bold",
+                      selectedOutcome === "Yes" ? "text-success" : "text-destructive"
+                    )}>
+                      {selectedOutcome}
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full border-amber-500/30 hover:bg-amber-500/10 text-amber-500 text-xs py-4 transition-all duration-200"
-                    onClick={() => shieldCredits(wagerAmount)}
-                  >
-                    Shield {wagerAmount} Credits
-                  </Button>
+                  <div className="p-6 rounded-3xl bg-white/[0.03] border border-white/5 space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Wager</span>
+                    <div className="text-2xl font-bold text-white font-mono">
+                      {wagerAmount} <span className="text-xs text-muted-foreground">{tokenTicker}</span>
+                    </div>
+                  </div>
                 </div>
-              )}
 
-              {/* <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs text-muted-foreground">
-                <p>Each bet requires Aleo Credits. If you're out of credits, use the <strong>Faucet</strong> in the sidebar.</p>
-              </div> */}
-
-              <Button
-                onClick={() => setStep("confirm")}
-                disabled={!selectedOutcome}
-                className="w-full btn-glow-primary"
-              >
-                Continue to Privacy Review
-              </Button>
-            </motion.div>
-          )}
-
-          {step === "confirm" && (
-            <motion.div
-              key="confirm"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-6"
-            >
-              {/* Summary */}
-              <div className="p-4 rounded-xl bg-muted/30 border border-border/50 space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Your Prediction</span>
-                  <span className="font-semibold">{selectedOutcome}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Wager Amount</span>
-                  <span className="font-mono encrypted-text">Encrypted</span>
-                </div>
                 {potentialReturn && (
-                  <div className="flex justify-between text-sm pt-2 border-t border-border/10">
-                    <span className="text-muted-foreground">Potential Return</span>
-                    <span className="font-semibold text-success">~{potentialReturn.toFixed(2)} ALEO</span>
+                  <div className="p-6 rounded-3xl bg-success/5 border border-success/10 flex items-center justify-between">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-success/70">Estimated Max Return</span>
+                      <div className="text-2xl font-bold text-success font-mono">
+                        +{potentialReturn.toFixed(2)} <span className="text-xs">{tokenTicker}</span>
+                      </div>
+                    </div>
+                    <TrendingUp className="w-10 h-10 text-success opacity-20" />
                   </div>
                 )}
-              </div>
 
-              {/* Privacy Checklist */}
-              <div>
-                <label className="text-sm font-medium text-muted-foreground mb-3 block">
-                  Privacy Verification
-                </label>
-                <PrivacyChecklist />
-              </div>
-
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setStep("select")}
-                  className="flex-1"
-                >
-                  Back
-                </Button>
-                <Button
-                  onClick={handleSubmit}
-                  className="flex-1 btn-glow-primary"
-                >
-                  Submit Private Bet
-                </Button>
-              </div>
-            </motion.div>
-          )}
-
-          {step === "processing" && (
-            <motion.div
-              key="processing"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="py-12 text-center space-y-6"
-            >
-              <div className="relative mx-auto w-20 h-20">
-                <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
-                <div className="relative w-20 h-20 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center">
-                  <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                {/* Privacy Proofing */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 px-1">
+                    <div className="w-1 h-4 rounded-full bg-primary" />
+                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                      Privacy Verification
+                    </label>
+                  </div>
+                  <div className="p-2 rounded-[2rem] bg-white/[0.02] border border-white/5">
+                    <PrivacyChecklist />
+                  </div>
                 </div>
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Generating ZK Proof</h3>
-                <p className="text-sm text-muted-foreground">
-                  Encrypting your bet and creating a zero-knowledge proof...
-                </p>
-              </div>
-              <div className="flex justify-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: "0ms" }} />
-                <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: "150ms" }} />
-                <div className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: "300ms" }} />
-              </div>
-            </motion.div>
-          )}
 
-          {step === "success" && (
-            <motion.div
-              key="success"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="py-8 text-center space-y-6"
-            >
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", delay: 0.2 }}
-                className="mx-auto w-20 h-20 rounded-full bg-success/10 border-2 border-success flex items-center justify-center"
-              >
-                <CheckCircle2 className="w-10 h-10 text-success" />
+                <div className="flex gap-4">
+                  <Button
+                    variant="ghost"
+                    onClick={() => setStep("select")}
+                    className="flex-1 h-14 rounded-2xl hover:bg-white/5 text-muted-foreground font-bold active:scale-95 transition-all outline-none border border-transparent hover:border-white/10"
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    onClick={handleSubmit}
+                    className="flex-[2] btn-premium h-14 rounded-2xl font-bold"
+                  >
+                    Confirm Private Bet
+                  </Button>
+                </div>
               </motion.div>
+            )}
 
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Bet Placed Successfully!</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Your private bet has been recorded on Aleo
-                </p>
-                <ZKBadge variant="verified" size="lg" animated />
-              </div>
-
-              <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
-                <div className="text-xs text-muted-foreground mb-1">Transaction ID</div>
-                <code className="text-sm font-mono text-primary break-all">
-                  {txId || "aleo1tx..."}
-                </code>
-              </div>
-
-              <Button onClick={handleClose} className="w-full">
-                Done
-              </Button>
-            </motion.div>
-          )}
-
-          {step === "failed" && (
-            <motion.div
-              key="failed"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="py-8 text-center space-y-6"
-            >
+            {step === "processing" && (
               <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: "spring", delay: 0.2 }}
-                className="mx-auto w-20 h-20 rounded-full bg-destructive/10 border-2 border-destructive flex items-center justify-center"
+                key="processing"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="py-16 text-center space-y-8"
               >
-                <X className="w-10 h-10 text-destructive" />
+                <div className="relative mx-auto w-32 h-32">
+                  <div className="absolute inset-0 rounded-[2.5rem] bg-primary/20 animate-pulse" />
+                  <div className="relative w-32 h-32 rounded-[2.5rem] bg-primary/10 border border-primary/30 flex items-center justify-center">
+                    <Loader2 className="w-12 h-12 text-primary animate-spin" />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <h3 className="text-2xl font-bold text-white tracking-tight">Generating ZK Proof</h3>
+                  <p className="text-sm text-muted-foreground max-w-[280px] mx-auto leading-relaxed">
+                    Encrypting your transaction and generating a cryptographic proof to ensure your privacy.
+                  </p>
+                </div>
+                <div className="flex justify-center gap-3">
+                  {[0, 150, 300].map((delay) => (
+                    <div
+                      key={delay}
+                      className="w-2.5 h-2.5 rounded-full bg-primary/30 animate-pulse"
+                      style={{ animationDelay: `${delay}ms` }}
+                    />
+                  ))}
+                </div>
               </motion.div>
+            )}
 
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Transaction Failed</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Your bet could not be securely placed.
-                </p>
-              </div>
+            {step === "success" && (
+              <motion.div
+                key="success"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="py-12 text-center space-y-8"
+              >
+                <motion.div
+                  initial={{ scale: 0, rotate: -45 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: "spring", damping: 10, delay: 0.2 }}
+                  className="mx-auto w-32 h-32 rounded-[2.5rem] bg-success/10 border border-success/30 flex items-center justify-center shadow-[0_0_50px_hsla(160,84%,45%,0.15)]"
+                >
+                  <CheckCircle2 className="w-16 h-16 text-success" />
+                </motion.div>
 
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setStep("confirm")}
-                  className="flex-1"
-                >
-                  Back
+                <div className="space-y-3">
+                  <div>
+                    <h3 className="text-2xl font-bold text-white tracking-tight">Bet Confirmed</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Your transaction has been securely broadcast to Aleo.
+                    </p>
+                  </div>
+                  <div className="flex justify-center">
+                    <ZKBadge variant="verified" size="lg" animated />
+                  </div>
+                </div>
+
+                <div className="p-6 rounded-3xl bg-white/[0.03] border border-white/5 group">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Transaction Hash</div>
+                  <code className="text-xs font-mono text-primary break-all group-hover:text-primary/100 transition-colors">
+                    {txId || "aleo1tx..."}
+                  </code>
+                </div>
+
+                <Button onClick={handleClose} className="w-full btn-premium h-14 rounded-2xl font-bold">
+                  View My Bets
                 </Button>
-                <Button
-                  onClick={handleSubmit}
-                  className="flex-1 bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              </motion.div>
+            )}
+
+            {step === "failed" && (
+              <motion.div
+                key="failed"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="py-12 text-center space-y-8"
+              >
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", delay: 0.2 }}
+                  className="mx-auto w-32 h-32 rounded-[2.5rem] bg-destructive/10 border border-destructive/30 flex items-center justify-center shadow-[0_0_50px_hsla(0,84%,60%,0.15)]"
                 >
-                  Try Again
-                </Button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                  <X className="w-16 h-16 text-destructive" />
+                </motion.div>
+
+                <div className="space-y-2">
+                  <h3 className="text-2xl font-bold text-white tracking-tight">Transaction Failed</h3>
+                  <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
+                    We encountered an error while generating your private bet. Please check your wallet and try again.
+                  </p>
+                </div>
+
+                <div className="flex gap-4 p-2">
+                  <Button
+                    variant="ghost"
+                    onClick={handleClose}
+                    className="flex-1 h-14 rounded-2xl font-bold hover:bg-white/5"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSubmit}
+                    className="flex-[2] bg-destructive hover:bg-destructive/90 text-white font-bold h-14 rounded-2xl active:scale-95 transition-all"
+                  >
+                    Try Again
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </DialogContent>
     </Dialog>
   );
-}
+};

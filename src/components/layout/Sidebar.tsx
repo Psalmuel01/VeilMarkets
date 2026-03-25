@@ -2,77 +2,77 @@ import { useState, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutGrid,
-  Wallet,
   FileText,
   Shield,
   ChevronLeft,
   ChevronRight,
   TrendingUp,
-  Plus
+  Plus,
+  Trophy
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
-import { OracleRegistrationModal } from "@/components/resolution/OracleRegistrationModal";
+import { useSidebar } from "@/context/SidebarContext";
 
 const navItems = [
   { icon: LayoutGrid, label: "Markets", path: "/markets" },
-  { icon: Wallet, label: "My Bets", path: "/dashboard" },
+  { icon: Trophy, label: "My Bets", path: "/dashboard" },
   { icon: Plus, label: "Create Market", path: "/create" },
   { icon: FileText, label: "Docs", path: "/docs" },
 ];
 
 export function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
+  const { isCollapsed, toggleSidebar } = useSidebar();
+  const collapsed = isCollapsed;
   const location = useLocation();
-  const { requestCredits, fetchMarkets, fetchBalances, shieldCredits, publicKey, isOracleRegistered, registerAsOracle, refreshSignal } = useAleoPrograms();
+  const { fetchMarkets, fetchBalances, fetchUSDCxBalances, publicKey, refreshSignal } = useAleoPrograms();
   const [activeMarketsCount, setActiveMarketsCount] = useState<number | null>(null);
   const [balances, setBalances] = useState<{ private: number; public: number } | null>(null);
-  const [isOracle, setIsOracle] = useState<boolean | null>(null);
-  const [isOracleModalOpen, setIsOracleModalOpen] = useState(false);
+  const [usdcxBalances, setUsdcxBalances] = useState<{ private: number; public: number; total: number } | null>(null);
 
   useEffect(() => {
     const loadStats = async () => {
       try {
-        const [markets, bal, oracleStatus] = await Promise.all([
+        const [markets, bal, usdcx] = await Promise.all([
           fetchMarkets(),
           fetchBalances(),
-          isOracleRegistered()
+          fetchUSDCxBalances()
         ]);
         setActiveMarketsCount(markets.length);
         setBalances(bal);
-        setIsOracle(oracleStatus);
-        // console.log(oracleStatus);
+        setUsdcxBalances(usdcx);
       } catch (error) {
         console.error("Failed to fetch sidebar stats:", error);
       }
     };
     loadStats();
-  }, [fetchMarkets, fetchBalances, isOracleRegistered, publicKey, refreshSignal]);
+  }, [fetchMarkets, fetchBalances, fetchUSDCxBalances, publicKey, refreshSignal]);
 
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 h-screen bg-sidebar border-r border-border/50",
-        "flex flex-col transition-all duration-300 z-50",
-        collapsed ? "w-16" : "w-64"
+        "flex flex-col fixed left-0 top-0 h-screen glass-sidebar shadow-2xl transition-all duration-300 z-50",
+        collapsed ? "w-20" : "w-72"
       )}
     >
       {/* Logo */}
-      <div className="h-16 flex items-center px-4 border-b border-border/50">
-        <NavLink to="/" className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-neon-gradient flex items-center justify-center">
-            <Shield className="w-5 h-5 text-white" />
+      <div className="h-20 flex items-center px-6 border-b border-white/5 bg-white/[0.02]">
+        <NavLink to="/" className="flex items-center gap-4 group">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#00e4b4] to-[#6c8eff] flex items-center justify-center rotate-3 group-hover:rotate-0 transition-transform">
+            <Shield className="w-6 h-6 text-[#080b10]" />
           </div>
           {!collapsed && (
-            <span className="font-semibold text-foreground">VeilMarkets</span>
+            <span className="font-semibold text-xl tracking-tight font-heading text-white bg-clip-text text-transparent bg-gradient-to-br from-white to-white/60">
+              VeilMarkets
+            </span>
           )}
         </NavLink>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-3 space-y-1">
+      <nav className="flex-1 p-4 space-y-2">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (
@@ -80,17 +80,16 @@ export function Sidebar() {
               key={item.path}
               to={item.path}
               className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg",
-                "transition-all duration-200",
-                "hover:bg-sidebar-accent",
+                "flex items-center gap-4 px-4 py-3 rounded-xl",
+                "transition-all duration-300 group",
                 isActive
-                  ? "bg-primary/10 text-primary border border-primary/20"
-                  : "text-sidebar-foreground"
+                  ? "bg-primary/20 text-white border border-primary/30 shadow-[0_0_20px_hsla(var(--primary),0.1)]"
+                  : "text-muted-foreground hover:bg-white/5 hover:text-white"
               )}
             >
-              <item.icon className={cn("w-5 h-5 flex-shrink-0", isActive && "text-primary")} />
+              <item.icon className={cn("w-5 h-5 flex-shrink-0 transition-transform group-hover:scale-110", isActive && "text-primary")} />
               {!collapsed && (
-                <span className="font-medium">{item.label}</span>
+                <span className="font-semibold tracking-wide text-sm">{item.label}</span>
               )}
             </NavLink>
           );
@@ -99,35 +98,52 @@ export function Sidebar() {
 
       {/* Stats Card */}
       {!collapsed && (
-        <div className="p-3">
-          <div className="p-4 rounded-xl bg-card-gradient border border-border/50">
-            <div className="flex items-center gap-2 mb-3">
-              <TrendingUp className="w-4 h-4 text-success" />
-              <span className="text-xs font-medium text-muted-foreground">Network Stats</span>
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Active Markets</span>
-                <span className="font-medium text-foreground">
-                  {activeMarketsCount !== null ? activeMarketsCount : "..."}
-                </span>
-              </div>
-              {publicKey && (
-                <div className="space-y-2 pt-2 border-t border-border/10">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Betting Balance</span>
-                    <span className="font-bold text-primary">
-                      {balances !== null ? `${balances.private.toLocaleString()} Credits` : "..."}
-                    </span>
-                  </div>
-                  {balances && balances.public > 0 && (
-                    <div className="flex justify-between text-[10px] text-muted-foreground/60">
-                      <span>Available to Shield</span>
-                      <span>{balances.public.toLocaleString()} Credits</span>
-                    </div>
-                  )}
+        <div className="p-4">
+          <div className="p-5 rounded-2xl glass-card relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-1.5 rounded-lg bg-success/10">
+                  <TrendingUp className="w-4 h-4 text-success" />
                 </div>
-              )}
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Network Pulse</span>
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-xs text-muted-foreground">Markets</span>
+                  <span className="text-lg font-semibold font-mono text-white leading-none">
+                    {activeMarketsCount !== null ? activeMarketsCount : "..."}
+                  </span>
+                </div>
+                {publicKey && (
+                  <div className="space-y-3 pt-4 border-t border-white/5">
+                    <div className="flex justify-between items-center group/bal">
+                      <span className="text-[10px] text-muted-foreground group-hover/bal:text-white transition-colors">Aleo Credits (Private)</span>
+                      <span className="text-sm font-semibold font-mono text-primary">
+                        {balances !== null ? `${balances.private.toLocaleString()}` : "..."}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center group/bal">
+                      <span className="text-[10px] text-muted-foreground group-hover/bal:text-white transition-colors">Aleo Credits (Public)</span>
+                      <span className="text-sm font-semibold font-mono text-primary">
+                        {balances !== null ? `${balances.public.toLocaleString()}` : "..."}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center group/bal">
+                      <span className="text-[10px] text-muted-foreground group-hover/bal:text-white transition-colors">USDCx (Private)</span>
+                      <span className="text-sm font-semibold font-mono text-accent">
+                        {usdcxBalances !== null ? `${usdcxBalances.private.toLocaleString()}` : "..."}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center group/bal">
+                      <span className="text-[10px] text-muted-foreground group-hover/bal:text-white transition-colors">USDCx (Public)</span>
+                      <span className="text-sm font-semibold font-mono text-accent">
+                        {usdcxBalances !== null ? `${usdcxBalances.public.toLocaleString()}` : "..."}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -151,7 +167,7 @@ export function Sidebar() {
             {balances && balances.public > 0 ? "Shield for Betting" : "Request faucet credits"}
           </Button>
         )} */}
-        
+
         {/* {!collapsed && isOracle === false && publicKey && (
           <Button
             variant="default"
@@ -163,7 +179,7 @@ export function Sidebar() {
             Become an Oracle
           </Button>
         )} */}
-        <ConnectWalletButton className={collapsed ? "w-10 px-0 justify-center" : "w-full"} />
+        <ConnectWalletButton className={collapsed ? "w-12 h-12 px-0 justify-center rounded-xl" : "w-full"} collapsed={collapsed} />
       </div>
 
       {/* Collapse Toggle */}
@@ -171,7 +187,7 @@ export function Sidebar() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={toggleSidebar}
           className="w-full justify-center text-muted-foreground hover:text-foreground"
         >
           {collapsed ? (
@@ -185,12 +201,6 @@ export function Sidebar() {
         </Button>
       </div>
 
-      {/* Oracle Registration Modal */}
-      <OracleRegistrationModal
-        isOpen={isOracleModalOpen}
-        onClose={() => setIsOracleModalOpen(false)}
-        onSuccess={() => setIsOracle(true)}
-      />
     </aside>
   );
 }
