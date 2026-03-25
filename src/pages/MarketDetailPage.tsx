@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -85,9 +84,7 @@ export default function MarketDetailPage() {
   const [loadingMarket, setLoadingMarket] = useState(true);
   const [pool, setPool] = useState<PoolInfo | null>(null);
   const [isOracle, setIsOracle] = useState<boolean | null>(null);
-  const { publicKey } = useWallet();
-  const address = publicKey;
-  const { fetchMarkets, fetchPoolStats, fetchResolutionProposal, fetchUserBets, resolveMarket, currentHeight, isOracleRegistered, refreshSignal } = useAleoPrograms();
+  const { fetchMarkets, fetchPoolStats, fetchResolutionProposal, fetchUserBets, resolveMarket, currentHeight, isOracleRegistered, refreshSignal, publicKey } = useAleoPrograms();
 
   const loadMarket = useCallback(async (opts?: { silent?: boolean }) => {
     if (!id) {
@@ -189,11 +186,11 @@ export default function MarketDetailPage() {
   }, [loadMarket, loadProposal, refreshSignal]);
 
   useEffect(() => {
-    if (!address) return;
-    const normalized = address.replace(/address/g, "").trim().toLowerCase();
+    if (!publicKey) return;
+    const normalized = publicKey.replace(/address/g, "").trim().toLowerCase();
     const isAdminAddress = normalized === ADMIN_ADDRESS.toLowerCase();
     console.log("[MarketDetailPage] admin check:", { address: normalized, isAdmin: isAdminAddress });
-  }, [address]);
+  }, [publicKey]);
 
   // Calculate status
   const nowTs = Math.floor(Date.now() / 1000);
@@ -214,8 +211,8 @@ export default function MarketDetailPage() {
         market?.winningOutcome === 3 ? "CANCELLED" :
           null;
 
-  const isAdmin = address
-    ? address.replace(/address/g, "").trim().toLowerCase() === ADMIN_ADDRESS.toLowerCase()
+  const isAdmin = publicKey
+    ? publicKey.replace(/address/g, "").trim().toLowerCase() === ADMIN_ADDRESS.toLowerCase()
     : false;
   const isFinalizable = proposal && (!proposal.is_disputed ? nowTs >= proposal.challenge_deadline : true);
 
@@ -571,7 +568,7 @@ export default function MarketDetailPage() {
                   )}
                   <ZKBadge variant="proof" className="w-full justify-center py-4 rounded-2xl bg-primary/10 text-primary border border-primary/20" />
                 </div>
-              ) : !address ? (
+              ) : !publicKey ? (
                 <div className="text-center py-10 space-y-6 relative z-10">
                   <div className="w-16 h-16 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto">
                     <Shield className="w-8 h-8 text-muted-foreground/40" />
@@ -643,7 +640,7 @@ export default function MarketDetailPage() {
                   </p>
                 )}
 
-                {!address ? (
+                {!publicKey ? (
                   <ConnectWalletButton className="w-full justify-center" />
                 ) : (
                   <Button

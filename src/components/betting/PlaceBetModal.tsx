@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Shield, Loader2, CheckCircle2, X, Wallet, ArrowRight, TrendingUp } from "lucide-react";
-import { useWallet } from "@demox-labs/aleo-wallet-adapter-react";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import {
   Dialog,
@@ -36,13 +35,11 @@ export const PlaceBetModal = ({
   tokenId,
   onBetPlaced,
 }: PlaceBetModalProps) => {
-  const { publicKey } = useWallet();
-  const address = publicKey;
   const [step, setStep] = useState<Step>("select");
   const [selectedOutcome, setSelectedOutcome] = useState<"Yes" | "No" | null>(null);
   const [wagerAmount, setWagerAmount] = useState(5);
   const [txId, setTxId] = useState<string | null>(null);
-  const { placeBet, fetchPoolStats, fetchBalances, shieldCredits } = useAleoPrograms();
+  const { placeBet, fetchPoolStats, fetchBalances, shieldCredits, publicKey } = useAleoPrograms();
   const [pool, setPool] = useState<{ total_yes: number; total_no: number } | null>(null);
   const [balances, setBalances] = useState<{ private: number; public: number } | null>(null);
 
@@ -119,17 +116,17 @@ export const PlaceBetModal = ({
                   {marketTitle}
                 </p>
               </div>
-              <button
+              {/* <button
                 onClick={handleClose}
                 className="p-2 rounded-full hover:bg-white/5 text-muted-foreground transition-colors"
               >
                 <X className="w-5 h-5" />
-              </button>
+              </button> */}
             </div>
           </DialogHeader>
 
           <AnimatePresence mode="wait">
-            {!address ? (
+            {!publicKey ? (
               <motion.div
                 key="connect"
                 initial={{ opacity: 0, scale: 0.95 }}
