@@ -1,8 +1,8 @@
 // VeilMarkets Core
 // Private Binary Prediction Markets with full cross-contract integration
-import veilmarkets_factory_v5.aleo;
+import veilmarkets_factory_v6.aleo;
 
-program veilmarkets_v5.aleo {
+program veilmarkets_v6.aleo {
     // Records & Structs
     struct MarketInfo {
         creator: address,
@@ -70,7 +70,7 @@ program veilmarkets_v5.aleo {
         public token_id: address,
     ) -> Future {
         // Verify the token contract is officially registered via factory
-        let auth_future: Future = veilmarkets_factory_v5.aleo/verify_is_registered(
+        let auth_future: Future = veilmarkets_factory_v6.aleo/verify_is_registered(
             TOKEN_CONTRACT_TYPE,
             token_id,
         );
@@ -101,7 +101,6 @@ program veilmarkets_v5.aleo {
         let exists: bool = Mapping::contains(markets, market_id);
         assert(!exists);
         let market: MarketInfo = MarketInfo {
-            id: market_id,
             creator: creator,
             title_hash: title_hash,
             category: category,
@@ -189,10 +188,10 @@ program veilmarkets_v5.aleo {
     ) -> BetPosition {
         // User generates their own record - only they know the nonce
         // This ensures privacy of the bet details
-        let caller_hash: field = BHP256::hash_to_field(self.caller);
+        let caller_hash: field = BHP256::hash_to_field(self.signer);
         let nonce_seed: field = BHP256::hash_to_field(caller_hash + escrow_id);
         return BetPosition {
-            owner: self.caller,
+            owner: self.signer,
             market_id: market_id,
             outcome: outcome,
             amount: amount,
@@ -208,7 +207,7 @@ program veilmarkets_v5.aleo {
         public resolver: address,
     ) -> Future {
         // Must be called by the registered oracle contract via factory registry.
-        let auth_future: Future = veilmarkets_factory_v5.aleo/verify_is_registered(
+        let auth_future: Future = veilmarkets_factory_v6.aleo/verify_is_registered(
             ORACLE_CONTRACT_TYPE,
             self.caller,
         );

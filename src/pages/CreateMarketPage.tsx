@@ -253,8 +253,8 @@ export default function CreateMarketPage() {
                       </SelectItem>
                       <SelectItem value={USDCX_TOKEN_PROGRAM_ID} className="h-12 rounded-xl focus:bg-white/10">
                         <div className="flex items-center gap-2">
-                          <span>USDCx Stable</span>
-                          <span className="text-[8px] px-1.5 py-0.5 rounded-full border border-emerald-500/30 text-emerald-400 uppercase font-black">v4</span>
+                          <span>USDCx</span>
+                          <span className="text-[8px] px-1.5 py-0.5 rounded-full border border-emerald-500/30 text-emerald-400 uppercase font-black">ARC20</span>
                         </div>
                       </SelectItem>
                     </SelectContent>

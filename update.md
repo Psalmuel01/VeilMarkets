@@ -11,10 +11,11 @@
 ### 2. Working Demo
 **Deployment**: Integrated with Aleo Testnet using the Shield Wallet adapter.  
 **Functional Leo Contracts**:
-- `veilmarkets_factory_v5.aleo`: Central registry for system contracts.
-- `veilmarkets_v5.aleo`: Core logic for market creation and pool accounting.
-- `veilmarkets_token_v5.aleo`: Integrated pari-mutuel escrow vault and credit system.
-- `veilmarkets_oracle_v5.aleo`: Governance framework for trusted resolution and disputes.
+- `veilmarkets_factory_v6.aleo`: Central registry for system contracts.
+- `veilmarkets_v6.aleo`: Core logic for market creation and pool accounting.
+- `veilmarkets_token_credits_v6.aleo`: Credits escrow adapter.
+- `veilmarkets_token_usdcx_v6.aleo`: USDCx escrow adapter.
+- `veilmarkets_oracle_v6.aleo`: Governance framework for trusted resolution and disputes.
 **Core Features**:
 - Real-time on-chain market discovery.
 - Fully private bet placement (ZK proofs).
@@ -26,13 +27,13 @@
 **Architecture Overview**: A modular 4-program architecture separating **Registry** (Factory), **Logic** (Markets), **Finance** (Token Escrow), and **Governance** (Oracle).  
 **Privacy Model**: Uses shielded records and transition inputs to ensure that bet outcomes and wager amounts are never revealed to the public, while maintaining verifiable pool integrity.
 
-### 4. Progress Changelog (Wave 3 - v5 Upgrade)
-**What's New (v5 Implementation)**:
+### 4. Progress Changelog (Wave 3 - v6 Upgrade)
+**What's New (v6 Implementation)**:
 - **Absolute Timestamp Transition**: Fully migrated from block-height based deadlines to `block.timestamp` (Unix seconds) for 100% accurate market closing and resolution.
-- **v5 Modular Architecture**: Deployed and integrated the latest v5 suite of Aleo contracts across the system.
+- **v6 Modular Architecture**: Deployed and integrated the latest v6 suite of Aleo contracts across the system.
 - **Friendly UX Refinements**: Implemented short-hand human-friendly dates (e.g., "Mar 15, 9:40pm") and optimized card layouts for readability.
 - **Robust Creation Flow**: Refactored the market creation deep-linking to use the persistent on-chain Market ID for immediate discovery.
-- **Comprehensive Technical Cleanup**: Resolved all legacy TypeScript lint errors and optimized internal transaction parsing for v5 record structures.
+- **Comprehensive Technical Cleanup**: Resolved all legacy TypeScript lint errors and optimized internal transaction parsing for v6 record structures.
 - **Metadata Traceability**: Added real-time logging for Supabase synchronization to ensure data integrity during market creation.
 
 **Feedback Incorporated**:
@@ -43,7 +44,7 @@
 ### 5. Progress Status
 - [x] **Wave 1**: Architecture & Core Logic
 - [x] **Wave 2**: UI/UX & Integration
-- [x] **Wave 3**: Market Metrics & Analytics (v5 Timestamps)
+- [x] **Wave 3**: Market Metrics & Analytics (v6 Timestamps)
 - [/] **Wave 4**: Automation & Governance (In Progress)
 
 ### 5. Future Roadmap

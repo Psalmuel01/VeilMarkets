@@ -3,7 +3,7 @@ import {
   extractMarketIdFromTx,
   parseMarketInfo,
   parsePoolInfo,
-  estimateCloseBlockFromDate,
+  getTimestampFromDate,
 } from "@/lib/aleo";
 
 describe("aleo parsing helpers", () => {
@@ -13,8 +13,8 @@ describe("aleo parsing helpers", () => {
         creator: "aleo1creatoraddress",
         title_hash: "123field",
         category: "2u8",
-        close_block: "100u64",
-        resolution_block: "120u64",
+        close_time: "100u64",
+        resolution_time: "120u64",
         is_resolved: "false",
         winning_outcome: "2u8",
         resolved_by_oracle: "false",
@@ -33,7 +33,7 @@ describe("aleo parsing helpers", () => {
         transitions: [
           {
             function: "create_market",
-            program: "veilmarkets_v4.aleo",
+            program: "veilmarkets_v6.aleo",
             outputs: [{ value: { arguments: ["987654field"] } }],
           },
         ],
@@ -49,13 +49,13 @@ describe("aleo parsing helpers", () => {
     expect(pool.locked).toBe(true);
   });
 
-  it("estimates close block for future dates", () => {
+  it("builds timestamp from date/time", () => {
     const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const yyyy = tomorrow.getFullYear();
     const mm = `${tomorrow.getMonth() + 1}`.padStart(2, "0");
     const dd = `${tomorrow.getDate()}`.padStart(2, "0");
-    const estimate = estimateCloseBlockFromDate(`${yyyy}-${mm}-${dd}`, 1_000_000);
-    expect(estimate).not.toBeNull();
-    expect(estimate as number).toBeGreaterThan(1_000_000);
+    const ts = getTimestampFromDate(`${yyyy}-${mm}-${dd}`, "12:00");
+    expect(ts).not.toBeNull();
+    expect(ts as number).toBeGreaterThan(Math.floor(Date.now() / 1000));
   });
 });

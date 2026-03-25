@@ -1,8 +1,8 @@
-import veilmarkets_v4.aleo;
+import veilmarkets_v6.aleo;
 
 program test_veilmarkets.aleo {
     @test
-    script market_struct_primitives_are_valid() {
+    transition market_primitives_ok() {
         let unresolved_outcome: u8 = 2u8;
         assert_eq(unresolved_outcome, 2u8);
 

@@ -13,7 +13,7 @@ export interface MarketMetadataRow {
   description: string;
   source: string;
   created_at?: string;
-  expiry_time?: number; // Added for v5 timestamp support
+  expiry_time?: number; // Added for v6 timestamp support
 }
 
 export const saveMarketMetadata = async (
@@ -25,7 +25,7 @@ export const saveMarketMetadata = async (
   expiryTime?: number,
 ) => {
   const { data, error } = await supabase
-    .from('markets_new')
+    .from('markets_v6')
     .insert([
       {
         transaction_id: transactionId,
@@ -47,7 +47,7 @@ export const saveMarketMetadata = async (
 export const getAllMarketMetadata = async (): Promise<MarketMetadataRow[]> => {
   try {
     const { data, error } = await supabase
-      .from("markets_new")
+      .from("markets_v6")
       .select("market_id, transaction_id, title, description, source, created_at")
       .order("created_at", { ascending: false });
 
@@ -73,7 +73,7 @@ export const getAllMarketMetadata = async (): Promise<MarketMetadataRow[]> => {
 export const getMarketMetadata = async (marketId: string): Promise<MarketMetadataRow | null> => {
   try {
     const { data, error } = await supabase
-      .from("markets_new")
+      .from("markets_v6")
       .select("market_id, transaction_id, title, description, source")
       .eq("market_id", marketId)
       .maybeSingle();

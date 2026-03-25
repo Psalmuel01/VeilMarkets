@@ -1,5 +1,5 @@
 {
-  "program": "veilmarkets_v5.aleo",
+  "program": "veilmarkets_v6.aleo",
   "structs": [
     {
       "path": [
@@ -247,7 +247,7 @@
           "path": [
             "MarketInfo"
           ],
-          "program": "veilmarkets_v5"
+          "program": "veilmarkets_v6"
         }
       }
     },
@@ -261,7 +261,7 @@
           "path": [
             "PoolState"
           ],
-          "program": "veilmarkets_v5"
+          "program": "veilmarkets_v6"
         }
       }
     },
@@ -293,7 +293,7 @@
           "path": [
             "PayoutClaim"
           ],
-          "program": "veilmarkets_v5"
+          "program": "veilmarkets_v6"
         }
       }
     }
@@ -357,14 +357,6 @@
         }
       ],
       "outputs": [
-        {
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Field"
-            }
-          },
-          "mode": "None"
-        },
         {
           "ty": "Future",
           "mode": "None"
@@ -484,7 +476,7 @@
               "path": [
                 "BetPosition"
               ],
-              "program": "veilmarkets_v5"
+              "program": "veilmarkets_v6"
             }
           },
           "mode": "None"
@@ -543,7 +535,7 @@
               "path": [
                 "BetPosition"
               ],
-              "program": "veilmarkets_v5"
+              "program": "veilmarkets_v6"
             }
           },
           "mode": "Private"
@@ -556,7 +548,7 @@
               "path": [
                 "WinningsClaim"
               ],
-              "program": "veilmarkets_v5"
+              "program": "veilmarkets_v6"
             }
           },
           "mode": "None"

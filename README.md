@@ -68,13 +68,16 @@ This leads to **manipulation, MEV, exposure of high-value bettors, and friction 
 ---
 
 ## Architecture
-## Frontend Integration (v5)
+## Frontend Integration (v6)
 
 ### Transaction Flow Changes
 1. **Placing a Bet**:
-   - Program: `veilmarkets_token_v5.aleo`
+   - Program: `veilmarkets_token_credits_v6.aleo` or `veilmarkets_token_usdcx_v6.aleo`
    - Transition: `place_bet`
-   - **Returns**: `(credits.aleo/credits, EscrowedBet, Future)`
+   - **Returns**:
+     - Credits adapter: `(credits.aleo/credits, EscrowedBet, Future)`
+     - USDCx adapter: `(ComplianceRecord, test_usdcx_stablecoin.aleo/Token, EscrowedBet, Future)`
+   - **USDCx input note**: `place_bet` also requires a private `token_proof: [MerkleProof; 2u32]` argument because `test_usdcx_stablecoin.aleo` private transfers are proof-gated.
    - > [!IMPORTANT]
      > Ensure the frontend uses the first returned record (`credits`) for wallet balance and the second record (`EscrowedBet`) is stored/minted as the user's position!
 
@@ -94,15 +97,18 @@ This leads to **manipulation, MEV, exposure of high-value bettors, and friction 
   - **Cause**: You are likely passing an `EscrowedBet` record from the token contract instead of a `credits.aleo/credits` record.
   - **Fix**: Check your wallet filtering logic. Ensure input records for `place_bet` or `register_oracle` are specifically from the `credits.aleo` program.
 
-## Architecture Diagram (v5)
+## Architecture Diagram (v6)
 ```mermaid
 graph TD
-    Factory[veilmarkets_factory_v5.aleo] --> Core[veilmarkets_v5.aleo]
-    Factory --> Token[veilmarkets_token_v5.aleo]
-    Factory --> Oracle[veilmarkets_oracle_v5.aleo]
+    Factory[veilmarkets_factory_v6.aleo] --> Core[veilmarkets_v6.aleo]
+    Factory --> TokenCredits[veilmarkets_token_credits_v6.aleo]
+    Factory --> TokenUSDCx[veilmarkets_token_usdcx_v6.aleo]
+    Factory --> Oracle[veilmarkets_oracle_v6.aleo]
     
-    User[User Wallet] --> Token
-    Token --> Core
+    User[User Wallet] --> TokenCredits
+    User --> TokenUSDCx
+    TokenCredits --> Core
+    TokenUSDCx --> Core
     Core -.-> Pending[Pending Payouts]
     Oracle --> Core
     
@@ -110,22 +116,23 @@ graph TD
     Frontend --> Aleo[Aleo Network]
 ```
 
-- **veilmarkets_factory_v5.aleo**: System registry and permission management.
-- **veilmarkets_v5.aleo**: Core logic for market creation, pool accounting, and pro-rata winnings calculation.
-- **veilmarkets_token_v5.aleo**: Integrated pari-mutuel escrow vault. Handles deposits, bet funding, and secure payouts.
-- **veilmarkets_oracle_v5.aleo**: Optimistic resolution governance with challenge window and escalation.
+- **veilmarkets_factory_v6.aleo**: System registry and permission management.
+- **veilmarkets_v6.aleo**: Core logic for market creation, pool accounting, and pro-rata winnings calculation.
+- **veilmarkets_token_credits_v6.aleo**: Credits adapter for escrow, bet funding, and payouts.
+- **veilmarkets_token_usdcx_v6.aleo**: USDCx adapter for escrow, bet funding, and payouts.
+- **veilmarkets_oracle_v6.aleo**: Optimistic resolution governance with challenge window and escalation.
 
 ## Lifecycle Flow (End-to-End)
 
 1. **Create Market**: Core contract stores market metadata, close_time, and resolution_time (Unix timestamps).
-2. **Place Bet**: Token contract escrows credits and calls core to update pool state.
+2. **Place Bet**: Selected token adapter (Credits or USDCx) escrows funds and calls core to update pool state.
 3. **Propose Resolution**: Oracle proposes a binary outcome after `resolution_time`.
 4. **Challenge Window**: Others can dispute; if disputed, oracle votes determine the winning outcome.
 5. **Finalize**: `resolve_on_core` resolves the market on core and locks the pool.
 6. **Claim Winnings**:
    - Step 1: User calls `claim_winnings` on core to compute payout and store `pending_payouts[nullifier]`.
-   - Step 2: User calls `claim_payout` on token with `(payout_amount, nullifier)` to receive credits.
-   - Step 3: Token contract calls core `verify_claim` to confirm the payout amount before transfer finalizes.
+   - Step 2: User calls `claim_payout` on the matching token adapter with `(payout_amount, nullifier)`.
+   - Step 3: Token adapter calls core `verify_claim` to confirm the payout amount before transfer finalizes.
 
 ---
 
@@ -155,9 +162,9 @@ VITE_ALEO_NETWORK=testnet
 4. Deploy contracts to Aleo Testnet (requires Aleo SDK):
 ```bash
 # Order of deployment
-# 1. veilmarkets_factory_v5, 2. veilmarkets_v5, 3. veilmarkets_token_v5, 4. veilmarkets_oracle_v5
+# 1. veilmarkets_factory_v6, 2. veilmarkets_v6, 3. veilmarkets_token_credits_v6, 4. veilmarkets_token_usdcx_v6, 5. veilmarkets_oracle_v6
 cd leo/factory && leo deploy
-# Repeat for each program in order (veilmarkets, veilmarkets_token, veilmarkets_oracle)
+# Repeat for each program in order (core, token adapters, oracle)
 ```
 
 5. **Register Contracts in Factory** (CRITICAL):

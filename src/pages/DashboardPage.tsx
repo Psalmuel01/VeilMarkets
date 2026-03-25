@@ -279,13 +279,13 @@ export default function DashboardPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="glass-card p-10 rounded-[3rem] border border-white/5 mb-6 relative overflow-hidden group"
+          className="glass-card p-5 rounded-[3rem] border border-white/5 mb-6 relative overflow-hidden group"
         >
           {/* Decorative Elements */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[80px] rounded-full -translate-y-1/2 translate-x-1/2 group-hover:bg-primary/10 transition-colors duration-700" />
           <div className="absolute bottom-0 left-0 w-32 h-32 bg-accent/5 blur-[60px] rounded-full translate-y-1/2 -translate-x-1/2" />
           
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 relative z-10">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
             <div className="flex items-center gap-6">
               <div className="w-12 h-12 rounded-[2rem] bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center shadow-[0_0_30px_rgba(var(--primary),0.1)]">
                 <Wallet className="w-6 h-6 text-primary" />
@@ -293,7 +293,7 @@ export default function DashboardPage() {
               <div className="space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">Total Vault Balance</p>
                 <div className="flex items-baseline gap-3">
-                  <h2 className="text-3xl md:text-4xl font-bold text-white font-mono tracking-tighter">
+                  <h2 className="text-xl md:text-2xl font-bold text-white font-mono tracking-tighter">
                     {tokenBalance !== null ? tokenBalance.toLocaleString() : "••••••••"}
                   </h2>
                   <span className="text-lg font-semibold text-primary/60 font-mono">ALEO</span>
