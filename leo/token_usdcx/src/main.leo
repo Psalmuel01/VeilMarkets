@@ -49,37 +49,24 @@ program veilmarkets_token_usdcx_v6.aleo {
 
     // ── Place bet ──────────────────────────────────────────────────────────────
     // Atomically escrows USDCx tokens and registers the bet in core.
-    // The input_token is an ARC-20 private Token record from test_usdcx_stablecoin.aleo.
-    // This token requires a Merkle proof for private spends.
+    // NOTE: This path uses public USDCx balance transfer to avoid wallet parser
+    // incompatibilities with MerkleProof array-typed inputs in private spends.
 
     async transition place_bet(
-        input_token: test_usdcx_stablecoin.aleo/Token,
-        private token_proof: [test_usdcx_stablecoin.aleo/MerkleProof; 2u32],
         public market_id: field,
         public outcome: u8,
         public bet_amount: u64,
-    ) -> (
-        test_usdcx_stablecoin.aleo/ComplianceRecord,
-        test_usdcx_stablecoin.aleo/Token,
-        EscrowedBet,
-        Future,
-    ) {
+    ) -> (EscrowedBet, Future) {
         let bet_amount_u128: u128 = bet_amount as u128;
-        assert(input_token.amount >= bet_amount_u128);
         assert(bet_amount >= MIN_BET);
         assert(outcome == 0u8 || outcome == 1u8);
 
-        // Transfer bet_amount to this contract's public USDCx balance
-        let (compliance_record, change, transfer_future): (
-            test_usdcx_stablecoin.aleo/ComplianceRecord,
-            test_usdcx_stablecoin.aleo/Token,
-            Future,
-        ) =
-            test_usdcx_stablecoin.aleo/transfer_private_to_public(
+        // Transfer bet_amount from caller's public USDCx balance
+        // into this adapter contract's public USDCx balance.
+        let transfer_future: Future =
+            test_usdcx_stablecoin.aleo/transfer_public(
                 self.address,
                 bet_amount_u128,
-                input_token,
-                token_proof,
             );
 
         let escrow_id: field = BHP256::hash_to_field(
@@ -113,7 +100,7 @@ program veilmarkets_token_usdcx_v6.aleo {
             core_future,
         );
 
-        return (compliance_record, change, bet_record, f);
+        return (bet_record, f);
     }
 
     async function finalize_place_bet(

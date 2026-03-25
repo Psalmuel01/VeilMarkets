@@ -603,50 +603,48 @@ export default function MarketDetailPage() {
             </div>
 
             {/* Resolution Mechanics */}
-            <div className="glass-card p-8 rounded-[2.5rem] border border-white/5 relative overflow-hidden">
-              <div className="absolute -bottom-12 -left-12 w-32 h-32 bg-success/5 blur-3xl rounded-full" />
+            {publicKey && (
+              <div className="glass-card p-8 rounded-[2.5rem] border border-white/5 relative overflow-hidden">
+                <div className="absolute -bottom-12 -left-12 w-32 h-32 bg-success/5 blur-3xl rounded-full" />
 
-              <div className="flex items-center justify-between mb-8 relative z-10">
-                <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60">Resolution</h2>
-                <ZKBadge variant="verified" size="sm" />
-              </div>
+                <div className="flex items-center justify-between mb-8 relative z-10">
+                  <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60">Resolution</h2>
+                  <ZKBadge variant="verified" size="sm" />
+                </div>
 
-              <div className="space-y-6 relative z-10">
-                {proposal ? (
-                  <div className="p-5 rounded-3xl bg-white/[0.03] border border-white/5 space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Proposed Outcome</span>
-                      <div className={cn(
-                        "px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border",
-                        proposal.proposed_outcome === 1 ? "bg-success/20 text-success border-success/30" : "bg-destructive/20 text-destructive border-destructive/30"
-                      )}>
-                        {proposal.proposed_outcome === 1 ? "YES" : "NO"}
+                <div className="space-y-6 relative z-10">
+                  {proposal ? (
+                    <div className="p-5 rounded-3xl bg-white/[0.03] border border-white/5 space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Proposed Outcome</span>
+                        <div className={cn(
+                          "px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border",
+                          proposal.proposed_outcome === 1 ? "bg-success/20 text-success border-success/30" : "bg-destructive/20 text-destructive border-destructive/30"
+                        )}>
+                          {proposal.proposed_outcome === 1 ? "YES" : "NO"}
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Window Status</span>
+                        <span className={cn(
+                          "text-[10px] font-black uppercase tracking-[0.1em]",
+                          proposal.is_disputed ? "text-destructive" : (currentHeight && currentHeight >= proposal.challenge_deadline) ? "text-white/40" : "text-amber-500"
+                        )}>
+                          {proposal.is_disputed ? "Disputed" : (currentHeight && currentHeight >= proposal.challenge_deadline) ? "Closed" : "Active"}
+                        </span>
                       </div>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Window Status</span>
-                      <span className={cn(
-                        "text-[10px] font-black uppercase tracking-[0.1em]",
-                        proposal.is_disputed ? "text-destructive" : (currentHeight && currentHeight >= proposal.challenge_deadline) ? "text-white/40" : "text-amber-500"
-                      )}>
-                        {proposal.is_disputed ? "Disputed" : (currentHeight && currentHeight >= proposal.challenge_deadline) ? "Closed" : "Active"}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground leading-relaxed font-medium">
-                    {marketStatus === "Settled"
-                      ? "Final resolution recorded on-chain."
-                      : market?.resolution_time && nowTs < market.resolution_time
-                        ? `Proposals will be accepted after ${formatDateFriendly(market.resolution_time)}.`
-                        : "Oracle nodes may now submit a resolution proposal."
-                    }
-                  </p>
-                )}
+                  ) : (
+                    <p className="text-sm text-muted-foreground leading-relaxed font-medium">
+                      {marketStatus === "Settled"
+                        ? "Final resolution recorded on-chain."
+                        : market?.resolution_time && nowTs < market.resolution_time
+                          ? `Proposals will be accepted after ${formatDateFriendly(market.resolution_time)}.`
+                          : "Oracle nodes may now submit a resolution proposal."
+                      }
+                    </p>
+                  )}
 
-                {!publicKey ? (
-                  <ConnectWalletButton className="w-full justify-center" />
-                ) : (
                   <Button
                     onClick={() => {
                       if (marketStatus !== "Settled") setShowResolutionModal(true);
@@ -659,34 +657,34 @@ export default function MarketDetailPage() {
                   >
                     {marketStatus === "Settled" ? "Finalized" : (proposal ? "Proposal Submitted" : "Propose Resolution")}
                   </Button>
-                )}
 
-                {proposal && marketStatus !== "Settled" && (
-                  <Button
-                    variant="link"
-                    className="w-full text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 hover:text-white"
-                    onClick={() => setShowResolutionModal(true)}
-                  >
-                    Manage Resolution
-                  </Button>
-                )}
+                  {proposal && marketStatus !== "Settled" && (
+                    <Button
+                      variant="link"
+                      className="w-full text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 hover:text-white"
+                      onClick={() => setShowResolutionModal(true)}
+                    >
+                      Manage Resolution
+                    </Button>
+                  )}
 
-                {isAdmin && (
-                  <Button
-                    onClick={() => {
-                      if (proposal) {
-                        setFinalizeStep("confirm");
-                        setShowFinalizeModal(true);
-                      }
-                    }}
-                    className="w-full btn-premium bg-gradient-to-r from-success/80 to-success hover:from-success hover:to-success/90 h-14 rounded-2xl"
-                    disabled={!proposal || !isFinalizable || proposal.is_disputed || marketStatus === "Settled"}
-                  >
-                    Resolve Market
-                  </Button>
-                )}
+                  {isAdmin && (
+                    <Button
+                      onClick={() => {
+                        if (proposal) {
+                          setFinalizeStep("confirm");
+                          setShowFinalizeModal(true);
+                        }
+                      }}
+                      className="w-full btn-premium bg-gradient-to-r from-success/80 to-success hover:from-success hover:to-success/90 h-14 rounded-2xl"
+                      disabled={!proposal || !isFinalizable || proposal.is_disputed || marketStatus === "Settled"}
+                    >
+                      Resolve Market
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Privacy Compliance Info */}
             <div className="glass-card p-8 rounded-[2.5rem] border border-white/5 relative">

@@ -38,34 +38,28 @@ mapping platform_fees:
     value as u64.public;
 
 function place_bet:
-    input r0 as test_usdcx_stablecoin.aleo/Token.record;
-    input r1 as [test_usdcx_stablecoin.aleo/MerkleProof; 2u32].private;
-    input r2 as field.public;
-    input r3 as u8.public;
-    input r4 as u64.public;
-    cast r4 into r5 as u128;
-    gte r0.amount r5 into r6;
-    assert.eq r6 true;
-    gte r4 1000000u64 into r7;
+    input r0 as field.public;
+    input r1 as u8.public;
+    input r2 as u64.public;
+    cast r2 into r3 as u128;
+    gte r2 1000000u64 into r4;
+    assert.eq r4 true;
+    is.eq r1 0u8 into r5;
+    is.eq r1 1u8 into r6;
+    or r5 r6 into r7;
     assert.eq r7 true;
-    is.eq r3 0u8 into r8;
-    is.eq r3 1u8 into r9;
-    or r8 r9 into r10;
-    assert.eq r10 true;
-    call test_usdcx_stablecoin.aleo/transfer_private_to_public veilmarkets_token_usdcx_v6.aleo r5 r0 r1 into r11 r12 r13;
-    cast self.caller into r14 as field;
-    add r14 r2 into r15;
-    cast r4 into r16 as field;
-    add r15 r16 into r17;
-    hash.bhp256 r17 into r18 as field;
-    call veilmarkets_v6.aleo/place_bet r2 r3 r4 r18 self.caller into r19;
-    hash.bhp256 r18 into r20 as group;
-    cast self.signer r2 r4 r3 r18 r20 into r21 as EscrowedBet.record;
-    async place_bet r2 r3 r4 r18 self.caller r13 r19 into r22;
-    output r11 as test_usdcx_stablecoin.aleo/ComplianceRecord.record;
-    output r12 as test_usdcx_stablecoin.aleo/Token.record;
-    output r21 as EscrowedBet.record;
-    output r22 as veilmarkets_token_usdcx_v6.aleo/place_bet.future;
+    call test_usdcx_stablecoin.aleo/transfer_public veilmarkets_token_usdcx_v6.aleo r3 into r8;
+    cast self.caller into r9 as field;
+    add r9 r0 into r10;
+    cast r2 into r11 as field;
+    add r10 r11 into r12;
+    hash.bhp256 r12 into r13 as field;
+    call veilmarkets_v6.aleo/place_bet r0 r1 r2 r13 self.caller into r14;
+    hash.bhp256 r13 into r15 as group;
+    cast self.signer r0 r2 r1 r13 r15 into r16 as EscrowedBet.record;
+    async place_bet r0 r1 r2 r13 self.caller r8 r14 into r17;
+    output r16 as EscrowedBet.record;
+    output r17 as veilmarkets_token_usdcx_v6.aleo/place_bet.future;
 
 finalize place_bet:
     input r0 as field.public;
@@ -73,7 +67,7 @@ finalize place_bet:
     input r2 as u64.public;
     input r3 as field.public;
     input r4 as address.public;
-    input r5 as test_usdcx_stablecoin.aleo/transfer_private_to_public.future;
+    input r5 as test_usdcx_stablecoin.aleo/transfer_public.future;
     input r6 as veilmarkets_v6.aleo/place_bet.future;
     await r5;
     await r6;

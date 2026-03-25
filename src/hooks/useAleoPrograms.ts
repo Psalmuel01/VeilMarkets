@@ -48,6 +48,7 @@ import {
   resolveTokenBaseProgram,
   resolveTokenTicker,
   resolveTokenDisplayName,
+  resolveTokenKind,
 } from "../lib/constants";
 
 export interface ChainMarket {
@@ -796,34 +797,62 @@ export const useAleoPrograms = () => {
 
     try {
       const tokenProgram = resolveTokenAdapterProgram(tokenId);
-      const baseTokenProgram = resolveTokenBaseProgram(tokenId);
+      const tokenKind = resolveTokenKind(tokenId);
       const tokenLabel = resolveTokenDisplayName(tokenId);
 
-      if (!tokenProgram || !baseTokenProgram) {
+      if (!tokenProgram || !tokenKind) {
         toast.error(`Unsupported market token: ${tokenId}`);
         return;
       }
 
       toast.info(`Placing bet using ${tokenLabel}...`);
-      const tokenRecord = await findTokenRecord(baseTokenProgram, amountMicro);
+      let betResult: { transactionId: string; transition: any } | null = null;
 
-      if (!tokenRecord) {
-        toast.error(`Insufficient private ${tokenLabel} balance.`);
-        return;
+      if (tokenKind === "usdcx") {
+        // USDCx adapter place_bet uses public balance transfer.
+        const usdcxBalances = await fetchUSDCxBalances();
+        if (usdcxBalances.public < amountCredits) {
+          toast.error("Insufficient public USDCx balance.");
+          return;
+        }
+
+        betResult = await executeAndPoll({
+          program: tokenProgram,
+          function: "place_bet",
+          inputs: [
+            cleanMarketId,
+            formatU8(outcome),
+            formatU64(amountMicro),
+          ],
+          fee: 1_500_000,
+          privateFee: false,
+        }, tokenProgram, "place_bet");
+      } else {
+        const baseTokenProgram = resolveTokenBaseProgram(tokenId);
+        if (!baseTokenProgram) {
+          toast.error(`Unsupported market token: ${tokenId}`);
+          return;
+        }
+
+        const tokenRecord = await findTokenRecord(baseTokenProgram, amountMicro);
+        if (!tokenRecord) {
+          toast.error(`Insufficient private ${tokenLabel} balance.`);
+          return;
+        }
+
+        betResult = await executeAndPoll({
+          program: tokenProgram,
+          function: "place_bet",
+          inputs: [
+            tokenRecord.recordPlaintext || tokenRecord.plaintext,
+            cleanMarketId,
+            formatU8(outcome),
+            formatU64(amountMicro),
+          ],
+          fee: 1_500_000,
+          privateFee: false,
+        }, tokenProgram, "place_bet");
       }
-
-      const betResult = await executeAndPoll({
-        program: tokenProgram,
-        function: "place_bet",
-        inputs: [
-          tokenRecord.recordPlaintext || tokenRecord.plaintext,
-          cleanMarketId,
-          formatU8(outcome),
-          formatU64(amountMicro),
-        ],
-        fee: 1_500_000,
-        privateFee: false,
-      }, tokenProgram, "place_bet");
 
       if (betResult) triggerRefresh();
       return betResult ? betResult.transactionId : null;

@@ -46,7 +46,13 @@ export const PlaceBetModal = ({
   const tokenKind = resolveTokenKind(tokenId);
   const tokenTicker = resolveTokenTicker(tokenId);
   const tokenDisplayName = resolveTokenDisplayName(tokenId);
-  const hasLowPrivateBalance = !!balances && balances.private < wagerAmount;
+  const requiredBalanceType = tokenKind === "usdcx" ? "public" : "private";
+  const availableRequiredBalance = balances
+    ? requiredBalanceType === "public"
+      ? balances.public
+      : balances.private
+    : 0;
+  const hasLowBalance = !!balances && availableRequiredBalance < wagerAmount;
 
   useEffect(() => {
     if (!open) return;
@@ -215,7 +221,7 @@ export const PlaceBetModal = ({
                   />
                 </div>
 
-                {hasLowPrivateBalance && (
+                {hasLowBalance && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -226,9 +232,11 @@ export const PlaceBetModal = ({
                         <Shield className="w-4 h-4 text-warning" />
                       </div>
                       <div className="space-y-1">
-                        <p className="text-sm font-bold text-warning uppercase tracking-wider">Low Private Balance</p>
+                        <p className="text-sm font-bold text-warning uppercase tracking-wider">
+                          Low {requiredBalanceType === "public" ? "Public" : "Private"} Balance
+                        </p>
                         <p className="text-xs text-muted-foreground leading-relaxed">
-                          This market requires <span className="text-white font-bold">{wagerAmount} {tokenDisplayName}</span> privately. Available private balance: <span className="text-white font-bold">{balances?.private.toLocaleString()} {tokenTicker}</span>.
+                          This market requires <span className="text-white font-bold">{wagerAmount} {tokenDisplayName}</span> from your {requiredBalanceType} balance. Available {requiredBalanceType} balance: <span className="text-white font-bold">{availableRequiredBalance.toLocaleString()} {tokenTicker}</span>.
                         </p>
                       </div>
                     </div>
@@ -237,7 +245,7 @@ export const PlaceBetModal = ({
 
                 <Button
                   onClick={() => setStep("confirm")}
-                  disabled={!selectedOutcome || hasLowPrivateBalance}
+                  disabled={!selectedOutcome || hasLowBalance}
                   className="w-full btn-premium h-16 rounded-[1.5rem] group"
                 >
                   <span className="text-base font-bold">Continue to Review</span>

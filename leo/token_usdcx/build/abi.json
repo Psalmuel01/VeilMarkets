@@ -154,37 +154,6 @@
       "is_async": true,
       "inputs": [
         {
-          "name": "input_token",
-          "ty": {
-            "Record": {
-              "path": [
-                "Token"
-              ],
-              "program": "test_usdcx_stablecoin"
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "name": "token_proof",
-          "ty": {
-            "Plaintext": {
-              "Array": {
-                "element": {
-                  "Struct": {
-                    "path": [
-                      "MerkleProof"
-                    ],
-                    "program": "test_usdcx_stablecoin"
-                  }
-                },
-                "length": 2
-              }
-            }
-          },
-          "mode": "Private"
-        },
-        {
           "name": "market_id",
           "ty": {
             "Plaintext": {
@@ -217,28 +186,6 @@
         }
       ],
       "outputs": [
-        {
-          "ty": {
-            "Record": {
-              "path": [
-                "ComplianceRecord"
-              ],
-              "program": "test_usdcx_stablecoin"
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "ty": {
-            "Record": {
-              "path": [
-                "Token"
-              ],
-              "program": "test_usdcx_stablecoin"
-            }
-          },
-          "mode": "None"
-        },
         {
           "ty": {
             "Record": {
