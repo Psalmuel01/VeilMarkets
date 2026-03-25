@@ -203,7 +203,7 @@ export default function DashboardPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6"
+          className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-6"
         >
           <div>
             <div className="flex items-center gap-3 mb-4">
@@ -212,10 +212,10 @@ export default function DashboardPage() {
               </Badge>
               <ZKBadge variant="verified" size="sm" />
             </div>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight tracking-tight">
+            <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white leading-tight tracking-tight">
               My <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">Positions</span>
             </h1>
-            <p className="text-muted-foreground text-lg mt-2 max-w-md font-medium">
+            <p className="text-muted-foreground text- mt-2 max-w-md font-medium">
               Monitor your private predictions and settled winnings.
             </p>
           </div>
@@ -233,7 +233,7 @@ export default function DashboardPage() {
         </motion.div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           {stats.map((stat, index) => (
             <motion.div
               key={stat.label}
@@ -243,7 +243,7 @@ export default function DashboardPage() {
               className="glass-card p-6 rounded-3xl border border-white/5 relative group overflow-hidden"
             >
               <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                <stat.icon className="w-12 h-12" />
+                <stat.icon className="w-4 h-4" />
               </div>
               <div className="flex flex-col gap-4 relative z-10">
                 <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5 w-fit">
@@ -258,7 +258,7 @@ export default function DashboardPage() {
           ))}
           
           {/* Active Status Card (New) */}
-          <motion.div
+          {/* <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
@@ -274,7 +274,7 @@ export default function DashboardPage() {
                    <span className="text-xs font-bold text-white/50">Node 0x4...2a9</span>
                 </div>
              </div>
-          </motion.div>
+          </motion.div> */}
         </div>
 
         {/* Vault Summary Card */}
@@ -282,7 +282,7 @@ export default function DashboardPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="glass-card p-10 rounded-[3rem] border border-white/5 mb-12 relative overflow-hidden group"
+          className="glass-card p-10 rounded-[3rem] border border-white/5 mb-6 relative overflow-hidden group"
         >
           {/* Decorative Elements */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[80px] rounded-full -translate-y-1/2 translate-x-1/2 group-hover:bg-primary/10 transition-colors duration-700" />
@@ -290,13 +290,13 @@ export default function DashboardPage() {
           
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 relative z-10">
             <div className="flex items-center gap-6">
-              <div className="w-20 h-20 rounded-[2rem] bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center shadow-[0_0_30px_rgba(var(--primary),0.1)]">
-                <Wallet className="w-8 h-8 text-primary" />
+              <div className="w-12 h-12 rounded-[2rem] bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center shadow-[0_0_30px_rgba(var(--primary),0.1)]">
+                <Wallet className="w-6 h-6 text-primary" />
               </div>
               <div className="space-y-1">
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">Total Vault Balance</p>
                 <div className="flex items-baseline gap-3">
-                  <h2 className="text-4xl md:text-5xl font-bold text-white font-mono tracking-tighter">
+                  <h2 className="text-3xl md:text-4xl font-bold text-white font-mono tracking-tighter">
                     {tokenBalance !== null ? tokenBalance.toLocaleString() : "••••••••"}
                   </h2>
                   <span className="text-lg font-semibold text-primary/60 font-mono">ALEO</span>
@@ -369,7 +369,7 @@ export default function DashboardPage() {
                        <Button 
                          variant="outline" 
                          onClick={() => navigate(`/market/${m.id}`)}
-                         className="rounded-2xl border-white/10 text-white font-bold h-12 px-6 hover:bg-white/5"
+                         className="rounded-2xl border-white/10 text-white font-bold h-6 px-6 hover:bg-white/5"
                        >
                          VIEW DETAILS
                        </Button>
@@ -378,8 +378,8 @@ export default function DashboardPage() {
                 </div>
               ))
             ) : (
-              <div className="text-center py-24 p-12 rounded-[3rem] bg-white/[0.02] border border-dashed border-white/10">
-                <Activity className="w-12 h-12 text-muted-foreground/20 mx-auto mb-4" />
+              <div className="text-center py-24 p-6 rounded-[3rem] bg-white/[0.02] border border-dashed border-white/10">
+                <Activity className="w-6 h-6 text-muted-foreground/20 mx-auto mb-4" />
                 <p className="text-muted-foreground font-medium mb-6">No proprietary markets found in your registry</p>
                 <Button
                   onClick={() => navigate("/create")}
@@ -450,7 +450,7 @@ export default function DashboardPage() {
           )}
 
           {claimStep === "processing" && (
-            <div className="py-12 text-center space-y-6">
+            <div className="py-6 text-center space-y-6">
               <div className="relative mx-auto w-20 h-20">
                 <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
                 <div className="relative w-20 h-20 rounded-full bg-primary/10 border-2 border-primary flex items-center justify-center">

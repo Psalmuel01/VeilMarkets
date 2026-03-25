@@ -118,10 +118,10 @@ export default function CreateMarketPage() {
           <Badge variant="outline" className="mb-4 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] border-primary/20 text-primary bg-primary/5">
             Market Creation Portal
           </Badge>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-tight tracking-tight mb-4">
+          <h1 className="text-2xl md:text-3xl lg:text-4xl font-black text-white leading-tight tracking-tight mb-2">
             Launch Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">Prediction</span>
           </h1>
-          <p className="text-muted-foreground text-lg max-w-lg mx-auto leading-relaxed">
+          <p className="text-muted-foreground text- max-w-lg mx-auto leading-relaxed">
             Deploy a private, ZK-powered prediction market on Aleo in seconds.
           </p>
         </motion.div>
@@ -266,9 +266,9 @@ export default function CreateMarketPage() {
                 <Button
                   type="submit"
                   disabled={!isFormValid}
-                  className="w-full h-16 rounded-[2rem] btn-premium text-lg font-black group"
+                  className="w-full h-16 rounded-[2rem] btn- text-sm font-black group"
                 >
-                  <span className="tracking-widest uppercase">Validate Market Configuration</span>
+                  <span className="tracking-widest uppercase">Validate Market</span>
                   <ArrowRight className="ml-3 w-5 h-5 group-hover:translate-x-1.5 transition-transform" />
                 </Button>
               </div>
@@ -354,13 +354,13 @@ export default function CreateMarketPage() {
               <Button
                 variant="outline"
                 onClick={() => setStep("form")}
-                className="flex-1 h-16 rounded-2xl border-white/10 text-white font-bold hover:bg-white/5"
+                className="flex-1 h-16 rounded-3xl border-white/10 text-white font-bold hover:bg-white/5"
               >
                 BACK TO EDIT
               </Button>
               <Button
                 onClick={handleCreate}
-                className="flex-[2] h-16 rounded-2xl btn-premium text-lg font-black"
+                className="flex-[2] h-16 rounded-3xl btn- text-sm font-black"
               >
                 CONFIRM & DEPLOY
               </Button>
@@ -479,13 +479,13 @@ export default function CreateMarketPage() {
               <Button
                 variant="outline"
                 onClick={() => setStep("form")}
-                className="flex-1 h-14 rounded-2xl border-white/10 text-white font-bold"
+                className="flex-1 h-14 rounded-2xl border-white/10 text-white text-sm font-bold"
               >
                 EDIT CONFIG
               </Button>
               <Button
                 onClick={handleCreate}
-                className="flex-1 h-14 rounded-2xl btn-premium bg-gradient-to-r from-destructive/80 to-destructive text-base font-black"
+                className="flex-1 h-14 rounded-2xl btn- bg-gradient-to-r from-destructive/80 to-destructive text-sm font-black"
               >
                 RETRY
               </Button>
