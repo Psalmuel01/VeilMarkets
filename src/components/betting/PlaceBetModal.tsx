@@ -15,6 +15,7 @@ import { PrivacyChecklist } from "@/components/ui/PrivacyChecklist";
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { cn } from "@/lib/utils";
+import { resolveTokenDisplayName, resolveTokenKind, resolveTokenTicker } from "@/lib/constants";
 
 interface PlaceBetModalProps {
   open: boolean;
@@ -39,16 +40,36 @@ export const PlaceBetModal = ({
   const [selectedOutcome, setSelectedOutcome] = useState<"Yes" | "No" | null>(null);
   const [wagerAmount, setWagerAmount] = useState(5);
   const [txId, setTxId] = useState<string | null>(null);
-  const { placeBet, fetchPoolStats, fetchBalances, shieldCredits, publicKey } = useAleoPrograms();
+  const { placeBet, fetchPoolStats, fetchBalances, fetchUSDCxBalances, publicKey } = useAleoPrograms();
   const [pool, setPool] = useState<{ total_yes: number; total_no: number } | null>(null);
-  const [balances, setBalances] = useState<{ private: number; public: number } | null>(null);
+  const [balances, setBalances] = useState<{ private: number; public: number; total: number } | null>(null);
+  const tokenKind = resolveTokenKind(tokenId);
+  const tokenTicker = resolveTokenTicker(tokenId);
+  const tokenDisplayName = resolveTokenDisplayName(tokenId);
+  const hasLowPrivateBalance = !!balances && balances.private < wagerAmount;
 
   useEffect(() => {
-    if (open) {
-      fetchPoolStats(marketId).then(setPool);
-      fetchBalances().then(setBalances);
-    }
-  }, [marketId, open, fetchPoolStats, fetchBalances]);
+    if (!open) return;
+
+    fetchPoolStats(marketId).then(setPool);
+
+    if (!publicKey) return;
+
+    const loadBalances = async () => {
+      if (tokenKind === "usdcx") {
+        setBalances(await fetchUSDCxBalances());
+        return;
+      }
+      const credits = await fetchBalances();
+      setBalances({
+        private: credits.private,
+        public: credits.public,
+        total: credits.private + credits.public,
+      });
+    };
+
+    loadBalances();
+  }, [marketId, open, publicKey, tokenKind, fetchPoolStats, fetchBalances, fetchUSDCxBalances]);
 
   const calculateReturn = () => {
     if (!pool || !selectedOutcome) return null;
@@ -185,15 +206,16 @@ export const PlaceBetModal = ({
                         Wager Amount
                       </label>
                     </div>
-                    <span className="text-xs font-mono text-muted-foreground">Max: 1000 ALEO</span>
+                    <span className="text-xs font-mono text-muted-foreground">Max: 1000 {tokenTicker}</span>
                   </div>
                   <WagerSlider
                     value={wagerAmount}
                     onChange={setWagerAmount}
+                    tokenTicker={tokenTicker}
                   />
                 </div>
 
-                {balances && balances.private < wagerAmount && balances.public >= wagerAmount && (
+                {hasLowPrivateBalance && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -204,26 +226,18 @@ export const PlaceBetModal = ({
                         <Shield className="w-4 h-4 text-warning" />
                       </div>
                       <div className="space-y-1">
-                        <p className="text-sm font-bold text-warning uppercase tracking-wider">Top-up Required</p>
+                        <p className="text-sm font-bold text-warning uppercase tracking-wider">Low Private Balance</p>
                         <p className="text-xs text-muted-foreground leading-relaxed">
-                          You need <span className="text-white font-bold">{wagerAmount} Private Credits</span>. Your current public balance is sufficient for a private top-up.
+                          This market requires <span className="text-white font-bold">{wagerAmount} {tokenDisplayName}</span> privately. Available private balance: <span className="text-white font-bold">{balances?.private.toLocaleString()} {tokenTicker}</span>.
                         </p>
                       </div>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full bg-warning/10 border-warning/20 hover:bg-warning/20 hover:border-warning/30 text-warning text-xs font-bold h-12 rounded-2xl transition-all"
-                      onClick={() => shieldCredits(wagerAmount)}
-                    >
-                      Shield {wagerAmount} Credits
-                    </Button>
                   </motion.div>
                 )}
 
                 <Button
                   onClick={() => setStep("confirm")}
-                  disabled={!selectedOutcome}
+                  disabled={!selectedOutcome || hasLowPrivateBalance}
                   className="w-full btn-premium h-16 rounded-[1.5rem] group"
                 >
                   <span className="text-base font-bold">Continue to Review</span>
@@ -254,7 +268,7 @@ export const PlaceBetModal = ({
                   <div className="p-6 rounded-3xl bg-white/[0.03] border border-white/5 space-y-1">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Wager</span>
                     <div className="text-2xl font-bold text-white font-mono">
-                      {wagerAmount} <span className="text-xs text-muted-foreground">ALEO</span>
+                      {wagerAmount} <span className="text-xs text-muted-foreground">{tokenTicker}</span>
                     </div>
                   </div>
                 </div>
@@ -264,7 +278,7 @@ export const PlaceBetModal = ({
                     <div className="flex flex-col gap-1">
                       <span className="text-[10px] font-bold uppercase tracking-widest text-success/70">Estimated Max Return</span>
                       <div className="text-2xl font-bold text-success font-mono">
-                        +{potentialReturn.toFixed(2)} <span className="text-xs">ALEO</span>
+                        +{potentialReturn.toFixed(2)} <span className="text-xs">{tokenTicker}</span>
                       </div>
                     </div>
                     <TrendingUp className="w-10 h-10 text-success opacity-20" />

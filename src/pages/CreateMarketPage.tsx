@@ -28,7 +28,11 @@ import {
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { getTimestampFromDate } from "@/lib/aleo";
-import { TOKEN_PROGRAM_ID, USDCX_TOKEN_PROGRAM_ID } from "@/lib/constants";
+import {
+  TOKEN_PROGRAM_ADDRESS,
+  USDCX_TOKEN_PROGRAM_ADDRESS,
+  resolveTokenTicker,
+} from "@/lib/constants";
 
 const categories = [
   { value: "crypto", label: "Crypto" },
@@ -51,7 +55,7 @@ export default function CreateMarketPage() {
     closingDate: "",
     closingTime: "23:59",
     resolutionSource: "",
-    tokenId: TOKEN_PROGRAM_ID,
+    tokenId: TOKEN_PROGRAM_ADDRESS,
   });
 
   const { createMarket } = useAleoPrograms();
@@ -245,13 +249,13 @@ export default function CreateMarketPage() {
                       <SelectValue placeholder="Token" />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-white/10 rounded-2xl">
-                      <SelectItem value={TOKEN_PROGRAM_ID} className="h-12 rounded-xl focus:bg-white/10">
+                      <SelectItem value={TOKEN_PROGRAM_ADDRESS} className="h-12 rounded-xl focus:bg-white/10">
                         <div className="flex items-center gap-2">
                           <span>Aleo Credits</span>
                           <span className="text-[8px] px-1.5 py-0.5 rounded-full border border-primary/30 text-primary uppercase font-black">Native</span>
                         </div>
                       </SelectItem>
-                      <SelectItem value={USDCX_TOKEN_PROGRAM_ID} className="h-12 rounded-xl focus:bg-white/10">
+                      <SelectItem value={USDCX_TOKEN_PROGRAM_ADDRESS} className="h-12 rounded-xl focus:bg-white/10">
                         <div className="flex items-center gap-2">
                           <span>USDCx</span>
                           <span className="text-[8px] px-1.5 py-0.5 rounded-full border border-emerald-500/30 text-emerald-400 uppercase font-black">ARC20</span>
@@ -313,7 +317,7 @@ export default function CreateMarketPage() {
                   </div>
                   <div className="space-y-1">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Asset</p>
-                    <p className="text-sm font-bold text-primary font-mono">{formData.tokenId === TOKEN_PROGRAM_ID ? "ALEO" : "USDCx"}</p>
+                    <p className="text-sm font-bold text-primary font-mono">{resolveTokenTicker(formData.tokenId)}</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Deadline</p>

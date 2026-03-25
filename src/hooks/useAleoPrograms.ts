@@ -44,7 +44,10 @@ import {
   ORACLE_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
   USDCX_TOKEN_PROGRAM_ID,
-  FACTORY_PROGRAM_ID,
+  resolveTokenAdapterProgram,
+  resolveTokenBaseProgram,
+  resolveTokenTicker,
+  resolveTokenDisplayName,
 } from "../lib/constants";
 
 export interface ChainMarket {
@@ -73,13 +76,19 @@ interface ExecuteWalletTransactionOptions {
   privateFee: boolean;
 }
 
+interface TokenBalanceSummary {
+  private: number;
+  public: number;
+  total: number;
+}
+
 const toObject = (value: unknown): Record<string, unknown> | null =>
   typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 
 const cleanAleoPrimitive = (value: unknown): string => {
   if (typeof value === "string") {
     return value
-      .replace(/u8|u64|field|group|address|\.private|\.public/g, "")
+      .replace(/u8|u64|u128|field|group|address|\.private|\.public/g, "")
       .replace(/["']/g, "")
       .trim();
   }
@@ -89,7 +98,7 @@ const cleanAleoPrimitive = (value: unknown): string => {
 const parseAleoAmount = (value: unknown): number => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
-    const parsed = Number.parseInt(value.replace(/u64/g, "").trim(), 10);
+    const parsed = Number.parseInt(value.replace(/u64|u128|u32/g, "").trim(), 10);
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
@@ -104,7 +113,8 @@ const formatField = (value: string): string => (value.endsWith("field") ? value 
 const parseMappingU64 = (value: unknown): number => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
-    const parsed = Number.parseInt(value.replace(/u64/g, "").trim(), 10);
+    const match = value.match(/-?\d+/);
+    const parsed = match ? Number.parseInt(match[0], 10) : NaN;
     return Number.isFinite(parsed) ? parsed : 0;
   }
   if (typeof value === "object" && value !== null) {
@@ -183,7 +193,7 @@ const extractRecordAmount = (record: WalletRecord): number => {
   for (const field of possibleFields) {
     const raw = parseRecordField(record, field);
     if (raw) {
-      const val = typeof raw === "string" ? raw.replace(/u64|u32|field|group|address|\.private|\.public/g, "").trim() : String(raw);
+      const val = typeof raw === "string" ? raw.replace(/u64|u128|u32|field|group|address|\.private|\.public/g, "").trim() : String(raw);
       const parsed = Number.parseInt(val, 10);
       if (!isNaN(parsed) && parsed > 0) return parsed;
     }
@@ -196,7 +206,6 @@ export const useAleoPrograms = () => {
   const { refreshSignal, triggerRefresh } = useRefresh();
   const publicKey = address;
   const [loading, setLoading] = useState(false);
-  const [usdcxBalance, setUsdcxBalance] = useState({ private: 0, public: 0, total: 0 });
 
   const logProgramRecordSummary = async (programId: string, label: string) => {
     try {
@@ -529,21 +538,38 @@ export const useAleoPrograms = () => {
     return balances.total;
   }, [fetchBalances]);
 
-  const fetchUSDCxBalance = useCallback(async (): Promise<number> => {
-    if (!address) return 0;
+  const fetchUSDCxBalances = useCallback(async (): Promise<TokenBalanceSummary> => {
+    if (!address) return { private: 0, public: 0, total: 0 };
+
+    let privateMicro = 0;
     try {
-      // Mocking or fetching from the specific program if it supports mappings
-      // For now, let's try to fetch if it has a mapping similar to credits
-      const rawValue = await fetchMappingValue("test_usdcx_stablecoin.aleo", "account", address);
-      if (rawValue) {
-        const clean = String(rawValue).replace(/u64/g, "").trim();
-        return (Number.parseInt(clean, 10) || 0) / 1_000_000;
-      }
+      const rawRecords = await requestRecordsWithRetry(requestRecords, "test_usdcx_stablecoin.aleo", "USDCx");
+      const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
+      privateMicro = records.filter((record) => !record.spent).reduce((acc, record) => acc + extractRecordAmount(record), 0);
     } catch (e) {
-       console.warn("[USDCx Balance] mapping fetch failed");
+      console.warn("[USDCx Balance] Private record fetch failed");
     }
-    return 0;
-  }, [address]);
+
+    let publicMicro = 0;
+    try {
+      // ARC-20 stablecoin uses `balances` mapping (address => u128)
+      const rawValue = await fetchMappingValue("test_usdcx_stablecoin.aleo", "balances", address);
+      publicMicro = parseMappingU64(rawValue);
+    } catch (e) {
+      console.warn("[USDCx Balance] Public mapping fetch failed");
+    }
+
+    return {
+      private: privateMicro / 1_000_000,
+      public: publicMicro / 1_000_000,
+      total: (privateMicro + publicMicro) / 1_000_000,
+    };
+  }, [address, requestRecords]);
+
+  const fetchUSDCxBalance = useCallback(async (): Promise<number> => {
+    const balances = await fetchUSDCxBalances();
+    return balances.total;
+  }, [fetchUSDCxBalances]);
 
 
   const createMarket = async (
@@ -589,14 +615,23 @@ export const useAleoPrograms = () => {
             expiry_time: closeTime * 1000
           });
           // Save metadata including expiry_time
-          await saveMarketMetadata(
-            result.transactionId,
-            marketId,
-            title,
-            description,
-            resolutionSource,
-            closeTime * 1000 // absolute ms for metadata
-          );
+          try {
+            await saveMarketMetadata(
+              result.transactionId,
+              marketId,
+              title,
+              description,
+              resolutionSource,
+              closeTime * 1000 // absolute ms for metadata
+            );
+          } catch (metadataError) {
+            const maybeError = metadataError as { code?: string; message?: string };
+            if (maybeError?.code === "42501") {
+              toast.warning("Market created on-chain, but metadata save was blocked by Supabase RLS for markets_v6.");
+            } else {
+              toast.warning("Market created on-chain, but metadata save failed.");
+            }
+          }
           triggerRefresh();
           return { transactionId: result.transactionId, marketId };
         }
@@ -760,19 +795,25 @@ export const useAleoPrograms = () => {
     const amountMicro = toMicrocredits(amountCredits);
 
     try {
-      toast.info(`Placing bet using ${tokenId === TOKEN_PROGRAM_ID ? 'Credits' : 'USDCx'}...`);
+      const tokenProgram = resolveTokenAdapterProgram(tokenId);
+      const baseTokenProgram = resolveTokenBaseProgram(tokenId);
+      const tokenLabel = resolveTokenDisplayName(tokenId);
 
-      // Determine the base token program to fetch records from
-      const baseTokenProgram = tokenId === TOKEN_PROGRAM_ID ? "credits.aleo" : "test_usdcx_stablecoin.aleo";
+      if (!tokenProgram || !baseTokenProgram) {
+        toast.error(`Unsupported market token: ${tokenId}`);
+        return;
+      }
+
+      toast.info(`Placing bet using ${tokenLabel}...`);
       const tokenRecord = await findTokenRecord(baseTokenProgram, amountMicro);
 
       if (!tokenRecord) {
-        toast.error(`Insufficient private balance in ${tokenId === TOKEN_PROGRAM_ID ? 'Credits' : 'USDCx'}.`);
+        toast.error(`Insufficient private ${tokenLabel} balance.`);
         return;
       }
 
       const betResult = await executeAndPoll({
-        program: tokenId,
+        program: tokenProgram,
         function: "place_bet",
         inputs: [
           tokenRecord.recordPlaintext || tokenRecord.plaintext,
@@ -782,7 +823,7 @@ export const useAleoPrograms = () => {
         ],
         fee: 1_500_000,
         privateFee: false,
-      }, tokenId, "place_bet");
+      }, tokenProgram, "place_bet");
 
       if (betResult) triggerRefresh();
       return betResult ? betResult.transactionId : null;
@@ -923,7 +964,9 @@ export const useAleoPrograms = () => {
     }
   };
 
-  const claimWinnings = async (marketId: string): Promise<{ transactionId: string; payoutAmount: number } | null> => {
+  const claimWinnings = async (
+    marketId: string,
+  ): Promise<{ transactionId: string; payoutAmount: number; payoutTicker: string } | null> => {
     if (!address) return;
 
     setLoading(true);
@@ -931,8 +974,13 @@ export const useAleoPrograms = () => {
       const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
       const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
       const marketInfo = marketRaw ? parseMarketInfo(marketRaw as string | object, cleanMarketId) : null;
-      const payoutTokenProgram =
-        marketInfo?.token_id === USDCX_TOKEN_PROGRAM_ID ? USDCX_TOKEN_PROGRAM_ID : TOKEN_PROGRAM_ID;
+      const payoutTokenProgram = resolveTokenAdapterProgram(marketInfo?.token_id ?? "");
+      const payoutTicker = resolveTokenTicker(marketInfo?.token_id ?? "");
+
+      if (!payoutTokenProgram) {
+        toast.error(`Unsupported payout token for market ${marketId}.`);
+        return null;
+      }
 
       // Step 1: Call core contract claim_winnings with BetPosition record
       let positionRecord = await findClaimablePositionRecord(marketId);
@@ -994,14 +1042,14 @@ export const useAleoPrograms = () => {
       if (!claimRecord) {
         toast.error("Claim record not found in wallet yet. Please retry in a moment.");
         triggerRefresh();
-        return { transactionId: claimResult.transactionId, payoutAmount: 0 };
+        return { transactionId: claimResult.transactionId, payoutAmount: 0, payoutTicker };
       }
 
       const nullifierRaw = parseRecordField(claimRecord, "nullifier");
       if (!nullifierRaw) {
         toast.error("Unable to read claim nullifier from wallet record.");
         triggerRefresh();
-        return { transactionId: claimResult.transactionId, payoutAmount: 0 };
+        return { transactionId: claimResult.transactionId, payoutAmount: 0, payoutTicker };
       }
 
       const nullifierField = formatField(nullifierRaw);
@@ -1010,7 +1058,7 @@ export const useAleoPrograms = () => {
       if (!payoutAmount || payoutAmount <= 0) {
         toast.error("Payout not available yet. Please retry shortly.");
         triggerRefresh();
-        return { transactionId: claimResult.transactionId, payoutAmount: 0 };
+        return { transactionId: claimResult.transactionId, payoutAmount: 0, payoutTicker };
       }
 
       toast.info("Step 2/2: Collecting payout from token contract...");
@@ -1028,10 +1076,9 @@ export const useAleoPrograms = () => {
       }
 
       const payoutAleo = payoutAmount / 1_000_000;
-      const payoutTicker = payoutTokenProgram === USDCX_TOKEN_PROGRAM_ID ? "USDCx" : "ALEO";
       toast.success(`Payout claimed! ${payoutAleo.toFixed(4)} ${payoutTicker}`);
       triggerRefresh();
-      return { transactionId: payoutResult.transactionId, payoutAmount: payoutAleo };
+      return { transactionId: payoutResult.transactionId, payoutAmount: payoutAleo, payoutTicker };
     } catch (error) {
       console.error("Claim winnings failed:", error);
       toast.error(`Claim error: ${getErrorMessage(error)}`);
@@ -1078,6 +1125,7 @@ export const useAleoPrograms = () => {
     fetchMarkets,
     fetchUserBets,
     fetchTokenBalance,
+    fetchUSDCxBalances,
     fetchUSDCxBalance,
     fetchPoolStats,
     isOracleRegistered,

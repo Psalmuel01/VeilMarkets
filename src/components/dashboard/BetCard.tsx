@@ -10,6 +10,7 @@ export interface UserBet {
   marketId: string;
   marketTitle: string;
   category: string;
+  tokenTicker: string;
   status: "Pending" | "Won" | "Lost" | "Cancelled";
   outcome: "Yes" | "No";
   placedAt: string;
@@ -47,7 +48,7 @@ export function BetCard({ bet, onClaim }: BetCardProps) {
   const config = statusConfig[bet.status];
   const hasClaimed = Boolean(bet.isClaimed) || typeof bet.claimedAmount === "number";
   const claimedLabel =
-    typeof bet.claimedAmount === "number" ? `+${bet.claimedAmount.toFixed(4)} ALEO` : "Claimed";
+    typeof bet.claimedAmount === "number" ? `+${bet.claimedAmount.toFixed(4)} ${bet.tokenTicker}` : "Claimed";
 
   return (
     <div className={cn(
@@ -95,13 +96,13 @@ export function BetCard({ bet, onClaim }: BetCardProps) {
         {/* Encrypted bet info */}
         <div className="flex justify-between items-center">
           <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Protected Wager</span>
-          <span className="font-mono text-xs text-white/40 encrypted-text">•••••• ALEO</span>
+          <span className="font-mono text-xs text-white/40 encrypted-text">•••••• {bet.tokenTicker}</span>
         </div>
 
         {bet.status === "Won" && !hasClaimed && (
           <div className="flex justify-between items-center">
             <span className="text-[10px] font-bold uppercase tracking-widest text-success/60">Estimated Payout</span>
-            <span className="font-mono text-xs text-success bg-success/5 px-2 py-1 rounded-lg border border-success/10">+•••••• ALEO</span>
+            <span className="font-mono text-xs text-success bg-success/5 px-2 py-1 rounded-lg border border-success/10">+•••••• {bet.tokenTicker}</span>
           </div>
         )}
 

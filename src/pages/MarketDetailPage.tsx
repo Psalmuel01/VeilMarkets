@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn, formatDateFriendly } from "@/lib/utils";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
-import { ADMIN_ADDRESS } from "@/lib/constants";
+import { ADMIN_ADDRESS, resolveTokenDisplayName, resolveTokenTicker } from "@/lib/constants";
 import { PoolInfo } from "@/lib/aleo";
 
 
@@ -282,6 +282,9 @@ export default function MarketDetailPage() {
 
   if (!market) return null;
 
+  const marketTokenTicker = resolveTokenTicker(market.token_id);
+  const marketTokenName = resolveTokenDisplayName(market.token_id);
+
   return (
     <MainLayout>
       <div className="max-w-4xl mx-auto">
@@ -376,7 +379,7 @@ export default function MarketDetailPage() {
         {/* Market Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
           {[
-            { label: "Total Volume", value: `${totalVolume.toLocaleString()}`, unit: "ALEO", icon: Activity, color: "text-primary" },
+            { label: "Total Volume", value: `${totalVolume.toLocaleString()}`, unit: marketTokenTicker, icon: Activity, color: "text-primary" },
             { label: "Pool Size", value: "Locked", unit: "ZK-POOL", icon: Lock, color: "text-accent" },
             { label: "Resolution", value: "Oracle", unit: "SOURCE", icon: Shield, color: "text-success" },
             { label: "Closing", value: market.closingDate, unit: "EST", icon: Calendar, color: "text-muted-foreground" },
@@ -467,8 +470,9 @@ export default function MarketDetailPage() {
                     <span className="text-sm font-bold text-white/90">{market.resolutionSource}</span>
                   </div>
                   <div className="flex flex-col items-end">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-1">Token ID</span>
-                    <span className="text-xs font-mono text-primary/80">{market.token_id.slice(0, 8)}...{market.token_id.slice(-4)}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-1">Settlement Token</span>
+                    <span className="text-sm font-semibold text-primary/90">{marketTokenName}</span>
+                    <span className="text-[10px] font-mono text-primary/60">{market.token_id.slice(0, 8)}...{market.token_id.slice(-4)}</span>
                   </div>
                 </div>
               </div>
@@ -520,7 +524,7 @@ export default function MarketDetailPage() {
                 </div>
                 <div className="p-5 rounded-3xl bg-white/[0.02] border border-white/5 flex flex-col gap-1">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Aggregated Volume</span>
-                  <span className="text-2xl font-bold text-primary font-mono">{totalVolume.toLocaleString()} ALEO</span>
+                  <span className="text-2xl font-bold text-primary font-mono">{totalVolume.toLocaleString()} {marketTokenTicker}</span>
                 </div>
               </div>
             </div>
@@ -552,7 +556,7 @@ export default function MarketDetailPage() {
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 font-mono">Wager Size</span>
-                      <span className="font-mono encrypted-text text-white">•••••• ALEO</span>
+                      <span className="font-mono encrypted-text text-white">•••••• {marketTokenTicker}</span>
                     </div>
                   </div>
                   {marketStatus === "Settled" && userBetResult && (

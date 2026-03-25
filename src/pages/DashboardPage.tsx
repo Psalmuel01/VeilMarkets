@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Wallet, TrendingUp, Clock, Trophy, CheckCircle2, Loader2, ArrowUpRight, Activity, ShieldCheck, Zap } from "lucide-react";
+import { Wallet, TrendingUp, Clock, Trophy, CheckCircle2, Loader2, Activity, ShieldCheck, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -8,10 +8,10 @@ import { BetCard, UserBet } from "@/components/dashboard/BetCard";
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { fetchMappingValue, parseMarketInfo } from "@/lib/aleo";
-import { PROGRAM_ID } from "@/lib/constants";
+import { PROGRAM_ID, resolveTokenTicker } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -33,6 +33,7 @@ export default function DashboardPage() {
   ]);
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
   const [claimedAmount, setClaimedAmount] = useState<number | null>(null);
+  const [claimedTicker, setClaimedTicker] = useState<string>("ALEO");
   const [myMarkets, setMyMarkets] = useState<
     Array<{
       id: string;
@@ -102,6 +103,7 @@ export default function DashboardPage() {
             marketId: record.market_id,
             marketTitle: market?.title || `Market ${record.market_id.substring(0, 8)}...`,
             category: market?.category === 0 ? "Crypto" : market?.category === 1 ? "Sports" : "Misc",
+            tokenTicker: resolveTokenTicker(market?.token_id ?? ""),
             status,
             outcome: outcomeLabel,
             placedAt: "Recorded", // TODO - need timestamp in the record
@@ -159,6 +161,8 @@ export default function DashboardPage() {
 
   const handleClaim = (marketId: string) => {
     setSelectedMarketId(marketId);
+    const bet = userBets.find((entry) => entry.marketId === marketId);
+    if (bet?.tokenTicker) setClaimedTicker(bet.tokenTicker);
     setShowClaimModal(true);
     setClaimStep("confirm");
     setClaimedAmount(null);
@@ -173,6 +177,7 @@ export default function DashboardPage() {
     if (result) {
       setTxId(result.transactionId);
       setClaimedAmount(result.payoutAmount);
+      setClaimedTicker(result.payoutTicker);
       const claimedAt = new Date().toLocaleString();
       setUserBets((prev) =>
         prev.map((bet) =>
@@ -296,7 +301,7 @@ export default function DashboardPage() {
                   <h2 className="text-xl md:text-2xl font-bold text-white font-mono tracking-tighter">
                     {tokenBalance !== null ? tokenBalance.toLocaleString() : "••••••••"}
                   </h2>
-                  <span className="text-lg font-semibold text-primary/60 font-mono">ALEO</span>
+                  <span className="text-lg font-semibold text-primary/60 font-mono">ALEO Credits</span>
                 </div>
               </div>
             </div>
@@ -489,7 +494,7 @@ export default function DashboardPage() {
               {claimedAmount !== null && (
                 <div className="p-4 rounded-lg bg-success/10 border border-success/30 text-success">
                   <div className="text-xs uppercase tracking-wide mb-1">Claimed Amount</div>
-                  <div className="text-2xl font-bold">+{claimedAmount.toFixed(4)} ALEO</div>
+                  <div className="text-2xl font-bold">+{claimedAmount.toFixed(4)} {claimedTicker}</div>
                 </div>
               )}
 

@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutGrid,
-  Wallet,
   FileText,
   Shield,
   ChevronLeft,
@@ -15,7 +14,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
-import { OracleRegistrationModal } from "@/components/resolution/OracleRegistrationModal";
 import { useSidebar } from "@/context/SidebarContext";
 
 const navItems = [
@@ -28,35 +26,29 @@ const navItems = [
 export function Sidebar() {
   const { isCollapsed, toggleSidebar } = useSidebar();
   const collapsed = isCollapsed;
-  const setCollapsed = toggleSidebar;
   const location = useLocation();
-  const { requestCredits, requestUSDCx, fetchMarkets, fetchBalances, fetchUSDCxBalance, shieldCredits, publicKey, isOracleRegistered, registerAsOracle, refreshSignal } = useAleoPrograms();
+  const { fetchMarkets, fetchBalances, fetchUSDCxBalances, publicKey, refreshSignal } = useAleoPrograms();
   const [activeMarketsCount, setActiveMarketsCount] = useState<number | null>(null);
   const [balances, setBalances] = useState<{ private: number; public: number } | null>(null);
-  const [usdcxBalance, setUsdcxBalance] = useState<number | null>(null);
-  const [isOracle, setIsOracle] = useState<boolean | null>(null);
-  const [isOracleModalOpen, setIsOracleModalOpen] = useState(false);
+  const [usdcxBalances, setUsdcxBalances] = useState<{ private: number; public: number; total: number } | null>(null);
 
   useEffect(() => {
     const loadStats = async () => {
       try {
-        const [markets, bal, usdcx, oracleStatus] = await Promise.all([
+        const [markets, bal, usdcx] = await Promise.all([
           fetchMarkets(),
           fetchBalances(),
-          fetchUSDCxBalance(),
-          isOracleRegistered()
+          fetchUSDCxBalances()
         ]);
         setActiveMarketsCount(markets.length);
         setBalances(bal);
-        setUsdcxBalance(usdcx);
-        setIsOracle(oracleStatus);
-        // console.log(oracleStatus);
+        setUsdcxBalances(usdcx);
       } catch (error) {
         console.error("Failed to fetch sidebar stats:", error);
       }
     };
     loadStats();
-  }, [fetchMarkets, fetchBalances, isOracleRegistered, publicKey, refreshSignal]);
+  }, [fetchMarkets, fetchBalances, fetchUSDCxBalances, publicKey, refreshSignal]);
 
   return (
     <aside
@@ -126,23 +118,29 @@ export function Sidebar() {
                 {publicKey && (
                   <div className="space-y-3 pt-4 border-t border-white/5">
                     <div className="flex justify-between items-center group/bal">
-                      <span className="text-[10px] text-muted-foreground group-hover/bal:text-white transition-colors">Credits</span>
+                      <span className="text-[10px] text-muted-foreground group-hover/bal:text-white transition-colors">Aleo Credits (Private)</span>
                       <span className="text-sm font-semibold font-mono text-primary">
                         {balances !== null ? `${balances.private.toLocaleString()}` : "..."}
                       </span>
                     </div>
                     <div className="flex justify-between items-center group/bal">
-                      <span className="text-[10px] text-muted-foreground group-hover/bal:text-white transition-colors">USDCx</span>
-                      <span className="text-sm font-semibold font-mono text-accent">
-                        {usdcxBalance !== null ? `${usdcxBalance.toLocaleString()}` : "..."}
+                      <span className="text-[10px] text-muted-foreground group-hover/bal:text-white transition-colors">Aleo Credits (Public)</span>
+                      <span className="text-sm font-semibold font-mono text-primary">
+                        {balances !== null ? `${balances.public.toLocaleString()}` : "..."}
                       </span>
                     </div>
-                    {balances && balances.public > 0 && (
-                      <div className="flex items-center gap-2 pt-2 text-[9px] text-warning/80">
-                        <div className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse" />
-                        <span>Shield {balances.public.toLocaleString()} credits</span>
-                      </div>
-                    )}
+                    <div className="flex justify-between items-center group/bal">
+                      <span className="text-[10px] text-muted-foreground group-hover/bal:text-white transition-colors">USDCx (Private)</span>
+                      <span className="text-sm font-semibold font-mono text-accent">
+                        {usdcxBalances !== null ? `${usdcxBalances.private.toLocaleString()}` : "..."}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center group/bal">
+                      <span className="text-[10px] text-muted-foreground group-hover/bal:text-white transition-colors">USDCx (Public)</span>
+                      <span className="text-sm font-semibold font-mono text-accent">
+                        {usdcxBalances !== null ? `${usdcxBalances.public.toLocaleString()}` : "..."}
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -203,12 +201,6 @@ export function Sidebar() {
         </Button>
       </div>
 
-      {/* Oracle Registration Modal */}
-      <OracleRegistrationModal
-        isOpen={isOracleModalOpen}
-        onClose={() => setIsOracleModalOpen(false)}
-        onSuccess={() => setIsOracle(true)}
-      />
     </aside>
   );
 }
