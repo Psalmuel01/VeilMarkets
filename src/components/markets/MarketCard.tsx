@@ -1,3 +1,4 @@
+import type { SupportedTokenKind } from "@/lib/constants";
 import { Clock, Users, Timer, ChevronRight, History, CheckCircle2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -14,6 +15,9 @@ export interface Market {
   creationTime?: string;
   betsPlaced: number;
   outcome?: "Yes" | "No";
+  tokenId: string;
+  tokenTicker: string;
+  tokenKind: SupportedTokenKind | null;
 }
 
 interface MarketCardProps {
@@ -89,6 +93,9 @@ export function MarketCard({ market }: MarketCardProps) {
           </h3>
           <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed mb-6 group-hover:text-muted-foreground/80 transition-colors">
             {market.description}
+          </p>
+          <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-white/35">
+            {market.tokenTicker}
           </p>
         </div>
 

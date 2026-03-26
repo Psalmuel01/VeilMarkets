@@ -127,6 +127,7 @@ const formatU8 = (value: number): string => `${Math.max(0, Math.floor(value))}u8
 const formatField = (value: string): string => (value.endsWith("field") ? value : `${value}field`);
 const USDCX_FREEZELIST_PROGRAM_ID = "test_usdcx_freezelist.aleo";
 const USAD_FREEZELIST_PROGRAM_ID = "test_usad_freezelist.aleo";
+const MIN_ORACLE_STAKE_MICROCREDITS = 30_000_000;
 
 const parseMappingU64 = (value: unknown): number => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -1394,6 +1395,46 @@ export const useAleoPrograms = () => {
     }
   };
 
+  const fetchOracleStake = useCallback(async (): Promise<number> => {
+    if (!publicKey) return 0;
+    try {
+      const raw = await fetchMappingValue(ORACLE_PROGRAM_ID, "active_oracles", publicKey);
+      return parseMappingU64(raw);
+    } catch (error) {
+      console.error("Failed to fetch oracle stake:", error);
+      return 0;
+    }
+  }, [publicKey]);
+
+  const unstakeOracleCredits = async (amountCredits: number) => {
+    if (!address) return null;
+    const amountMicro = Math.max(1_000_000, Math.floor(amountCredits * 1_000_000));
+
+    try {
+      const currentStake = await fetchOracleStake();
+      if (currentStake < amountMicro) {
+        toast.error("Unstake amount exceeds your current oracle stake.");
+        return null;
+      }
+
+      const result = await executeAndPoll({
+        program: ORACLE_PROGRAM_ID,
+        function: "unstake_credits",
+        inputs: [formatU64(amountMicro)],
+        fee: 1_000_000,
+        privateFee: false,
+      }, ORACLE_PROGRAM_ID, "unstake_credits");
+
+      if (result) {
+        triggerRefresh();
+      }
+      return result ? result.transactionId : null;
+    } catch (error) {
+      console.error("Oracle unstake failed:", error);
+      return null;
+    }
+  };
+
   const shieldCredits = async (amountCredits: number) => {
     if (!address) return;
     setLoading(true);
@@ -1543,15 +1584,9 @@ export const useAleoPrograms = () => {
   };
 
   const isOracleRegistered = useCallback(async (): Promise<boolean> => {
-    if (!publicKey) return false;
-    try {
-      const raw = await fetchMappingValue(ORACLE_PROGRAM_ID, "active_oracles", publicKey);
-      return raw !== null;
-    } catch (error) {
-      console.error("Failed to check oracle registration:", error);
-      return false;
-    }
-  }, [publicKey]);
+    const stake = await fetchOracleStake();
+    return stake >= MIN_ORACLE_STAKE_MICROCREDITS;
+  }, [fetchOracleStake]);
 
   const fetchResolutionProposal = useCallback(async (marketId: string) => {
     try {
@@ -1573,6 +1608,8 @@ export const useAleoPrograms = () => {
     proposeResolution,
     disputeResolution,
     registerAsOracle,
+    unstakeOracleCredits,
+    fetchOracleStake,
     fetchResolutionProposal,
     claimWinnings,
     shieldCredits,

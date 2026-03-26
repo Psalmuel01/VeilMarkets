@@ -1,13 +1,17 @@
-import { Search, Filter, SlidersHorizontal } from "lucide-react";
+import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { SupportedTokenKind } from "@/lib/constants";
 
 interface MarketFiltersProps {
   activeCategory: string;
   onCategoryChange: (category: string) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  activeToken: "all" | SupportedTokenKind;
+  onTokenChange: (token: "all" | SupportedTokenKind) => void;
 }
 
 const categories = [
@@ -21,11 +25,20 @@ const categories = [
   { id: "Other", label: "Other" },
 ];
 
+const tokens: Array<{ id: "all" | SupportedTokenKind; label: string }> = [
+  { id: "all", label: "All" },
+  { id: "credits", label: "ALEO" },
+  { id: "usdcx", label: "USDCx" },
+  { id: "usad", label: "USAD" },
+];
+
 export function MarketFilters({
   activeCategory,
   onCategoryChange,
   searchQuery,
-  onSearchChange
+  onSearchChange,
+  activeToken,
+  onTokenChange,
 }: MarketFiltersProps) {
   return (
     <div className="space-y-3">
@@ -59,14 +72,18 @@ export function MarketFilters({
           </Button>
         ))}
 
-        <Button
-          variant="ghost"
-          size="sm"
-          className="ml-auto text-muted-foreground hover:text-foreground"
-        >
-          <SlidersHorizontal className="w-4 h-4 mr-2" />
-          More Filters
-        </Button>
+        <Select value={activeToken} onValueChange={(value) => onTokenChange(value as "all" | SupportedTokenKind)}>
+          <SelectTrigger className="ml-auto h-9 w-full sm:w-[120px] bg-background/50 border-border/60">
+            <SelectValue placeholder="token" />
+          </SelectTrigger>
+          <SelectContent>
+            {tokens.map((token) => (
+              <SelectItem key={token.id} value={token.id}>
+                {token.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
     </div>
   );

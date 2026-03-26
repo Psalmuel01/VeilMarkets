@@ -494,13 +494,13 @@ export default function MarketDetailPage() {
                   outcome="Yes"
                   selected={false}
                   onSelect={() => { if (!hasUserBet && marketStatus === "Open") setShowBetModal(true); }}
-                  disabled={marketStatus !== "Open" || hasUserBet}
+                  disabled={marketStatus !== "Open"} //  || hasUserBet
                 />
                 <OutcomeCard
                   outcome="No"
                   selected={false}
                   onSelect={() => { if (!hasUserBet && marketStatus === "Open") setShowBetModal(true); }}
-                  disabled={marketStatus !== "Open" || hasUserBet}
+                  disabled={marketStatus !== "Open"} //  || hasUserBet
                 />
               </div>
 

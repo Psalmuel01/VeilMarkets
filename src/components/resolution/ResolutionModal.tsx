@@ -251,9 +251,18 @@ export function ResolutionModal({
                       )}
 
                       {isOracle && (
-                        <div className="flex items-center gap-2 text-xs text-success">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          Active Oracle
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-xs text-success">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Active Oracle
+                          </div>
+                          <button
+                            type="button"
+                            className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+                            onClick={handleOpenOracleModal}
+                          >
+                            Manage Stake
+                          </button>
                         </div>
                       )}
 
