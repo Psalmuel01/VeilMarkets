@@ -21,11 +21,11 @@ const sections = [
     content: [
       {
         title: "What is VeilMarkets?",
-        description: "VeilMarkets is a private prediction market platform built on the Aleo blockchain. It allows users to participate in binary outcome markets while keeping their bets, identities, and wager amounts completely private through zero-knowledge proofs.",
+        description: "VeilMarkets is a privacy-first prediction market platform built on Aleo. It currently supports binary markets (Yes/No) with settlement in Aleo Credits, USDCx, or USAD.",
       },
       {
         title: "How do I participate?",
-        description: "Simply browse available markets, select your prediction (Yes or No), choose your wager level, and submit. Your bet is encrypted using ZK proofs before being recorded on the Aleo blockchain.",
+        description: "Browse markets, choose an outcome (Yes/No), set your wager, and submit through the market's token rail. The app handles private record usage and proof validation during execution.",
       },
     ],
   },
@@ -36,15 +36,15 @@ const sections = [
     content: [
       {
         title: "Zero-Knowledge Proofs",
-        description: "ZK proofs allow you to prove that your bet is valid without revealing any information about the bet itself. This means no one can see your wager amount, your predicted outcome, or link your bet to your identity.",
+        description: "ZK proofs are used to verify bet validity and settlement correctness while reducing information leakage. Private wallet records and claims are handled through Aleo-native private execution paths.",
       },
       {
         title: "What's encrypted?",
-        description: "Your bet amount, chosen outcome, wallet address, and all transaction details are encrypted. Only you can see your own bets and winnings. The only public information is that a bet was placed (not by whom or for how much).",
+        description: "Wallet-owned records and claim artifacts are private. Depending on the token rail, some public escrow/accounting events can still appear at contract level while preserving private position ownership.",
       },
       {
         title: "On-chain verification",
-        description: "While individual bets are private, the overall market integrity is publicly verifiable. Anyone can confirm that settlements are fair and that the correct outcome was determined, without seeing individual bets.",
+        description: "Market integrity remains publicly verifiable. Resolution and payout rules are enforced on-chain so anyone can verify final outcome correctness and payout logic.",
       },
     ],
   },
@@ -63,18 +63,37 @@ const sections = [
       },
       {
         title: "Time Estimations",
-        description: "Markets show a countdown timer estimated from block height, providing a clear window for when betting ends and resolution begins.",
+        description: "Markets use timestamp-based close and resolution times, with clear countdown/status transitions across Open, Closed, and Settled states.",
       },
     ],
   },
   {
-    id: "credits",
-    title: "Credits & Wagers",
+    id: "whats-new",
+    title: "What's New in v7",
+    icon: Zap,
+    content: [
+      {
+        title: "Multi-token market rails",
+        description: "Market creators can select Aleo Credits, USDCx, or USAD as settlement asset during creation.",
+      },
+      {
+        title: "Improved market discovery",
+        description: "Markets page now supports direct currency filtering and subtle token ticker badges on cards.",
+      },
+      {
+        title: "Oracle stake lifecycle",
+        description: "Oracle UI now includes unstake management, and oracle status is tracked against effective minimum stake.",
+      },
+    ],
+  },
+  {
+    id: "tokens",
+    title: "Tokens & Wagers",
     icon: Lock,
     content: [
       {
-        title: "Aleo Credits",
-        description: "VEIL uses Aleo Credits for betting. You can track your shielded balance directly in the sidebar and dashboard. If you need credits, use our integrated Testnet Faucet.",
+        title: "Supported Settlement Tokens",
+        description: "Markets can settle in Aleo Credits, USDCx, or USAD. Each market is bound to exactly one token adapter and all bet/claim operations follow that market's selected rail.",
       },
       {
         title: "Wager Limits",
@@ -93,7 +112,7 @@ const sections = [
       },
       {
         title: "Smart contracts",
-        description: "Our Aleo programs handle bet placement, market resolution, and payout distribution. All operations use ZK proofs to maintain privacy while ensuring correctness.",
+        description: "The v7 suite includes factory, core, oracle, and token adapters (Credits, USDCx, USAD). Together they enforce market creation, escrow, resolution, and payout verification.",
       },
     ],
   },
@@ -104,11 +123,11 @@ const sections = [
     content: [
       {
         title: "1) Create Market",
-        description: "A market is created with a close block and a resolution block. Bets are accepted until the close block.",
+        description: "A market is created with close_time and resolution_time (timestamps) plus a settlement token. Bets are accepted until close_time.",
       },
       {
         title: "2) Place Bets",
-        description: "Bets are escrowed in the token contract and the core pool totals are updated without revealing bet details.",
+        description: "Bets are escrowed through the market's token adapter, then core pool totals and participant stats are updated.",
       },
       {
         title: "3) Propose Resolution",
@@ -124,7 +143,7 @@ const sections = [
       },
       {
         title: "6) Claim Winnings",
-        description: "Winners claim in two steps: claim_winnings on core to compute payout, then claim_payout on token to receive credits.",
+        description: "Winners claim in two steps: claim_winnings on core, then claim_payout on the matching token adapter (Credits, USDCx, or USAD).",
       },
     ],
   },
@@ -133,7 +152,7 @@ const sections = [
 const faqs = [
   {
     question: "Can anyone see my bets?",
-    answer: "No. Your bets are encrypted using zero-knowledge proofs. Only you can see your betting history and winnings.",
+    answer: "Your private wallet records and claims are protected. Depending on the token rail, some contract-level escrow accounting can still be publicly observable.",
   },
   {
     question: "How are markets resolved?",
@@ -141,11 +160,11 @@ const faqs = [
   },
   {
     question: "What happens if I win?",
-    answer: "If your prediction is correct, you can claim your winnings privately. The payout is transferred to your wallet without revealing the amount publicly.",
+    answer: "If your prediction is correct, you claim through core first and then through the matching token adapter. The payout is returned to your private wallet records.",
   },
   {
     question: "Are there any fees?",
-    answer: "There are minimal network fees for Aleo transactions. Market creators may set a small fee that goes to the resolution process.",
+    answer: "You pay normal Aleo network transaction fees. Platform fee fields exist in adapters for future use, but they are not the primary user-facing mechanism today.",
   },
 ];
 
@@ -166,7 +185,7 @@ export default function DocsPage() {
             <h1 className="text-4xl font-bold">Documentation</h1>
           </div>
           <p className="text-muted-foreground text-lg">
-            Learn how VeilMarkets provides private prediction markets using Aleo's zero-knowledge technology
+            Learn how VeilMarkets v7 powers private binary prediction markets with multi-token settlement on Aleo
           </p>
         </motion.div>
 
