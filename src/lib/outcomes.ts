@@ -9,8 +9,26 @@ export const normalizeOutcomeCount = (value: number | null | undefined): number 
   return Math.min(4, Math.max(2, Math.floor(value as number)));
 };
 
-export const getOutcomeLabels = (marketType: number, outcomeCount: number): string[] => {
+export const normalizeOutcomeLabels = (
+  labels: string[] | null | undefined,
+  outcomeCount: number,
+): string[] | null => {
+  if (!Array.isArray(labels)) return null;
   const normalizedCount = normalizeOutcomeCount(outcomeCount);
+  const trimmed = labels.map((label) => String(label ?? "").trim());
+  if (trimmed.length !== normalizedCount) return null;
+  if (trimmed.some((label) => label.length === 0)) return null;
+  return trimmed;
+};
+
+export const getOutcomeLabels = (
+  marketType: number,
+  outcomeCount: number,
+  labels?: string[] | null,
+): string[] => {
+  const normalizedCount = normalizeOutcomeCount(outcomeCount);
+  const customLabels = normalizeOutcomeLabels(labels, normalizedCount);
+  if (customLabels) return customLabels;
   if (marketType === 0 && normalizedCount === 2) {
     return ["No", "Yes"];
   }
@@ -21,11 +39,12 @@ export const getOutcomeLabel = (
   marketType: number,
   outcomeCount: number,
   outcomeIndex: number | null | undefined,
+  labels?: string[] | null,
 ): string => {
   if (!Number.isFinite(outcomeIndex)) return "Unknown";
-  const labels = getOutcomeLabels(marketType, outcomeCount);
+  const resolvedLabels = getOutcomeLabels(marketType, outcomeCount, labels);
   const index = Math.floor(outcomeIndex as number);
-  return labels[index] ?? `Outcome ${index + 1}`;
+  return resolvedLabels[index] ?? `Outcome ${index + 1}`;
 };
 
 export const getOutcomeTone = (

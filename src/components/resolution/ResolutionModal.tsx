@@ -28,6 +28,7 @@ interface ResolutionModalProps {
     is_resolved: boolean;
     market_type: number;
     outcome_count: number;
+    outcome_labels?: string[];
   };
   proposal: {
     proposed_outcome: number;
@@ -55,7 +56,7 @@ export function ResolutionModal({
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
   const { proposeResolution, disputeResolution, loading } = useAleoPrograms();
   const normalizedOutcomeCount = normalizeOutcomeCount(market.outcome_count);
-  const outcomeLabels = getOutcomeLabels(market.market_type, normalizedOutcomeCount);
+  const outcomeLabels = getOutcomeLabels(market.market_type, normalizedOutcomeCount, market.outcome_labels);
 
   const [step, setStep] = useState<Step>("action");
   const [txId, setTxId] = useState<string | null>(null);
@@ -155,7 +156,12 @@ export function ResolutionModal({
                       <div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Current Proposal</p>
                         <p className="text-xl font-bold text-primary">
-                          {getOutcomeLabel(market.market_type, normalizedOutcomeCount, proposal.proposed_outcome).toUpperCase()}
+                          {getOutcomeLabel(
+                            market.market_type,
+                            normalizedOutcomeCount,
+                            proposal.proposed_outcome,
+                            market.outcome_labels,
+                          ).toUpperCase()}
                         </p>
                       </div>
                       <div className="text-right">

@@ -73,7 +73,7 @@ export default function MarketsPage() {
           outcome: market.is_resolved
             ? (isCancelledOutcome(market.winning_outcome)
               ? "Cancelled"
-              : getOutcomeLabel(market.market_type, market.outcome_count, market.winning_outcome))
+              : getOutcomeLabel(market.market_type, market.outcome_count, market.winning_outcome, market.outcome_labels))
             : undefined,
           tokenId: market.token_id,
           tokenTicker: resolveTokenTicker(market.token_id),

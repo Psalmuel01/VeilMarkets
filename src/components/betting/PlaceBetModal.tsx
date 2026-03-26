@@ -27,6 +27,7 @@ interface PlaceBetModalProps {
   tokenId: string; // The specific token contract for this market
   marketType: number;
   outcomeCount: number;
+  outcomeLabels?: string[];
   onBetPlaced?: () => void;
 }
 
@@ -40,6 +41,7 @@ export const PlaceBetModal = ({
   tokenId,
   marketType,
   outcomeCount,
+  outcomeLabels,
   onBetPlaced,
 }: PlaceBetModalProps) => {
   const navigate = useNavigate();
@@ -61,7 +63,7 @@ export const PlaceBetModal = ({
   const tokenTicker = resolveTokenTicker(tokenId);
   const tokenDisplayName = resolveTokenDisplayName(tokenId);
   const normalizedOutcomeCount = normalizeOutcomeCount(outcomeCount);
-  const outcomeLabels = getOutcomeLabels(marketType, normalizedOutcomeCount);
+  const resolvedOutcomeLabels = getOutcomeLabels(marketType, normalizedOutcomeCount, outcomeLabels);
   const availableRequiredBalance = balances ? balances.private : 0;
   const hasLowBalance = !!balances && availableRequiredBalance < wagerAmount;
 
@@ -236,12 +238,12 @@ export const PlaceBetModal = ({
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <OutcomeCard
-                      outcome={outcomeLabels[0]}
+                      outcome={resolvedOutcomeLabels[0]}
                       selected={selectedOutcome === 0}
                       onSelect={() => setSelectedOutcome(0)}
                       tone={getOutcomeTone(marketType, normalizedOutcomeCount, 0)}
                     />
-                    {outcomeLabels.slice(1).map((label, index) => {
+                    {resolvedOutcomeLabels.slice(1).map((label, index) => {
                       const outcomeIndex = index + 1;
                       return (
                         <OutcomeCard
@@ -329,7 +331,7 @@ export const PlaceBetModal = ({
                             ? "text-destructive"
                             : "text-primary"
                     )}>
-                      {getOutcomeLabel(marketType, normalizedOutcomeCount, selectedOutcome)}
+                      {getOutcomeLabel(marketType, normalizedOutcomeCount, selectedOutcome, outcomeLabels)}
                     </div>
                   </div>
                   <div className="p-6 rounded-3xl bg-white/[0.03] border border-white/5 space-y-1">

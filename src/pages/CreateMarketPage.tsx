@@ -46,6 +46,7 @@ const categories = [
 ];
 
 type Step = "form" | "review" | "creating" | "success" | "failed";
+const DEFAULT_OUTCOME_LABELS = ["No", "Yes", "Option 3", "Option 4"];
 
 export default function CreateMarketPage() {
   const navigate = useNavigate();
@@ -56,6 +57,7 @@ export default function CreateMarketPage() {
     category: "",
     marketType: "binary",
     outcomeCount: "2",
+    outcomeLabels: DEFAULT_OUTCOME_LABELS,
     closingDate: "",
     closingTime: "23:59",
     resolutionSource: "",
@@ -95,12 +97,26 @@ export default function CreateMarketPage() {
       other: 6,
     };
 
+    const marketTypeValue = formData.marketType === "binary" ? 0 : 1;
+    const outcomeCountValue = marketTypeValue === 0 ? 2 : (Number.parseInt(formData.outcomeCount, 10) || 2);
+    const outcomeLabels = (marketTypeValue === 0
+      ? ["No", "Yes"]
+      : formData.outcomeLabels.slice(0, outcomeCountValue).map((label) => label.trim())
+    );
+
+    if (outcomeLabels.some((label) => label.length === 0)) {
+      toast.error("Every outcome label is required.");
+      setStep("form");
+      return;
+    }
+
     const result = await createMarket(
       formData.title,
       formData.description,
       categoryMap[formData.category] ?? 0,
-      formData.marketType === "binary" ? 0 : 1,
-      Number.parseInt(formData.outcomeCount, 10) || 2,
+      marketTypeValue,
+      outcomeCountValue,
+      outcomeLabels,
       closeTime,
       resolutionTime,
       formData.resolutionSource,
@@ -115,7 +131,17 @@ export default function CreateMarketPage() {
     }
   };
 
-  const isFormValid = formData.title && formData.description && formData.category && formData.closingDate;
+  const requestedOutcomeCount =
+    formData.marketType === "binary" ? 2 : (Number.parseInt(formData.outcomeCount, 10) || 2);
+  const hasValidOutcomeLabels =
+    formData.marketType === "binary" ||
+    formData.outcomeLabels.slice(0, requestedOutcomeCount).every((label) => label.trim().length > 0);
+  const isFormValid =
+    formData.title &&
+    formData.description &&
+    formData.category &&
+    formData.closingDate &&
+    hasValidOutcomeLabels;
 
   return (
     <MainLayout requireWallet={true}>
@@ -216,6 +242,10 @@ export default function CreateMarketPage() {
                         ...prev,
                         marketType: value,
                         outcomeCount: value === "binary" ? "2" : prev.outcomeCount,
+                        outcomeLabels:
+                          value === "binary"
+                            ? ["No", "Yes", ...prev.outcomeLabels.slice(2)]
+                            : prev.outcomeLabels,
                       }))
                     }
                   >
@@ -238,7 +268,17 @@ export default function CreateMarketPage() {
                   </Label>
                   <Select
                     value={formData.outcomeCount}
-                    onValueChange={(value) => setFormData({ ...formData, outcomeCount: value })}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        outcomeCount: value,
+                        outcomeLabels: prev.outcomeLabels.map((label, index) =>
+                          index < (Number.parseInt(value, 10) || 2) && label.trim().length === 0
+                            ? `Option ${index + 1}`
+                            : label,
+                        ),
+                      }))
+                    }
                     disabled={formData.marketType === "binary"}
                   >
                     <SelectTrigger className="h-14 bg-white/[0.03] border-white/10 rounded-2xl px-6">
@@ -277,6 +317,34 @@ export default function CreateMarketPage() {
                   </div>
                 </div>
               </div>
+
+              {formData.marketType === "categorical" && (
+                <div className="space-y-3">
+                  <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 ml-1">
+                    Outcome Labels
+                  </Label>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {Array.from({ length: requestedOutcomeCount }, (_, index) => (
+                      <Input
+                        key={`outcome-label-${index}`}
+                        value={formData.outcomeLabels[index] ?? ""}
+                        onChange={(e) =>
+                          setFormData((prev) => {
+                            const nextLabels = [...prev.outcomeLabels];
+                            nextLabels[index] = e.target.value;
+                            return { ...prev, outcomeLabels: nextLabels };
+                          })
+                        }
+                        placeholder={`Outcome ${index + 1}`}
+                        className="h-12 bg-white/[0.03] border-white/10 rounded-2xl px-4 focus:border-primary/50 transition-all"
+                      />
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground/40 font-medium ml-1">
+                    These labels will be saved in metadata and used across market details and resolution.
+                  </p>
+                </div>
+              )}
 
               {/* Resolution Source & Currency */}
               <div className="grid md:grid-cols-2 gap-8">
@@ -390,6 +458,23 @@ export default function CreateMarketPage() {
                   <div className="space-y-1">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Deadline</p>
                     <p className="text-sm font-bold text-white">{formData.closingDate}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Outcomes</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(formData.marketType === "binary"
+                      ? ["No", "Yes"]
+                      : formData.outcomeLabels.slice(0, requestedOutcomeCount).map((label) => label.trim())
+                    ).map((label, index) => (
+                      <span
+                        key={`review-outcome-${index}-${label}`}
+                        className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-white/10 bg-white/5 text-white/80"
+                      >
+                        {label}
+                      </span>
+                    ))}
                   </div>
                 </div>
 

@@ -81,6 +81,7 @@ export default function MarketDetailPage() {
     is_resolved: boolean;
     market_type: number;
     outcome_count: number;
+    outcome_labels: string[];
     winningOutcome?: number;
     token_id: string;
   } | null>(null);
@@ -132,7 +133,12 @@ export default function MarketDetailPage() {
         if (userBet) {
           setHasUserBet(true);
           const numericOutcome = Number.parseInt(userBet.outcome, 10);
-          const outcomeLabel = getOutcomeLabel(found.market_type, found.outcome_count, numericOutcome);
+          const outcomeLabel = getOutcomeLabel(
+            found.market_type,
+            found.outcome_count,
+            numericOutcome,
+            found.outcome_labels,
+          );
           setUserBetOutcome(outcomeLabel);
           if (found.is_resolved) {
             if (isCancelledOutcome(found.winning_outcome)) {
@@ -167,6 +173,7 @@ export default function MarketDetailPage() {
           is_resolved: found.is_resolved,
           market_type: found.market_type,
           outcome_count: found.outcome_count,
+          outcome_labels: found.outcome_labels ?? [],
           winningOutcome: found.winning_outcome,
           token_id: found.token_id,
         });
@@ -212,7 +219,7 @@ export default function MarketDetailPage() {
   const isClosed = !isSettled && market?.close_time && nowTs >= market.close_time;
   const marketStatus = isSettled ? "Settled" : isClosed ? "Closed" : "Open";
   const normalizedOutcomeCount = normalizeOutcomeCount(market?.outcome_count ?? 2);
-  const outcomeLabels = getOutcomeLabels(market?.market_type ?? 0, normalizedOutcomeCount);
+  const outcomeLabels = getOutcomeLabels(market?.market_type ?? 0, normalizedOutcomeCount, market?.outcome_labels);
 
   // Calculate stats
   const outcomeTotals = [
@@ -230,7 +237,7 @@ export default function MarketDetailPage() {
 
   const resolvedOutcomeLabel = isCancelledOutcome(market?.winningOutcome)
     ? "CANCELLED"
-    : getOutcomeLabel(market?.market_type ?? 0, normalizedOutcomeCount, market?.winningOutcome);
+    : getOutcomeLabel(market?.market_type ?? 0, normalizedOutcomeCount, market?.winningOutcome, market?.outcome_labels);
   const resolvedOutcomeTone = isCancelledOutcome(market?.winningOutcome)
     ? "neutral"
     : getOutcomeTone(market?.market_type ?? 0, normalizedOutcomeCount, market?.winningOutcome ?? 0);
@@ -675,7 +682,12 @@ export default function MarketDetailPage() {
                               ? "bg-destructive/20 text-destructive border-destructive/30"
                               : "bg-primary/20 text-primary border-primary/30"
                         )}>
-                          {getOutcomeLabel(market.market_type, normalizedOutcomeCount, proposal.proposed_outcome).toUpperCase()}
+                          {getOutcomeLabel(
+                            market.market_type,
+                            normalizedOutcomeCount,
+                            proposal.proposed_outcome,
+                            market.outcome_labels,
+                          ).toUpperCase()}
                         </div>
                       </div>
                       <div className="flex justify-between items-center">
@@ -774,6 +786,7 @@ export default function MarketDetailPage() {
         tokenId={market.token_id}
         marketType={market.market_type}
         outcomeCount={market.outcome_count}
+        outcomeLabels={market.outcome_labels}
       />
 
       <ResolutionModal
@@ -787,6 +800,7 @@ export default function MarketDetailPage() {
           is_resolved: market.is_resolved,
           market_type: market.market_type,
           outcome_count: market.outcome_count,
+          outcome_labels: market.outcome_labels,
         }}
         proposal={proposal}
         nowTs={nowTs}
@@ -829,7 +843,12 @@ export default function MarketDetailPage() {
                           : "text-primary",
                     )}
                   >
-                    {getOutcomeLabel(market.market_type, normalizedOutcomeCount, proposal.proposed_outcome).toUpperCase()}
+                    {getOutcomeLabel(
+                      market.market_type,
+                      normalizedOutcomeCount,
+                      proposal.proposed_outcome,
+                      market.outcome_labels,
+                    ).toUpperCase()}
                   </span>
                 </div>
               )}
