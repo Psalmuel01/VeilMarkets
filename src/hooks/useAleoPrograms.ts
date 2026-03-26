@@ -42,7 +42,7 @@ interface ParsedBetRecord {
 import {
   PROGRAM_ID,
   ORACLE_PROGRAM_ID,
-  TOKEN_PROGRAM_ID,
+  CREDITS_TOKEN_PROGRAM_ID,
   USDCX_TOKEN_PROGRAM_ID,
   USAD_TOKEN_PROGRAM_ID,
   resolveTokenAdapterProgram,
@@ -104,6 +104,20 @@ const parseAleoAmount = (value: unknown): number => {
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
+};
+
+const unwrapValue = (value: unknown): unknown => {
+  let current: unknown = value;
+  let depth = 0;
+
+  while (depth < 5 && typeof current === "object" && current !== null) {
+    const obj = current as Record<string, unknown>;
+    if (obj.value === undefined) break;
+    current = obj.value;
+    depth += 1;
+  }
+
+  return current;
 };
 
 const toMicrocredits = (credits: number): number => Math.max(1_000_000, Math.floor(credits * 1_000_000));
@@ -227,7 +241,9 @@ const buildRecordPlaintextFromData = (
     entries.push(`_nonce: ${String(nonceValue).trim()}`);
   }
 
-  if (entries.length === 0) return null;
+  if (!requiredFields.every((field) => entries.some((entry) => entry.startsWith(`${field}:`)))) {
+    return null;
+  }
   return `{ ${entries.join(", ")} }`;
 };
 
@@ -247,18 +263,24 @@ const extractRecordPlaintextInput = (
 };
 
 const normalizeU32 = (value: unknown): string => {
-  const str = String(value ?? "").trim();
+  const raw = unwrapValue(value);
+  const str = String(raw ?? "")
+    .trim()
+    .replace(/\.private|\.public/g, "");
   return /u32$/.test(str) ? str : `${str.replace(/u32$/g, "")}u32`;
 };
 
 const normalizeField = (value: unknown): string => {
-  const str = String(value ?? "").trim();
+  const raw = unwrapValue(value);
+  const str = String(raw ?? "")
+    .trim()
+    .replace(/\.private|\.public/g, "");
   return /field$/.test(str) ? str : `${str.replace(/field$/g, "")}field`;
 };
 
 const formatMerkleProof = (value: unknown): string | null => {
   if (typeof value === "string") {
-    const trimmed = value.trim();
+    const trimmed = value.trim().replace(/\.private|\.public/g, "");
     if (trimmed.includes("siblings") && (trimmed.includes("leaf_index") || trimmed.includes("leafIndex"))) {
       return trimmed;
     }
@@ -267,8 +289,13 @@ const formatMerkleProof = (value: unknown): string | null => {
 
   if (!value || typeof value !== "object") return null;
   const obj = value as Record<string, unknown>;
-  const siblingsRaw = Array.isArray(obj.siblings) ? obj.siblings : null;
-  const leafIndex = obj.leaf_index ?? obj.leafIndex;
+  const siblingsRaw =
+    (Array.isArray(obj.siblings) && obj.siblings) ||
+    (Array.isArray(obj.path) && obj.path) ||
+    (Array.isArray(obj.merkle_path) && obj.merkle_path) ||
+    (Array.isArray(obj.merklePath) && obj.merklePath) ||
+    null;
+  const leafIndex = obj.leaf_index ?? obj.leafIndex ?? obj.index ?? obj.leaf;
   if (!siblingsRaw || leafIndex === undefined) return null;
 
   const siblings = siblingsRaw.map((entry) => normalizeField(entry));
@@ -276,7 +303,7 @@ const formatMerkleProof = (value: unknown): string | null => {
 };
 
 const parseMerkleProofPairString = (value: string): [string, string] | null => {
-  const trimmed = value.trim();
+  const trimmed = value.trim().replace(/\.private|\.public/g, "");
   if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) return null;
 
   const inner = trimmed.slice(1, -1).trim();
@@ -301,6 +328,48 @@ const parseMerkleProofPairString = (value: string): [string, string] | null => {
   return [left, right];
 };
 
+const collectMerkleProofCandidates = (value: unknown): string[] => {
+  const queue: unknown[] = [value];
+  const visited = new Set<unknown>();
+  const candidates: string[] = [];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || visited.has(current)) continue;
+    visited.add(current);
+
+    const formatted = formatMerkleProof(current);
+    if (formatted) {
+      const parsedPair = parseMerkleProofPairString(formatted);
+      if (parsedPair) {
+        candidates.push(parsedPair[0], parsedPair[1]);
+      } else {
+        candidates.push(formatted);
+      }
+      continue;
+    }
+
+    if (typeof current === "string") {
+      const parsedPair = parseMerkleProofPairString(current);
+      if (parsedPair) candidates.push(parsedPair[0], parsedPair[1]);
+      continue;
+    }
+
+    if (Array.isArray(current)) {
+      for (const item of current) queue.push(item);
+      continue;
+    }
+
+    if (typeof current === "object") {
+      for (const nested of Object.values(current as Record<string, unknown>)) {
+        queue.push(nested);
+      }
+    }
+  }
+
+  return candidates;
+};
+
 const extractUsdcMerkleProofInputs = (record: WalletRecord): [string, string] | null => {
   const sources: unknown[] = [];
   const direct = toObject(record);
@@ -314,6 +383,10 @@ const extractUsdcMerkleProofInputs = (record: WalletRecord): [string, string] | 
       direct.merkleProof,
       direct.merkle_path,
       direct.merklePath,
+      direct.token_proof_0,
+      direct.token_proof_1,
+      direct.proof_0,
+      direct.proof_1,
       direct.proofs,
       direct.proof,
       direct.membershipProof,
@@ -328,6 +401,10 @@ const extractUsdcMerkleProofInputs = (record: WalletRecord): [string, string] | 
       data.merkleProof,
       data.merkle_path,
       data.merklePath,
+      data.token_proof_0,
+      data.token_proof_1,
+      data.proof_0,
+      data.proof_1,
       data.proofs,
       data.proof,
       data.membershipProof,
@@ -349,11 +426,35 @@ const extractUsdcMerkleProofInputs = (record: WalletRecord): [string, string] | 
     }
     if (typeof source === "object" && source !== null) {
       const obj = source as Record<string, unknown>;
-      const p0 = formatMerkleProof(obj[0] ?? obj.proof0 ?? obj.first ?? obj.left);
-      const p1 = formatMerkleProof(obj[1] ?? obj.proof1 ?? obj.second ?? obj.right);
+      const p0 = formatMerkleProof(
+        obj[0] ??
+          obj.proof0 ??
+          obj.first ??
+          obj.left ??
+          obj.token_proof_0 ??
+          obj.proof_0 ??
+          obj.a ??
+          obj.p0,
+      );
+      const p1 = formatMerkleProof(
+        obj[1] ??
+          obj.proof1 ??
+          obj.second ??
+          obj.right ??
+          obj.token_proof_1 ??
+          obj.proof_1 ??
+          obj.b ??
+          obj.p1,
+      );
       if (p0 && p1) return [p0, p1];
     }
   }
+
+  const deepCandidates = collectMerkleProofCandidates(record);
+  if (deepCandidates.length >= 2) return [deepCandidates[0], deepCandidates[1]];
+
+  const deepDataCandidates = collectMerkleProofCandidates(record.data);
+  if (deepDataCandidates.length >= 2) return [deepDataCandidates[0], deepDataCandidates[1]];
 
   return null;
 };
@@ -598,7 +699,7 @@ export const useAleoPrograms = () => {
     setLoading(true);
     try {
       // Query token adapters for EscrowedBet records (where bets are escrowed)
-      const tokenPrograms = [TOKEN_PROGRAM_ID, USDCX_TOKEN_PROGRAM_ID, USAD_TOKEN_PROGRAM_ID];
+      const tokenPrograms = [CREDITS_TOKEN_PROGRAM_ID, USDCX_TOKEN_PROGRAM_ID, USAD_TOKEN_PROGRAM_ID];
       const unspentRecords: WalletRecord[] = [];
 
       for (const programId of tokenPrograms) {
@@ -831,7 +932,11 @@ export const useAleoPrograms = () => {
     // In a real app, link to the specific USAD faucet/bridge if available
   };
 
-  const findTokenRecord = async (tokenProgramId: string, requiredAmountMicro: number): Promise<WalletRecord | null> => {
+  const findTokenRecord = async (
+    tokenProgramId: string,
+    requiredAmountMicro: number,
+    options?: { requireMerkleProof?: boolean },
+  ): Promise<WalletRecord | null> => {
     if (!address) return null;
 
     try {
@@ -843,13 +948,20 @@ export const useAleoPrograms = () => {
             : "USDCx";
       const rawRecords = await requestRecordsWithRetry(requestRecords, tokenProgramId, label);
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
-      
+
       const unspent = records.filter(r => !r.spent);
-      
-      const matchingRecord = unspent.find((record) => extractRecordAmount(record) >= requiredAmountMicro);
+
+      const matchingRecord = unspent.find((record) => {
+        if (extractRecordAmount(record) < requiredAmountMicro) return false;
+        if (!options?.requireMerkleProof) return true;
+        return Boolean(extractUsdcMerkleProofInputs(record));
+      });
 
       if (!matchingRecord) {
-        console.warn(`[findTokenRecord] No record with >= ${requiredAmountMicro} for ${tokenProgramId} found among ${unspent.length} unspent records`);
+        const proofMode = options?.requireMerkleProof ? " with Merkle proof" : "";
+        console.warn(
+          `[findTokenRecord] No record with >= ${requiredAmountMicro}${proofMode} for ${tokenProgramId} found among ${unspent.length} unspent records`,
+        );
       }
 
       return matchingRecord ?? null;
@@ -898,7 +1010,7 @@ export const useAleoPrograms = () => {
 
   const findEscrowedBetRecord = async (
     marketId: string,
-    tokenProgramId: string = TOKEN_PROGRAM_ID
+    tokenProgramId: string = CREDITS_TOKEN_PROGRAM_ID
   ): Promise<WalletRecord | null> => {
     if (!address) return null;
 
@@ -997,9 +1109,14 @@ export const useAleoPrograms = () => {
           return;
         }
 
-        const tokenRecord = await findTokenRecord(baseTokenProgram, amountMicro);
+        const tokenRecord = await findTokenRecord(baseTokenProgram, amountMicro, { requireMerkleProof: true });
         if (!tokenRecord) {
-          toast.error(`Insufficient private ${tokenLabel} balance.`);
+          const anyPrivateRecord = await findTokenRecord(baseTokenProgram, amountMicro);
+          if (anyPrivateRecord) {
+            toast.error(`Missing private ${tokenLabel} record proof. Reconnect wallet with on-chain history access and try again.`);
+          } else {
+            toast.error(`Insufficient private ${tokenLabel} balance.`);
+          }
           return;
         }
 

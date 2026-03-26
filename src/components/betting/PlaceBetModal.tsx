@@ -216,7 +216,7 @@ export const PlaceBetModal = ({
                         Wager Amount
                       </label>
                     </div>
-                    <span className="text-xs font-mono text-muted-foreground">Max: 1000 {tokenTicker}</span>
+                    <span className="text-xs font-mono text-muted-foreground">Max: 10 {tokenTicker}</span>
                   </div>
                   <WagerSlider
                     value={wagerAmount}

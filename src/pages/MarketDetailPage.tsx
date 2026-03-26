@@ -383,7 +383,7 @@ export default function MarketDetailPage() {
           {[
             { label: "Total Volume", value: `${totalVolume.toLocaleString()}`, unit: marketTokenTicker, icon: Activity, color: "text-primary" },
             { label: "Pool Size", value: "Locked", unit: "ZK-POOL", icon: Lock, color: "text-accent" },
-            { label: "Resolution", value: market.resolutionSource, unit: "SOURCE", icon: Shield, color: "text-success" },
+            { label: "Resolution", value: "Oracle", unit: "SOURCE", icon: Shield, color: "text-success" },
             { label: "Closing", value: market.closingDate, unit: "EST", icon: Calendar, color: "text-muted-foreground" },
           ].map((stat, i) => (
             <motion.div

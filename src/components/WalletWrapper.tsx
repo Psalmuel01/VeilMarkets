@@ -5,13 +5,13 @@ import { Network } from "@provablehq/aleo-types";
 import { DecryptPermission } from "@provablehq/aleo-wallet-adaptor-core";
 import {
     PROGRAM_ID,
-    TOKEN_PROGRAM_ID,
+    CREDITS_TOKEN_PROGRAM_ID,
     USDCX_TOKEN_PROGRAM_ID,
     USAD_TOKEN_PROGRAM_ID,
     ORACLE_PROGRAM_ID,
-    TOKEN_PROGRAM_ADDRESS,
-    USDCX_TOKEN_PROGRAM_ADDRESS,
-    USAD_TOKEN_PROGRAM_ADDRESS,
+    CREDITS_TOKEN_PROGRAM_ADDRESS,
+    USDCX_CREDITS_TOKEN_PROGRAM_ADDRESS,
+    USAD_CREDITS_TOKEN_PROGRAM_ADDRESS,
 } from "../lib/constants.js";
 
 // Configure the wallet options to be used in the application.
@@ -25,12 +25,12 @@ export const WalletWrapper = ({ children }) => {
     const allowedPrograms = useMemo(
         () => [
             PROGRAM_ID,
-            TOKEN_PROGRAM_ID,
+            CREDITS_TOKEN_PROGRAM_ID,
             USDCX_TOKEN_PROGRAM_ID,
             USAD_TOKEN_PROGRAM_ID,
-            TOKEN_PROGRAM_ADDRESS,
-            USDCX_TOKEN_PROGRAM_ADDRESS,
-            USAD_TOKEN_PROGRAM_ADDRESS,
+            CREDITS_TOKEN_PROGRAM_ADDRESS,
+            USDCX_CREDITS_TOKEN_PROGRAM_ADDRESS,
+            USAD_CREDITS_TOKEN_PROGRAM_ADDRESS,
             ORACLE_PROGRAM_ID,
             "credits.aleo",
             "test_usdcx_stablecoin.aleo",
