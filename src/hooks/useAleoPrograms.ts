@@ -125,6 +125,8 @@ const toMicrocredits = (credits: number): number => Math.max(1_000_000, Math.flo
 const formatU64 = (value: number): string => `${Math.max(0, Math.floor(value))}u64`;
 const formatU8 = (value: number): string => `${Math.max(0, Math.floor(value))}u8`;
 const formatField = (value: string): string => (value.endsWith("field") ? value : `${value}field`);
+const USDCX_FREEZELIST_PROGRAM_ID = "test_usdcx_freezelist.aleo";
+const USAD_FREEZELIST_PROGRAM_ID = "test_usad_freezelist.aleo";
 
 const parseMappingU64 = (value: unknown): number => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -138,6 +140,22 @@ const parseMappingU64 = (value: unknown): number => {
     if (obj.value !== undefined) return parseMappingU64(obj.value);
   }
   return 0;
+};
+
+const parseMappingString = (value: unknown): string | null => {
+  const unwrapped =
+    typeof value === "object" && value !== null && "value" in (value as Record<string, unknown>)
+      ? (value as Record<string, unknown>).value
+      : value;
+  if (typeof unwrapped !== "string") return null;
+  const cleaned = unwrapped.replace(/["']/g, "").trim();
+  return cleaned.length > 0 ? cleaned : null;
+};
+
+const resolveFreezeListProgramId = (baseTokenProgramId: string): string | null => {
+  if (baseTokenProgramId === "test_usdcx_stablecoin.aleo") return USDCX_FREEZELIST_PROGRAM_ID;
+  if (baseTokenProgramId === "test_usad_stablecoin.aleo") return USAD_FREEZELIST_PROGRAM_ID;
+  return null;
 };
 
 const getErrorMessage = (error: unknown): string => {
@@ -457,6 +475,72 @@ const extractUsdcMerkleProofInputs = (record: WalletRecord): [string, string] | 
   if (deepDataCandidates.length >= 2) return [deepDataCandidates[0], deepDataCandidates[1]];
 
   return null;
+};
+
+const generateFreezeListProof = async (
+  freezeListProgramId: string,
+  targetIndex = 1,
+): Promise<string | null> => {
+  try {
+    const firstIndexRaw = await fetchMappingValue(freezeListProgramId, "freeze_list_index", "0u32");
+    const firstIndexAddress = parseMappingString(firstIndexRaw);
+
+    let occupiedLeafValue: string | undefined;
+    if (firstIndexAddress) {
+      const wasm = await import("@provablehq/wasm");
+      const addr = wasm.Address.from_string(firstIndexAddress);
+      occupiedLeafValue = addr.toGroup().toXCoordinate().toString();
+    }
+
+    const wasm = await import("@provablehq/wasm");
+    const hasher = new wasm.Poseidon4();
+    const emptyHashes: string[] = [];
+    let currentEmpty = "0field";
+
+    for (let i = 0; i < 16; i++) {
+      emptyHashes.push(currentEmpty);
+      const f = wasm.Field.fromString(currentEmpty);
+      const nextHashField = hasher.hash([f, f]);
+      currentEmpty = nextHashField.toString();
+    }
+
+    let currentHash = "0field";
+    let currentIndex = targetIndex;
+    const proofSiblings: string[] = [];
+
+    for (let i = 0; i < 16; i++) {
+      const isLeft = currentIndex % 2 === 0;
+      const siblingIndex = isLeft ? currentIndex + 1 : currentIndex - 1;
+
+      let siblingHash = emptyHashes[i];
+      if (i === 0 && siblingIndex === 0 && occupiedLeafValue) {
+        siblingHash = occupiedLeafValue;
+      }
+
+      proofSiblings.push(siblingHash);
+
+      const left = wasm.Field.fromString(isLeft ? currentHash : siblingHash);
+      const right = wasm.Field.fromString(isLeft ? siblingHash : currentHash);
+      currentHash = hasher.hash([left, right]).toString();
+      currentIndex = Math.floor(currentIndex / 2);
+    }
+
+    return `{ siblings: [${proofSiblings.join(", ")}], leaf_index: ${targetIndex}u32 }`;
+  } catch (error) {
+    console.warn(`[FreezeList] Failed to generate proof for ${freezeListProgramId}:`, error);
+    const siblings = Array(16).fill("0field").join(", ");
+    return `{ siblings: [${siblings}], leaf_index: ${targetIndex}u32 }`;
+  }
+};
+
+const buildStablecoinMerkleProofInputs = async (
+  baseTokenProgramId: string,
+): Promise<[string, string] | null> => {
+  const freezeListProgramId = resolveFreezeListProgramId(baseTokenProgramId);
+  if (!freezeListProgramId) return null;
+  const proof = await generateFreezeListProof(freezeListProgramId, 1);
+  if (!proof) return null;
+  return [proof, proof];
 };
 
 export const useAleoPrograms = () => {
@@ -1109,21 +1193,34 @@ export const useAleoPrograms = () => {
           return;
         }
 
-        const tokenRecord = await findTokenRecord(baseTokenProgram, amountMicro, { requireMerkleProof: true });
+        const tokenRecord = await findTokenRecord(baseTokenProgram, amountMicro);
         if (!tokenRecord) {
-          const anyPrivateRecord = await findTokenRecord(baseTokenProgram, amountMicro);
-          if (anyPrivateRecord) {
-            toast.error(`Missing private ${tokenLabel} record proof. Reconnect wallet with on-chain history access and try again.`);
-          } else {
-            toast.error(`Insufficient private ${tokenLabel} balance.`);
-          }
+          toast.error(`Insufficient private ${tokenLabel} balance.`);
           return;
         }
 
         const tokenInput = extractRecordPlaintextInput(tokenRecord, ["owner", "amount"]);
-        const tokenProofInputs = extractUsdcMerkleProofInputs(tokenRecord);
-        if (!tokenInput || !tokenProofInputs) {
-          toast.error(`Missing private ${tokenLabel} record proof. Reconnect wallet with on-chain history access and try again.`);
+        if (!tokenInput) {
+          toast.error(`Unable to prepare private ${tokenLabel} record input.`);
+          return;
+        }
+
+        const generatedProofInputs = await buildStablecoinMerkleProofInputs(baseTokenProgram);
+        const walletProofInputs = extractUsdcMerkleProofInputs(tokenRecord);
+
+        const proofCandidates: Array<[string, string]> = [];
+        if (generatedProofInputs) proofCandidates.push(generatedProofInputs);
+        if (
+          walletProofInputs &&
+          (!generatedProofInputs ||
+            walletProofInputs[0] !== generatedProofInputs[0] ||
+            walletProofInputs[1] !== generatedProofInputs[1])
+        ) {
+          proofCandidates.push(walletProofInputs);
+        }
+
+        if (proofCandidates.length === 0) {
+          toast.error(`Missing private ${tokenLabel} proof inputs. Reconnect wallet and try again.`);
           console.warn(`[${tokenLabel}] Unable to prepare private inputs for place_bet`, {
             recordKeys: Object.keys(tokenRecord ?? {}),
             dataKeys: Object.keys(toObject(tokenRecord?.data) ?? {}),
@@ -1131,20 +1228,23 @@ export const useAleoPrograms = () => {
           return;
         }
 
-        betResult = await executeAndPoll({
-          program: tokenProgram,
-          function: "place_bet",
-          inputs: [
-            tokenInput,
-            tokenProofInputs[0],
-            tokenProofInputs[1],
-            cleanMarketId,
-            formatU8(outcome),
-            formatU64(amountMicro),
-          ],
-          fee: 1_500_000,
-          privateFee: false,
-        }, tokenProgram, "place_bet");
+        for (const [proof0, proof1] of proofCandidates) {
+          betResult = await executeAndPoll({
+            program: tokenProgram,
+            function: "place_bet",
+            inputs: [
+              tokenInput,
+              proof0,
+              proof1,
+              cleanMarketId,
+              formatU8(outcome),
+              formatU64(amountMicro),
+            ],
+            fee: 1_500_000,
+            privateFee: false,
+          }, tokenProgram, "place_bet");
+          if (betResult) break;
+        }
       } else {
         const baseTokenProgram = resolveTokenBaseProgram(tokenId);
         if (!baseTokenProgram) {
