@@ -7,9 +7,11 @@ import {
     PROGRAM_ID,
     TOKEN_PROGRAM_ID,
     USDCX_TOKEN_PROGRAM_ID,
+    USAD_TOKEN_PROGRAM_ID,
     ORACLE_PROGRAM_ID,
     TOKEN_PROGRAM_ADDRESS,
     USDCX_TOKEN_PROGRAM_ADDRESS,
+    USAD_TOKEN_PROGRAM_ADDRESS,
 } from "../lib/constants.js";
 
 // Configure the wallet options to be used in the application.
@@ -20,22 +22,36 @@ export const WalletWrapper = ({ children }) => {
         ],
         []
     );
+    const allowedPrograms = useMemo(
+        () => [
+            PROGRAM_ID,
+            TOKEN_PROGRAM_ID,
+            USDCX_TOKEN_PROGRAM_ID,
+            USAD_TOKEN_PROGRAM_ID,
+            TOKEN_PROGRAM_ADDRESS,
+            USDCX_TOKEN_PROGRAM_ADDRESS,
+            USAD_TOKEN_PROGRAM_ADDRESS,
+            ORACLE_PROGRAM_ID,
+            "credits.aleo",
+            "test_usdcx_stablecoin.aleo",
+            "test_usad_stablecoin.aleo",
+            // USDCx dependency graph (queried/called during private transfers).
+            "merkle_tree.aleo",
+            "test_usdcx_freezelist.aleo",
+            "test_usdcx_multisig_core.aleo",
+            // USAD dependency graph.
+            "test_usad_freezelist.aleo",
+            "test_usad_multisig_core.aleo",
+        ].filter((item) => item.length > 0),
+        [],
+    );
 
     return (
         <AleoWalletProvider
             wallets={wallets}
             network={Network.TESTNET}
             decryptPermission={DecryptPermission.OnChainHistory}
-            programs={[
-                PROGRAM_ID,
-                TOKEN_PROGRAM_ID,
-                USDCX_TOKEN_PROGRAM_ID,
-                TOKEN_PROGRAM_ADDRESS,
-                USDCX_TOKEN_PROGRAM_ADDRESS,
-                ORACLE_PROGRAM_ID,
-                "credits.aleo",
-                "test_usdcx_stablecoin.aleo",
-            ]}
+            programs={allowedPrograms}
             autoConnect
         >
             {children}

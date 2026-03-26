@@ -21,8 +21,10 @@ const mapCategory = (value: number): Market["category"] => {
       return "Entertainment";
     case 5:
       return "Tech";
+    case 6:
+      return "Other";
     default:
-      return "Tech";
+      return "Other";
   }
 };
 

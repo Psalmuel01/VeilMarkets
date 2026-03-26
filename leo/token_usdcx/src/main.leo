@@ -1,11 +1,11 @@
-// VeilMarkets Token — USDCx Adapter (v6)
+// VeilMarkets Token — USDCx Adapter (v7)
 // Handles betting and pro-rata payouts using an ARC-20 token (test_usdcx_stablecoin.aleo).
 // Structurally identical to the credits adapter; only the payment rail differs.
 import test_usdcx_stablecoin.aleo;
-import veilmarkets_v6.aleo;
-import veilmarkets_factory_v6.aleo;
+import veilmarkets_v7.aleo;
+import veilmarkets_factory_v7.aleo;
 
-program veilmarkets_token_usdcx_v6.aleo {
+program veilmarkets_token_usdcx_v7.aleo {
 
     // ── Structs ────────────────────────────────────────────────────────────────
 
@@ -15,6 +15,13 @@ program veilmarkets_token_usdcx_v6.aleo {
         amount: u64,
         outcome: u8,
         escrow_id: field,
+    }
+
+    // Mirror of test_usdcx_stablecoin.aleo/MerkleProof, kept local to avoid
+    // parser edge-cases with private arrays of imported structs.
+    struct TokenMerkleProof {
+        siblings: [field; 16u32],
+        leaf_index: u32,
     }
 
     // ── Records ────────────────────────────────────────────────────────────────
@@ -49,31 +56,60 @@ program veilmarkets_token_usdcx_v6.aleo {
 
     // ── Place bet ──────────────────────────────────────────────────────────────
     // Atomically escrows USDCx tokens and registers the bet in core.
-    // NOTE: This path uses public USDCx balance transfer to avoid wallet parser
-    // incompatibilities with MerkleProof array-typed inputs in private spends.
+    // The input_token is an ARC-20 private Token record from test_usdcx_stablecoin.aleo.
+    // This token requires a Merkle proof for private spends.
 
     async transition place_bet(
+        input_token: test_usdcx_stablecoin.aleo/Token,
+        token_proof_0: TokenMerkleProof,
+        token_proof_1: TokenMerkleProof,
         public market_id: field,
         public outcome: u8,
         public bet_amount: u64,
-    ) -> (EscrowedBet, Future) {
+    ) -> (
+        test_usdcx_stablecoin.aleo/ComplianceRecord,
+        test_usdcx_stablecoin.aleo/Token,
+        EscrowedBet,
+        Future,
+    ) {
         let bet_amount_u128: u128 = bet_amount as u128;
+        assert(input_token.amount >= bet_amount_u128);
         assert(bet_amount >= MIN_BET);
         assert(outcome == 0u8 || outcome == 1u8);
 
-        // Transfer bet_amount from caller's public USDCx balance
-        // into this adapter contract's public USDCx balance.
-        let transfer_future: Future =
-            test_usdcx_stablecoin.aleo/transfer_public(
+        // Transfer bet_amount to this contract's public USDCx balance
+        let external_proof_0: test_usdcx_stablecoin.aleo/MerkleProof =
+            test_usdcx_stablecoin.aleo/MerkleProof {
+                siblings: token_proof_0.siblings,
+                leaf_index: token_proof_0.leaf_index,
+            };
+
+        let external_proof_1: test_usdcx_stablecoin.aleo/MerkleProof =
+            test_usdcx_stablecoin.aleo/MerkleProof {
+                siblings: token_proof_1.siblings,
+                leaf_index: token_proof_1.leaf_index,
+            };
+
+        let token_proof: [test_usdcx_stablecoin.aleo/MerkleProof; 2u32] =
+            [external_proof_0, external_proof_1];
+
+        let (compliance_record, change, transfer_future): (
+            test_usdcx_stablecoin.aleo/ComplianceRecord,
+            test_usdcx_stablecoin.aleo/Token,
+            Future,
+        ) =
+            test_usdcx_stablecoin.aleo/transfer_private_to_public(
                 self.address,
                 bet_amount_u128,
+                input_token,
+                token_proof,
             );
 
         let escrow_id: field = BHP256::hash_to_field(
             self.caller as field + market_id + bet_amount as field,
         );
 
-        let core_future: Future = veilmarkets_v6.aleo/place_bet(
+        let core_future: Future = veilmarkets_v7.aleo/place_bet(
             market_id,
             outcome,
             bet_amount,
@@ -100,7 +136,7 @@ program veilmarkets_token_usdcx_v6.aleo {
             core_future,
         );
 
-        return (bet_record, f);
+        return (compliance_record, change, bet_record, f);
     }
 
     async function finalize_place_bet(
@@ -147,7 +183,7 @@ program veilmarkets_token_usdcx_v6.aleo {
         let payout_amount_u128: u128 = payout_amount as u128;
 
         // Core verifies the payout amount and marks the nullifier consumed
-        let core_result: Future = veilmarkets_v6.aleo/verify_claim(nullifier, payout_amount);
+        let core_result: Future = veilmarkets_v7.aleo/verify_claim(nullifier, payout_amount);
 
         // Transfer payout from contract's public USDCx balance to caller's private record
         let (compliance_record, payout_record, transfer_future): (

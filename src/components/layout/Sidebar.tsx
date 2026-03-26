@@ -27,28 +27,31 @@ export function Sidebar() {
   const { isCollapsed, toggleSidebar } = useSidebar();
   const collapsed = isCollapsed;
   const location = useLocation();
-  const { fetchMarkets, fetchBalances, fetchUSDCxBalances, publicKey, refreshSignal } = useAleoPrograms();
+  const { fetchMarkets, fetchBalances, fetchUSDCxBalances, fetchUSADBalances, publicKey, refreshSignal } = useAleoPrograms();
   const [activeMarketsCount, setActiveMarketsCount] = useState<number | null>(null);
-  const [balances, setBalances] = useState<{ private: number; public: number } | null>(null);
-  const [usdcxBalances, setUsdcxBalances] = useState<{ private: number; public: number; total: number } | null>(null);
+  const [balances, setBalances] = useState<{ private: number } | null>(null);
+  const [usdcxBalances, setUsdcxBalances] = useState<{ private: number } | null>(null);
+  const [usadBalances, setUsadBalances] = useState<{ private: number } | null>(null);
 
   useEffect(() => {
     const loadStats = async () => {
       try {
-        const [markets, bal, usdcx] = await Promise.all([
+        const [markets, bal, usdcx, usad] = await Promise.all([
           fetchMarkets(),
           fetchBalances(),
-          fetchUSDCxBalances()
+          fetchUSDCxBalances(),
+          fetchUSADBalances(),
         ]);
         setActiveMarketsCount(markets.length);
-        setBalances(bal);
-        setUsdcxBalances(usdcx);
+        setBalances({ private: bal.private });
+        setUsdcxBalances({ private: usdcx.private });
+        setUsadBalances({ private: usad.private });
       } catch (error) {
         console.error("Failed to fetch sidebar stats:", error);
       }
     };
     loadStats();
-  }, [fetchMarkets, fetchBalances, fetchUSDCxBalances, publicKey, refreshSignal]);
+  }, [fetchMarkets, fetchBalances, fetchUSDCxBalances, fetchUSADBalances, publicKey, refreshSignal]);
 
   return (
     <aside
@@ -124,21 +127,15 @@ export function Sidebar() {
                       </span>
                     </div>
                     <div className="flex justify-between items-center group/bal">
-                      <span className="text-[10px] text-muted-foreground group-hover/bal:text-white transition-colors">Aleo Credits (Public)</span>
-                      <span className="text-sm font-semibold font-mono text-primary">
-                        {balances !== null ? `${balances.public.toLocaleString()}` : "..."}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center group/bal">
                       <span className="text-[10px] text-muted-foreground group-hover/bal:text-white transition-colors">USDCx (Private)</span>
                       <span className="text-sm font-semibold font-mono text-accent">
                         {usdcxBalances !== null ? `${usdcxBalances.private.toLocaleString()}` : "..."}
                       </span>
                     </div>
                     <div className="flex justify-between items-center group/bal">
-                      <span className="text-[10px] text-muted-foreground group-hover/bal:text-white transition-colors">USDCx (Public)</span>
+                      <span className="text-[10px] text-muted-foreground group-hover/bal:text-white transition-colors">USAD (Private)</span>
                       <span className="text-sm font-semibold font-mono text-accent">
-                        {usdcxBalances !== null ? `${usdcxBalances.public.toLocaleString()}` : "..."}
+                        {usadBalances !== null ? `${usadBalances.private.toLocaleString()}` : "..."}
                       </span>
                     </div>
                   </div>
@@ -151,34 +148,6 @@ export function Sidebar() {
 
       {/* Wallet Connect & Faucet */}
       <div className="p-3 border-t border-border/50 space-y-2">
-        {/* {!collapsed && (
-          <Button
-            variant="outline"
-            size="sm"
-            className={cn(
-              "w-full text-xs transition-all duration-200",
-              balances && balances.public > 0 
-                ? "border-amber-500/30 hover:bg-amber-500/10 text-amber-500" 
-                : "border-primary/30 hover:border-primary/50 text-primary"
-            )}
-            onClick={() => balances && balances.public > 0 ? shieldCredits(balances.public) : requestCredits()}
-          >
-            <Shield className="w-3.5 h-3.5" />
-            {balances && balances.public > 0 ? "Shield for Betting" : "Request faucet credits"}
-          </Button>
-        )} */}
-
-        {/* {!collapsed && isOracle === false && publicKey && (
-          <Button
-            variant="default"
-            size="sm"
-            className="w-full text-xs bg-amber-500 hover:bg-amber-600 text-white border-none shadow-lg shadow-amber-500/20"
-            onClick={() => setIsOracleModalOpen(true)}
-          >
-            <Shield className="w-3.5 h-3.5 mr-2" />
-            Become an Oracle
-          </Button>
-        )} */}
         <ConnectWalletButton className={collapsed ? "w-12 h-12 px-0 justify-center rounded-xl" : "w-full"} collapsed={collapsed} />
       </div>
 

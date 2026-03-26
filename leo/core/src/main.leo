@@ -1,8 +1,8 @@
 // VeilMarkets Core
 // Private Binary Prediction Markets with full cross-contract integration
-import veilmarkets_factory_v6.aleo;
+import veilmarkets_factory_v7.aleo;
 
-program veilmarkets_v6.aleo {
+program veilmarkets_v7.aleo {
     // Records & Structs
     struct MarketInfo {
         creator: address,
@@ -70,7 +70,7 @@ program veilmarkets_v6.aleo {
         public token_id: address,
     ) -> Future {
         // Verify the token contract is officially registered via factory
-        let auth_future: Future = veilmarkets_factory_v6.aleo/verify_is_registered(
+        let auth_future: Future = veilmarkets_factory_v7.aleo/verify_is_registered(
             TOKEN_CONTRACT_TYPE,
             token_id,
         );
@@ -100,6 +100,9 @@ program veilmarkets_v6.aleo {
         auth_future.await();
         let exists: bool = Mapping::contains(markets, market_id);
         assert(!exists);
+        // Category enum:
+        // 0 Crypto, 1 Finance, 2 Sports, 3 Politics, 4 Entertainment, 5 Tech, 6 Other
+        assert(category <= 6u8);
         let market: MarketInfo = MarketInfo {
             creator: creator,
             title_hash: title_hash,
@@ -207,7 +210,7 @@ program veilmarkets_v6.aleo {
         public resolver: address,
     ) -> Future {
         // Must be called by the registered oracle contract via factory registry.
-        let auth_future: Future = veilmarkets_factory_v6.aleo/verify_is_registered(
+        let auth_future: Future = veilmarkets_factory_v7.aleo/verify_is_registered(
             ORACLE_CONTRACT_TYPE,
             self.caller,
         );

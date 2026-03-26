@@ -1,10 +1,10 @@
-import veilmarkets_factory_v6.aleo;
-import veilmarkets_v6.aleo;
+import veilmarkets_factory_v7.aleo;
+import veilmarkets_v7.aleo;
 import merkle_tree.aleo;
 import test_usdcx_multisig_core.aleo;
 import test_usdcx_freezelist.aleo;
 import test_usdcx_stablecoin.aleo;
-program veilmarkets_token_usdcx_v6.aleo;
+program veilmarkets_token_usdcx_v7.aleo;
 
 record EscrowedBet:
     owner as address.private;
@@ -20,6 +20,10 @@ struct EscrowInfo:
     amount as u64;
     outcome as u8;
     escrow_id as field;
+
+struct TokenMerkleProof:
+    siblings as [field; 16u32];
+    leaf_index as u32;
 
 mapping market_escrow:
     key as field.public;
@@ -38,28 +42,38 @@ mapping platform_fees:
     value as u64.public;
 
 function place_bet:
-    input r0 as field.public;
-    input r1 as u8.public;
-    input r2 as u64.public;
-    cast r2 into r3 as u128;
-    gte r2 1000000u64 into r4;
-    assert.eq r4 true;
-    is.eq r1 0u8 into r5;
-    is.eq r1 1u8 into r6;
-    or r5 r6 into r7;
+    input r0 as test_usdcx_stablecoin.aleo/Token.record;
+    input r1 as TokenMerkleProof.private;
+    input r2 as TokenMerkleProof.private;
+    input r3 as field.public;
+    input r4 as u8.public;
+    input r5 as u64.public;
+    cast r5 into r6 as u128;
+    gte r0.amount r6 into r7;
     assert.eq r7 true;
-    call test_usdcx_stablecoin.aleo/transfer_public veilmarkets_token_usdcx_v6.aleo r3 into r8;
-    cast self.caller into r9 as field;
-    add r9 r0 into r10;
-    cast r2 into r11 as field;
-    add r10 r11 into r12;
-    hash.bhp256 r12 into r13 as field;
-    call veilmarkets_v6.aleo/place_bet r0 r1 r2 r13 self.caller into r14;
-    hash.bhp256 r13 into r15 as group;
-    cast self.signer r0 r2 r1 r13 r15 into r16 as EscrowedBet.record;
-    async place_bet r0 r1 r2 r13 self.caller r8 r14 into r17;
-    output r16 as EscrowedBet.record;
-    output r17 as veilmarkets_token_usdcx_v6.aleo/place_bet.future;
+    gte r5 1000000u64 into r8;
+    assert.eq r8 true;
+    is.eq r4 0u8 into r9;
+    is.eq r4 1u8 into r10;
+    or r9 r10 into r11;
+    assert.eq r11 true;
+    cast r1.siblings r1.leaf_index into r12 as test_usdcx_stablecoin.aleo/MerkleProof;
+    cast r2.siblings r2.leaf_index into r13 as test_usdcx_stablecoin.aleo/MerkleProof;
+    cast r12 r13 into r14 as [test_usdcx_stablecoin.aleo/MerkleProof; 2u32];
+    call test_usdcx_stablecoin.aleo/transfer_private_to_public veilmarkets_token_usdcx_v7.aleo r6 r0 r14 into r15 r16 r17;
+    cast self.caller into r18 as field;
+    add r18 r3 into r19;
+    cast r5 into r20 as field;
+    add r19 r20 into r21;
+    hash.bhp256 r21 into r22 as field;
+    call veilmarkets_v7.aleo/place_bet r3 r4 r5 r22 self.caller into r23;
+    hash.bhp256 r22 into r24 as group;
+    cast self.signer r3 r5 r4 r22 r24 into r25 as EscrowedBet.record;
+    async place_bet r3 r4 r5 r22 self.caller r17 r23 into r26;
+    output r15 as test_usdcx_stablecoin.aleo/ComplianceRecord.record;
+    output r16 as test_usdcx_stablecoin.aleo/Token.record;
+    output r25 as EscrowedBet.record;
+    output r26 as veilmarkets_token_usdcx_v7.aleo/place_bet.future;
 
 finalize place_bet:
     input r0 as field.public;
@@ -67,8 +81,8 @@ finalize place_bet:
     input r2 as u64.public;
     input r3 as field.public;
     input r4 as address.public;
-    input r5 as test_usdcx_stablecoin.aleo/transfer_public.future;
-    input r6 as veilmarkets_v6.aleo/place_bet.future;
+    input r5 as test_usdcx_stablecoin.aleo/transfer_private_to_public.future;
+    input r6 as veilmarkets_v7.aleo/place_bet.future;
     await r5;
     await r6;
     contains escrow_details[r3] into r7;
@@ -84,17 +98,17 @@ function claim_payout:
     input r0 as u64.public;
     input r1 as field.public;
     cast r0 into r2 as u128;
-    call veilmarkets_v6.aleo/verify_claim r1 r0 into r3;
+    call veilmarkets_v7.aleo/verify_claim r1 r0 into r3;
     call test_usdcx_stablecoin.aleo/transfer_public_to_private self.caller r2 into r4 r5 r6;
     async claim_payout r1 r6 r3 into r7;
     output r4 as test_usdcx_stablecoin.aleo/ComplianceRecord.record;
     output r5 as test_usdcx_stablecoin.aleo/Token.record;
-    output r7 as veilmarkets_token_usdcx_v6.aleo/claim_payout.future;
+    output r7 as veilmarkets_token_usdcx_v7.aleo/claim_payout.future;
 
 finalize claim_payout:
     input r0 as field.public;
     input r1 as test_usdcx_stablecoin.aleo/transfer_public_to_private.future;
-    input r2 as veilmarkets_v6.aleo/verify_claim.future;
+    input r2 as veilmarkets_v7.aleo/verify_claim.future;
     await r1;
     await r2;
     get.or_use spent_escrow[r0] false into r3;
@@ -110,7 +124,7 @@ function refund_bet:
     async refund_bet r0 r1 self.caller r5 into r6;
     output r3 as test_usdcx_stablecoin.aleo/ComplianceRecord.record;
     output r4 as test_usdcx_stablecoin.aleo/Token.record;
-    output r6 as veilmarkets_token_usdcx_v6.aleo/refund_bet.future;
+    output r6 as veilmarkets_token_usdcx_v7.aleo/refund_bet.future;
 
 finalize refund_bet:
     input r0 as field.public;

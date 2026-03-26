@@ -44,7 +44,8 @@ const categoryStyles: Record<string, string> = {
   Crypto: "text-orange-400 bg-orange-400/10 border-orange-400/20",
   Politics: "text-purple-400 bg-purple-400/10 border-purple-400/20",
   Entertainment: "text-pink-400 bg-pink-400/10 border-pink-400/20",
-  Tech: "text-cyan-400 bg-cyan-400/10 border-cyan-400/20"
+  Tech: "text-cyan-400 bg-cyan-400/10 border-cyan-400/20",
+  Other: "text-slate-300 bg-slate-300/10 border-slate-300/20",
 };
 
 export default function MarketDetailPage() {
@@ -121,6 +122,7 @@ export default function MarketDetailPage() {
           3: "Politics",
           4: "Entertainment",
           5: "Tech",
+          6: "Other",
         };
 
         const userBet = userBets.find((b) => cleanId(b.market_id) === currentId);
@@ -149,7 +151,7 @@ export default function MarketDetailPage() {
           id: found.id,
           title: found.title,
           description: found.description,
-          category: categoryRevMap[found.category] || "Tech",
+          category: categoryRevMap[found.category] || "Other",
           status: found.is_resolved ? "Settled" : "Open",
           closingTime: formatDateFriendly(found.close_time),
           closingDate: new Date(found.close_time * 1000).toLocaleDateString(),
@@ -308,7 +310,7 @@ export default function MarketDetailPage() {
               <div className="flex flex-wrap items-center gap-3">
                 <Badge
                   variant="outline"
-                  className={cn("px-4 py-1.5 rounded-full text-[10px] font-semibold uppercase tracking-[0.2em] border", categoryStyles[market.category as string] || categoryStyles.Tech)}
+                  className={cn("px-4 py-1.5 rounded-full text-[10px] font-semibold uppercase tracking-[0.2em] border", categoryStyles[market.category as string] || categoryStyles.Other)}
                 >
                   {market.category as string}
                 </Badge>
@@ -381,7 +383,7 @@ export default function MarketDetailPage() {
           {[
             { label: "Total Volume", value: `${totalVolume.toLocaleString()}`, unit: marketTokenTicker, icon: Activity, color: "text-primary" },
             { label: "Pool Size", value: "Locked", unit: "ZK-POOL", icon: Lock, color: "text-accent" },
-            { label: "Resolution", value: "Oracle", unit: "SOURCE", icon: Shield, color: "text-success" },
+            { label: "Resolution", value: market.resolutionSource, unit: "SOURCE", icon: Shield, color: "text-success" },
             { label: "Closing", value: market.closingDate, unit: "EST", icon: Calendar, color: "text-muted-foreground" },
           ].map((stat, i) => (
             <motion.div

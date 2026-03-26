@@ -8,7 +8,7 @@ import { BetCard, UserBet } from "@/components/dashboard/BetCard";
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { fetchMappingValue, parseMarketInfo } from "@/lib/aleo";
-import { PROGRAM_ID, resolveTokenTicker } from "@/lib/constants";
+import { PROGRAM_ID, resolveTokenDisplayName, resolveTokenTicker } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,13 +19,26 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+const mapCategoryLabel = (value: number | undefined): string => {
+  switch (value) {
+    case 0: return "Crypto";
+    case 1: return "Finance";
+    case 2: return "Sports";
+    case 3: return "Politics";
+    case 4: return "Entertainment";
+    case 5: return "Tech";
+    case 6: return "Other";
+    default: return "Other";
+  }
+};
+
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("all");
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [claimStep, setClaimStep] = useState<"confirm" | "processing" | "success">("confirm");
   const [userBets, setUserBets] = useState<UserBet[]>([]);
-  const [tokenBalance, setTokenBalance] = useState<number | null>(null);
+  const [privateBalances, setPrivateBalances] = useState<{ credits: number; usdcx: number; usad: number } | null>(null);
   const [stats, setStats] = useState([
     { icon: Trophy, label: "Total Bets", value: "0" },
     { icon: TrendingUp, label: "Win Rate", value: "0%" },
@@ -43,20 +56,26 @@ export default function DashboardPage() {
       is_resolved: boolean;
     }>
   >([]);
-  const { fetchUserBets, fetchMarkets, fetchTokenBalance, loading, claimWinnings, refreshSignal, publicKey } = useAleoPrograms();
+  const { fetchUserBets, fetchMarkets, fetchBalances, fetchUSDCxBalances, fetchUSADBalances, loading, claimWinnings, refreshSignal, publicKey } = useAleoPrograms();
 
   useEffect(() => {
     const loadData = async () => {
       if (!publicKey) return;
 
       try {
-        const [records, allMarkets, balance] = await Promise.all([
+        const [records, allMarkets, creditsBalances, usdcxBalances, usadBalances] = await Promise.all([
           fetchUserBets(),
           fetchMarkets(),
-          fetchTokenBalance()
+          fetchBalances(),
+          fetchUSDCxBalances(),
+          fetchUSADBalances(),
         ]);
 
-        setTokenBalance(balance);
+        setPrivateBalances({
+          credits: creditsBalances.private,
+          usdcx: usdcxBalances.private,
+          usad: usadBalances.private,
+        });
 
         const marketMap = new Map(allMarkets.map(m => [m.id.replace("field", "").trim(), m]));
         const missingMarketIds = Array.from(
@@ -102,7 +121,7 @@ export default function DashboardPage() {
             id: betId,
             marketId: record.market_id,
             marketTitle: market?.title || `Market ${record.market_id.substring(0, 8)}...`,
-            category: market?.category === 0 ? "Crypto" : market?.category === 1 ? "Sports" : "Misc",
+            category: mapCategoryLabel(market?.category),
             tokenTicker: resolveTokenTicker(market?.token_id ?? ""),
             status,
             outcome: outcomeLabel,
@@ -147,7 +166,7 @@ export default function DashboardPage() {
     };
 
     loadData();
-  }, [fetchUserBets, fetchMarkets, fetchTokenBalance, publicKey, refreshSignal]);
+  }, [fetchUserBets, fetchMarkets, fetchBalances, fetchUSDCxBalances, fetchUSADBalances, publicKey, refreshSignal]);
 
   const filteredBets = userBets.filter((bet) => {
     if (activeTab === "all") return true;
@@ -296,12 +315,26 @@ export default function DashboardPage() {
                 <Wallet className="w-6 h-6 text-primary" />
               </div>
               <div className="space-y-1">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">Total Vault Balance</p>
-                <div className="flex items-baseline gap-3">
-                  <h2 className="text-xl md:text-2xl font-bold text-white font-mono tracking-tighter">
-                    {tokenBalance !== null ? tokenBalance.toLocaleString() : "••••••••"}
-                  </h2>
-                  <span className="text-lg font-semibold text-primary/60 font-mono">ALEO Credits</span>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">Private Vault Balances</p>
+                <div className="space-y-1">
+                  <div className="flex items-baseline gap-3">
+                    <h2 className="text-xl md:text-2xl font-bold text-white font-mono tracking-tighter">
+                      {privateBalances !== null ? privateBalances.credits.toLocaleString() : "••••••••"}
+                    </h2>
+                    <span className="text-lg font-semibold text-primary/60 font-mono">{resolveTokenDisplayName("credits.aleo")} (Private)</span>
+                  </div>
+                  <div className="flex items-baseline gap-3">
+                    <h2 className="text-xl md:text-2xl font-bold text-white font-mono tracking-tighter">
+                      {privateBalances !== null ? privateBalances.usdcx.toLocaleString() : "••••••••"}
+                    </h2>
+                    <span className="text-lg font-semibold text-accent/70 font-mono">{resolveTokenDisplayName("test_usdcx_stablecoin.aleo")} (Private)</span>
+                  </div>
+                  <div className="flex items-baseline gap-3">
+                    <h2 className="text-xl md:text-2xl font-bold text-white font-mono tracking-tighter">
+                      {privateBalances !== null ? privateBalances.usad.toLocaleString() : "••••••••"}
+                    </h2>
+                    <span className="text-lg font-semibold text-accent/70 font-mono">{resolveTokenDisplayName("test_usad_stablecoin.aleo")} (Private)</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -419,7 +452,7 @@ export default function DashboardPage() {
 
       {/* Claim Modal */}
       <Dialog open={showClaimModal} onOpenChange={() => setShowClaimModal(false)}>
-        <DialogContent className="sm:max-w-md bg-slate-900/90 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-md bg-slate-900/90 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-100 overflow-hidden">
           <DialogHeader>
             <DialogTitle>Claim Winnings</DialogTitle>
           </DialogHeader>

@@ -40,13 +40,13 @@ export const PlaceBetModal = ({
   const [selectedOutcome, setSelectedOutcome] = useState<"Yes" | "No" | null>(null);
   const [wagerAmount, setWagerAmount] = useState(5);
   const [txId, setTxId] = useState<string | null>(null);
-  const { placeBet, fetchPoolStats, fetchBalances, fetchUSDCxBalances, publicKey } = useAleoPrograms();
+  const { placeBet, fetchPoolStats, fetchBalances, fetchUSDCxBalances, fetchUSADBalances, publicKey } = useAleoPrograms();
   const [pool, setPool] = useState<{ total_yes: number; total_no: number } | null>(null);
   const [balances, setBalances] = useState<{ private: number; public: number; total: number } | null>(null);
   const tokenKind = resolveTokenKind(tokenId);
   const tokenTicker = resolveTokenTicker(tokenId);
   const tokenDisplayName = resolveTokenDisplayName(tokenId);
-  const requiredBalanceType = tokenKind === "usdcx" ? "public" : "private";
+  const requiredBalanceType = "private";
   const availableRequiredBalance = balances
     ? requiredBalanceType === "public"
       ? balances.public
@@ -66,6 +66,10 @@ export const PlaceBetModal = ({
         setBalances(await fetchUSDCxBalances());
         return;
       }
+      if (tokenKind === "usad") {
+        setBalances(await fetchUSADBalances());
+        return;
+      }
       const credits = await fetchBalances();
       setBalances({
         private: credits.private,
@@ -75,7 +79,7 @@ export const PlaceBetModal = ({
     };
 
     loadBalances();
-  }, [marketId, open, publicKey, tokenKind, fetchPoolStats, fetchBalances, fetchUSDCxBalances]);
+  }, [marketId, open, publicKey, tokenKind, fetchPoolStats, fetchBalances, fetchUSDCxBalances, fetchUSADBalances]);
 
   const calculateReturn = () => {
     if (!pool || !selectedOutcome) return null;

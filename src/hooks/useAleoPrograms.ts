@@ -44,6 +44,7 @@ import {
   ORACLE_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
   USDCX_TOKEN_PROGRAM_ID,
+  USAD_TOKEN_PROGRAM_ID,
   resolveTokenAdapterProgram,
   resolveTokenBaseProgram,
   resolveTokenTicker,
@@ -200,6 +201,161 @@ const extractRecordAmount = (record: WalletRecord): number => {
     }
   }
   return 0;
+};
+
+const isLikelyRecordPlaintext = (value: string, requiredFields: string[]): boolean =>
+  value.includes("{") &&
+  value.includes("}") &&
+  requiredFields.every((field) => new RegExp(`${field}\\s*:`).test(value));
+
+const buildRecordPlaintextFromData = (
+  record: WalletRecord,
+  requiredFields: string[],
+): string | null => {
+  const dataObj = toObject(record.data) ?? toObject(record);
+  if (!dataObj) return null;
+
+  const entries: string[] = [];
+  for (const field of requiredFields) {
+    const value = dataObj[field];
+    if (value === undefined) continue;
+    entries.push(`${field}: ${String(value).trim()}`);
+  }
+
+  const nonceValue = dataObj._nonce ?? dataObj.nonce;
+  if (nonceValue !== undefined && !entries.some((entry) => entry.startsWith("_nonce:"))) {
+    entries.push(`_nonce: ${String(nonceValue).trim()}`);
+  }
+
+  if (entries.length === 0) return null;
+  return `{ ${entries.join(", ")} }`;
+};
+
+const extractRecordPlaintextInput = (
+  record: WalletRecord,
+  requiredFields: string[],
+): string | null => {
+  const candidates: unknown[] = [record.recordPlaintext, (record as any).plaintext];
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string") continue;
+    const text = candidate.trim();
+    if (isLikelyRecordPlaintext(text, requiredFields)) return text;
+  }
+
+  return buildRecordPlaintextFromData(record, requiredFields);
+};
+
+const normalizeU32 = (value: unknown): string => {
+  const str = String(value ?? "").trim();
+  return /u32$/.test(str) ? str : `${str.replace(/u32$/g, "")}u32`;
+};
+
+const normalizeField = (value: unknown): string => {
+  const str = String(value ?? "").trim();
+  return /field$/.test(str) ? str : `${str.replace(/field$/g, "")}field`;
+};
+
+const formatMerkleProof = (value: unknown): string | null => {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed.includes("siblings") && (trimmed.includes("leaf_index") || trimmed.includes("leafIndex"))) {
+      return trimmed;
+    }
+    return null;
+  }
+
+  if (!value || typeof value !== "object") return null;
+  const obj = value as Record<string, unknown>;
+  const siblingsRaw = Array.isArray(obj.siblings) ? obj.siblings : null;
+  const leafIndex = obj.leaf_index ?? obj.leafIndex;
+  if (!siblingsRaw || leafIndex === undefined) return null;
+
+  const siblings = siblingsRaw.map((entry) => normalizeField(entry));
+  return `{ siblings: [${siblings.join(", ")}], leaf_index: ${normalizeU32(leafIndex)} }`;
+};
+
+const parseMerkleProofPairString = (value: string): [string, string] | null => {
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) return null;
+
+  const inner = trimmed.slice(1, -1).trim();
+  if (!inner) return null;
+
+  let depth = 0;
+  let splitIndex = -1;
+  for (let i = 0; i < inner.length; i++) {
+    const char = inner[i];
+    if (char === "{") depth += 1;
+    if (char === "}") depth = Math.max(0, depth - 1);
+    if (char === "," && depth === 0) {
+      splitIndex = i;
+      break;
+    }
+  }
+
+  if (splitIndex < 0) return null;
+  const left = inner.slice(0, splitIndex).trim();
+  const right = inner.slice(splitIndex + 1).trim();
+  if (!left || !right) return null;
+  return [left, right];
+};
+
+const extractUsdcMerkleProofInputs = (record: WalletRecord): [string, string] | null => {
+  const sources: unknown[] = [];
+  const direct = toObject(record);
+  const data = toObject(record.data);
+
+  if (direct) {
+    sources.push(
+      direct.token_proof,
+      direct.tokenProof,
+      direct.merkle_proof,
+      direct.merkleProof,
+      direct.merkle_path,
+      direct.merklePath,
+      direct.proofs,
+      direct.proof,
+      direct.membershipProof,
+      direct.witness,
+    );
+  }
+  if (data) {
+    sources.push(
+      data.token_proof,
+      data.tokenProof,
+      data.merkle_proof,
+      data.merkleProof,
+      data.merkle_path,
+      data.merklePath,
+      data.proofs,
+      data.proof,
+      data.membershipProof,
+      data.witness,
+    );
+  }
+
+  for (const source of sources) {
+    if (!source) continue;
+    if (typeof source === "string") {
+      const trimmed = source.trim();
+      const parsed = parseMerkleProofPairString(trimmed);
+      if (parsed) return parsed;
+    }
+    if (Array.isArray(source) && source.length >= 2) {
+      const p0 = formatMerkleProof(source[0]);
+      const p1 = formatMerkleProof(source[1]);
+      if (p0 && p1) return [p0, p1];
+    }
+    if (typeof source === "object" && source !== null) {
+      const obj = source as Record<string, unknown>;
+      const p0 = formatMerkleProof(obj[0] ?? obj.proof0 ?? obj.first ?? obj.left);
+      const p1 = formatMerkleProof(obj[1] ?? obj.proof1 ?? obj.second ?? obj.right);
+      if (p0 && p1) return [p0, p1];
+    }
+  }
+
+  return null;
 };
 
 export const useAleoPrograms = () => {
@@ -441,8 +597,8 @@ export const useAleoPrograms = () => {
     if (!address) return [];
     setLoading(true);
     try {
-      // Query both token adapters for EscrowedBet records (where bets are escrowed)
-      const tokenPrograms = [TOKEN_PROGRAM_ID, USDCX_TOKEN_PROGRAM_ID];
+      // Query token adapters for EscrowedBet records (where bets are escrowed)
+      const tokenPrograms = [TOKEN_PROGRAM_ID, USDCX_TOKEN_PROGRAM_ID, USAD_TOKEN_PROGRAM_ID];
       const unspentRecords: WalletRecord[] = [];
 
       for (const programId of tokenPrograms) {
@@ -539,25 +695,28 @@ export const useAleoPrograms = () => {
     return balances.total;
   }, [fetchBalances]);
 
-  const fetchUSDCxBalances = useCallback(async (): Promise<TokenBalanceSummary> => {
+  const fetchArc20Balances = useCallback(async (
+    baseProgramId: string,
+    label: string,
+  ): Promise<TokenBalanceSummary> => {
     if (!address) return { private: 0, public: 0, total: 0 };
 
     let privateMicro = 0;
     try {
-      const rawRecords = await requestRecordsWithRetry(requestRecords, "test_usdcx_stablecoin.aleo", "USDCx");
+      const rawRecords = await requestRecordsWithRetry(requestRecords, baseProgramId, label);
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       privateMicro = records.filter((record) => !record.spent).reduce((acc, record) => acc + extractRecordAmount(record), 0);
     } catch (e) {
-      console.warn("[USDCx Balance] Private record fetch failed");
+      console.warn(`[${label} Balance] Private record fetch failed`);
     }
 
     let publicMicro = 0;
     try {
       // ARC-20 stablecoin uses `balances` mapping (address => u128)
-      const rawValue = await fetchMappingValue("test_usdcx_stablecoin.aleo", "balances", address);
+      const rawValue = await fetchMappingValue(baseProgramId, "balances", address);
       publicMicro = parseMappingU64(rawValue);
     } catch (e) {
-      console.warn("[USDCx Balance] Public mapping fetch failed");
+      console.warn(`[${label} Balance] Public mapping fetch failed`);
     }
 
     return {
@@ -567,10 +726,23 @@ export const useAleoPrograms = () => {
     };
   }, [address, requestRecords]);
 
+  const fetchUSDCxBalances = useCallback(async (): Promise<TokenBalanceSummary> => {
+    return fetchArc20Balances("test_usdcx_stablecoin.aleo", "USDCx");
+  }, [fetchArc20Balances]);
+
   const fetchUSDCxBalance = useCallback(async (): Promise<number> => {
     const balances = await fetchUSDCxBalances();
     return balances.total;
   }, [fetchUSDCxBalances]);
+
+  const fetchUSADBalances = useCallback(async (): Promise<TokenBalanceSummary> => {
+    return fetchArc20Balances("test_usad_stablecoin.aleo", "USAD");
+  }, [fetchArc20Balances]);
+
+  const fetchUSADBalance = useCallback(async (): Promise<number> => {
+    const balances = await fetchUSADBalances();
+    return balances.total;
+  }, [fetchUSADBalances]);
 
 
   const createMarket = async (
@@ -628,7 +800,7 @@ export const useAleoPrograms = () => {
           } catch (metadataError) {
             const maybeError = metadataError as { code?: string; message?: string };
             if (maybeError?.code === "42501") {
-              toast.warning("Market created on-chain, but metadata save was blocked by Supabase RLS for markets_v6.");
+              toast.warning("Market created on-chain, but metadata save was blocked by Supabase RLS for markets_v7.");
             } else {
               toast.warning("Market created on-chain, but metadata save failed.");
             }
@@ -654,11 +826,21 @@ export const useAleoPrograms = () => {
     // In a real app, link to the specific USDCx faucet/bridge if available
   };
 
+  const requestUSAD = async () => {
+    toast.info("USAD can be obtained via the official USAD bridge/faucet on testnet.");
+    // In a real app, link to the specific USAD faucet/bridge if available
+  };
+
   const findTokenRecord = async (tokenProgramId: string, requiredAmountMicro: number): Promise<WalletRecord | null> => {
     if (!address) return null;
 
     try {
-      const label = tokenProgramId === "credits.aleo" ? "Credits" : "USDCx";
+      const label =
+        tokenProgramId === "credits.aleo"
+          ? "Credits"
+          : tokenProgramId === "test_usad_stablecoin.aleo"
+            ? "USAD"
+            : "USDCx";
       const rawRecords = await requestRecordsWithRetry(requestRecords, tokenProgramId, label);
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       
@@ -808,11 +990,27 @@ export const useAleoPrograms = () => {
       toast.info(`Placing bet using ${tokenLabel}...`);
       let betResult: { transactionId: string; transition: any } | null = null;
 
-      if (tokenKind === "usdcx") {
-        // USDCx adapter place_bet uses public balance transfer.
-        const usdcxBalances = await fetchUSDCxBalances();
-        if (usdcxBalances.public < amountCredits) {
-          toast.error("Insufficient public USDCx balance.");
+      if (tokenKind === "usdcx" || tokenKind === "usad") {
+        const baseTokenProgram = resolveTokenBaseProgram(tokenId);
+        if (!baseTokenProgram) {
+          toast.error(`Unsupported market token: ${tokenId}`);
+          return;
+        }
+
+        const tokenRecord = await findTokenRecord(baseTokenProgram, amountMicro);
+        if (!tokenRecord) {
+          toast.error(`Insufficient private ${tokenLabel} balance.`);
+          return;
+        }
+
+        const tokenInput = extractRecordPlaintextInput(tokenRecord, ["owner", "amount"]);
+        const tokenProofInputs = extractUsdcMerkleProofInputs(tokenRecord);
+        if (!tokenInput || !tokenProofInputs) {
+          toast.error(`Missing private ${tokenLabel} record proof. Reconnect wallet with on-chain history access and try again.`);
+          console.warn(`[${tokenLabel}] Unable to prepare private inputs for place_bet`, {
+            recordKeys: Object.keys(tokenRecord ?? {}),
+            dataKeys: Object.keys(toObject(tokenRecord?.data) ?? {}),
+          });
           return;
         }
 
@@ -820,6 +1018,9 @@ export const useAleoPrograms = () => {
           program: tokenProgram,
           function: "place_bet",
           inputs: [
+            tokenInput,
+            tokenProofInputs[0],
+            tokenProofInputs[1],
             cleanMarketId,
             formatU8(outcome),
             formatU64(amountMicro),
@@ -840,11 +1041,19 @@ export const useAleoPrograms = () => {
           return;
         }
 
+        const tokenInput =
+          extractRecordPlaintextInput(tokenRecord, ["owner", "microcredits"]) ??
+          (tokenRecord.recordPlaintext || tokenRecord.plaintext);
+        if (!tokenInput) {
+          toast.error("Unable to prepare private credits record input.");
+          return;
+        }
+
         betResult = await executeAndPoll({
           program: tokenProgram,
           function: "place_bet",
           inputs: [
-            tokenRecord.recordPlaintext || tokenRecord.plaintext,
+            tokenInput,
             cleanMarketId,
             formatU8(outcome),
             formatU64(amountMicro),
@@ -1156,10 +1365,13 @@ export const useAleoPrograms = () => {
     fetchTokenBalance,
     fetchUSDCxBalances,
     fetchUSDCxBalance,
+    fetchUSADBalances,
+    fetchUSADBalance,
     fetchPoolStats,
     isOracleRegistered,
     requestCredits,
     requestUSDCx,
+    requestUSAD,
     refreshSignal,
     publicKey,
     loading,

@@ -31,6 +31,7 @@ import { getTimestampFromDate } from "@/lib/aleo";
 import {
   TOKEN_PROGRAM_ADDRESS,
   USDCX_TOKEN_PROGRAM_ADDRESS,
+  USAD_TOKEN_PROGRAM_ADDRESS,
   resolveTokenTicker,
 } from "@/lib/constants";
 
@@ -41,6 +42,7 @@ const categories = [
   { value: "politics", label: "Politics" },
   { value: "entertainment", label: "Entertainment" },
   { value: "tech", label: "Tech" },
+  { value: "other", label: "Other" },
 ];
 
 type Step = "form" | "review" | "creating" | "success" | "failed";
@@ -88,6 +90,7 @@ export default function CreateMarketPage() {
       politics: 3,
       entertainment: 4,
       tech: 5,
+      other: 6,
     };
 
     const result = await createMarket(
@@ -261,6 +264,18 @@ export default function CreateMarketPage() {
                           <span className="text-[8px] px-1.5 py-0.5 rounded-full border border-emerald-500/30 text-emerald-400 uppercase font-black">ARC20</span>
                         </div>
                       </SelectItem>
+                      {USAD_TOKEN_PROGRAM_ADDRESS ? (
+                        <SelectItem value={USAD_TOKEN_PROGRAM_ADDRESS} className="h-12 rounded-xl focus:bg-white/10">
+                          <div className="flex items-center gap-2">
+                            <span>USAD</span>
+                            <span className="text-[8px] px-1.5 py-0.5 rounded-full border border-emerald-500/30 text-emerald-400 uppercase font-black">ARC20</span>
+                          </div>
+                        </SelectItem>
+                      ) : (
+                        <SelectItem value="usad_unconfigured" disabled className="h-12 rounded-xl opacity-50">
+                          USAD (set `VITE_USAD_TOKEN_PROGRAM_ADDRESS`)
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
