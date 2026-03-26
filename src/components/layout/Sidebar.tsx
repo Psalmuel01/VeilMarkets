@@ -18,8 +18,8 @@ import { useSidebar } from "@/context/SidebarContext";
 
 const navItems = [
   { icon: LayoutGrid, label: "Markets", path: "/markets" },
-  { icon: Trophy, label: "My Bets", path: "/dashboard" },
   { icon: Plus, label: "Create Market", path: "/create" },
+  { icon: Trophy, label: "My Bets", path: "/dashboard" },
   { icon: FileText, label: "Docs", path: "/docs" },
 ];
 

@@ -185,7 +185,13 @@ export default function MarketDetailPage() {
   useEffect(() => {
     loadMarket();
     loadProposal();
-  }, [loadMarket, loadProposal, refreshSignal]);
+  }, [id, loadMarket, loadProposal]);
+
+  useEffect(() => {
+    if (!id) return;
+    loadMarket({ silent: true });
+    loadProposal();
+  }, [refreshSignal, id, loadMarket, loadProposal]);
 
   useEffect(() => {
     if (!publicKey) return;
@@ -494,13 +500,13 @@ export default function MarketDetailPage() {
                   outcome="Yes"
                   selected={false}
                   onSelect={() => { if (!hasUserBet && marketStatus === "Open") setShowBetModal(true); }}
-                  disabled={marketStatus !== "Open"} //  || hasUserBet
+                  disabled={marketStatus !== "Open" || hasUserBet} 
                 />
                 <OutcomeCard
                   outcome="No"
                   selected={false}
                   onSelect={() => { if (!hasUserBet && marketStatus === "Open") setShowBetModal(true); }}
-                  disabled={marketStatus !== "Open"} //  || hasUserBet
+                  disabled={marketStatus !== "Open" || hasUserBet}
                 />
               </div>
 
