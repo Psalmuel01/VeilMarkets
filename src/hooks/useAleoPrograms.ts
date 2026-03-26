@@ -56,6 +56,8 @@ export interface ChainMarket {
   creator: string;
   title_hash: string;
   category: number;
+  market_type: number;
+  outcome_count: number;
   close_time: number;
   resolution_time: number;
   is_resolved: boolean;
@@ -935,6 +937,8 @@ export const useAleoPrograms = () => {
     title: string,
     description: string,
     category: number,
+    marketType: number,
+    outcomeCount: number,
     closeTime: number, // Unix timestamp in seconds
     resolutionTime: number, // Unix timestamp in seconds
     resolutionSource: string,
@@ -953,7 +957,15 @@ export const useAleoPrograms = () => {
       const result = await executeAndPoll({
         program: PROGRAM_ID,
         function: "create_market",
-        inputs: [titleHash, formatU8(category), formatU64(closeTime), formatU64(resolutionTime), tokenId],
+        inputs: [
+          titleHash,
+          formatU8(category),
+          formatU8(marketType),
+          formatU8(outcomeCount),
+          formatU64(closeTime),
+          formatU64(resolutionTime),
+          tokenId,
+        ],
         fee: 2_500_000,
         privateFee: false,
       }, PROGRAM_ID, "create_market");

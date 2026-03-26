@@ -17,6 +17,7 @@ import { ZKBadge } from "@/components/ui/ZKBadge";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { cn } from "@/lib/utils";
 import { resolveTokenDisplayName, resolveTokenKind, resolveTokenTicker } from "@/lib/constants";
+import { getOutcomeLabel, getOutcomeLabels, getOutcomeTone, normalizeOutcomeCount } from "@/lib/outcomes";
 
 interface PlaceBetModalProps {
   open: boolean;
@@ -24,6 +25,8 @@ interface PlaceBetModalProps {
   marketId: string;
   marketTitle: string;
   tokenId: string; // The specific token contract for this market
+  marketType: number;
+  outcomeCount: number;
   onBetPlaced?: () => void;
 }
 
@@ -35,19 +38,30 @@ export const PlaceBetModal = ({
   marketId,
   marketTitle,
   tokenId,
+  marketType,
+  outcomeCount,
   onBetPlaced,
 }: PlaceBetModalProps) => {
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>("select");
-  const [selectedOutcome, setSelectedOutcome] = useState<"Yes" | "No" | null>(null);
+  const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
   const [wagerAmount, setWagerAmount] = useState(5);
   const [txId, setTxId] = useState<string | null>(null);
   const { placeBet, fetchPoolStats, fetchBalances, fetchUSDCxBalances, fetchUSADBalances, publicKey } = useAleoPrograms();
-  const [pool, setPool] = useState<{ total_yes: number; total_no: number } | null>(null);
+  const [pool, setPool] = useState<{
+    total_outcome_0: number;
+    total_outcome_1: number;
+    total_outcome_2: number;
+    total_outcome_3: number;
+    total_yes: number;
+    total_no: number;
+  } | null>(null);
   const [balances, setBalances] = useState<{ private: number; public: number; total: number } | null>(null);
   const tokenKind = resolveTokenKind(tokenId);
   const tokenTicker = resolveTokenTicker(tokenId);
   const tokenDisplayName = resolveTokenDisplayName(tokenId);
+  const normalizedOutcomeCount = normalizeOutcomeCount(outcomeCount);
+  const outcomeLabels = getOutcomeLabels(marketType, normalizedOutcomeCount);
   const availableRequiredBalance = balances ? balances.private : 0;
   const hasLowBalance = !!balances && availableRequiredBalance < wagerAmount;
 
@@ -79,17 +93,19 @@ export const PlaceBetModal = ({
   }, [marketId, open, publicKey, tokenKind, fetchPoolStats, fetchBalances, fetchUSDCxBalances, fetchUSADBalances]);
 
   const calculateReturn = () => {
-    if (!pool || !selectedOutcome) return null;
+    if (!pool || selectedOutcome === null) return null;
     const x = wagerAmount * 1_000_000;
-    const total_yes = pool.total_yes;
-    const total_no = pool.total_no;
-
-    let payout = 0;
-    if (selectedOutcome === "Yes") {
-      payout = (x / (total_yes + x)) * (total_yes + total_no + x);
-    } else {
-      payout = (x / (total_no + x)) * (total_yes + total_no + x);
-    }
+    const totals = [
+      pool.total_outcome_0 ?? pool.total_no ?? 0,
+      pool.total_outcome_1 ?? pool.total_yes ?? 0,
+      pool.total_outcome_2 ?? 0,
+      pool.total_outcome_3 ?? 0,
+    ];
+    const selectedPool = totals[selectedOutcome] ?? 0;
+    const totalPool = totals
+      .slice(0, normalizedOutcomeCount)
+      .reduce((acc, value) => acc + value, 0);
+    const payout = (x / (selectedPool + x)) * (totalPool + x);
 
     return payout / 1_000_000;
   };
@@ -104,13 +120,13 @@ export const PlaceBetModal = ({
   };
 
   const handleSubmit = async () => {
-    if (!selectedOutcome) return;
+    if (selectedOutcome === null) return;
 
     setStep("processing");
 
     const result = await placeBet(
       marketId,
-      selectedOutcome === "Yes" ? 1 : 0,
+      selectedOutcome,
       wagerAmount,
       tokenId
     );
@@ -218,17 +234,25 @@ export const PlaceBetModal = ({
                       Select Your Prediction
                     </label>
                   </div>
-                  <div className="flex gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <OutcomeCard
-                      outcome="Yes"
-                      selected={selectedOutcome === "Yes"}
-                      onSelect={() => setSelectedOutcome("Yes")}
+                      outcome={outcomeLabels[0]}
+                      selected={selectedOutcome === 0}
+                      onSelect={() => setSelectedOutcome(0)}
+                      tone={getOutcomeTone(marketType, normalizedOutcomeCount, 0)}
                     />
-                    <OutcomeCard
-                      outcome="No"
-                      selected={selectedOutcome === "No"}
-                      onSelect={() => setSelectedOutcome("No")}
-                    />
+                    {outcomeLabels.slice(1).map((label, index) => {
+                      const outcomeIndex = index + 1;
+                      return (
+                        <OutcomeCard
+                          key={label}
+                          outcome={label}
+                          selected={selectedOutcome === outcomeIndex}
+                          onSelect={() => setSelectedOutcome(outcomeIndex)}
+                          tone={getOutcomeTone(marketType, normalizedOutcomeCount, outcomeIndex)}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -274,7 +298,7 @@ export const PlaceBetModal = ({
 
                 <Button
                   onClick={() => setStep("confirm")}
-                  disabled={!selectedOutcome || hasLowBalance}
+                  disabled={selectedOutcome === null || hasLowBalance}
                   className="w-full btn-premium h-16 rounded-[1.5rem] group"
                 >
                   <span className="text-base font-bold">Continue to Review</span>
@@ -297,9 +321,15 @@ export const PlaceBetModal = ({
                     <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Outcome</span>
                     <div className={cn(
                       "text-2xl font-bold",
-                      selectedOutcome === "Yes" ? "text-success" : "text-destructive"
+                      selectedOutcome === null
+                        ? "text-white"
+                        : getOutcomeTone(marketType, normalizedOutcomeCount, selectedOutcome) === "yes"
+                          ? "text-success"
+                          : getOutcomeTone(marketType, normalizedOutcomeCount, selectedOutcome) === "no"
+                            ? "text-destructive"
+                            : "text-primary"
                     )}>
-                      {selectedOutcome}
+                      {getOutcomeLabel(marketType, normalizedOutcomeCount, selectedOutcome)}
                     </div>
                   </div>
                   <div className="p-6 rounded-3xl bg-white/[0.03] border border-white/5 space-y-1">

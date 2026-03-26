@@ -58,7 +58,7 @@ program veilmarkets_token_credits_v7.aleo {
     ) -> (credits.aleo/credits, EscrowedBet, Future) {
         assert(input_credits.microcredits >= bet_amount);
         assert(bet_amount >= MIN_BET);
-        assert(outcome == 0u8 || outcome == 1u8);
+        assert(outcome <= 3u8);
 
         // Transfer bet_amount to this contract's public balance
         let (change, transfer_future): (credits.aleo/credits, Future) =
@@ -170,7 +170,7 @@ program veilmarkets_token_credits_v7.aleo {
     }
 
     // ── Refund bet ─────────────────────────────────────────────────────────────
-    // Used when a market is cancelled (winning_outcome == 3u8).
+    // Used when a market is cancelled (winning_outcome == 255u8).
     // The caller must be the original bettor (holder check in finalize).
 
     async transition refund_bet(
@@ -200,7 +200,7 @@ program veilmarkets_token_credits_v7.aleo {
         assert_eq(details.holder, caller);
         assert_eq(details.amount, amount);
 
-        // Verify the market is actually cancelled (winning_outcome == 3u8)
+        // Verify the market is actually cancelled (winning_outcome == 255u8)
         // This is enforced by core via the escrow link — the caller cannot
         // fabricate a refund for a live market because the market mapping
         // in core is authoritative and separate from this contract.

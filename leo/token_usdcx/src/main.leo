@@ -75,7 +75,7 @@ program veilmarkets_token_usdcx_v7.aleo {
         let bet_amount_u128: u128 = bet_amount as u128;
         assert(input_token.amount >= bet_amount_u128);
         assert(bet_amount >= MIN_BET);
-        assert(outcome == 0u8 || outcome == 1u8);
+        assert(outcome <= 3u8);
 
         // Transfer bet_amount to this contract's public USDCx balance
         let external_proof_0: test_usdcx_stablecoin.aleo/MerkleProof =
@@ -215,7 +215,7 @@ program veilmarkets_token_usdcx_v7.aleo {
     }
 
     // ── Refund bet ─────────────────────────────────────────────────────────────
-    // Used when a market is cancelled (winning_outcome == 3u8).
+    // Used when a market is cancelled (winning_outcome == 255u8).
     // Returns USDCx to the original bettor. Caller must be the holder.
 
     async transition refund_bet(

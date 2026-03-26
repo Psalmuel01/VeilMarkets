@@ -27,6 +27,22 @@
           }
         },
         {
+          "name": "market_type",
+          "ty": {
+            "Primitive": {
+              "UInt": "U8"
+            }
+          }
+        },
+        {
+          "name": "outcome_count",
+          "ty": {
+            "Primitive": {
+              "UInt": "U8"
+            }
+          }
+        },
+        {
           "name": "close_time",
           "ty": {
             "Primitive": {
@@ -76,7 +92,7 @@
       ],
       "fields": [
         {
-          "name": "total_no",
+          "name": "total_outcome_0",
           "ty": {
             "Primitive": {
               "UInt": "U64"
@@ -84,7 +100,23 @@
           }
         },
         {
-          "name": "total_yes",
+          "name": "total_outcome_1",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "total_outcome_2",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "total_outcome_3",
           "ty": {
             "Primitive": {
               "UInt": "U64"
@@ -315,6 +347,28 @@
         },
         {
           "name": "category",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U8"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "market_type",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U8"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "outcome_count",
           "ty": {
             "Plaintext": {
               "Primitive": {

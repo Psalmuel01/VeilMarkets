@@ -15,6 +15,7 @@ import { formatDateFriendly } from "@/lib/utils";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { OracleRegistrationModal } from "@/components/resolution/OracleRegistrationModal";
+import { getOutcomeLabel, getOutcomeLabels, getOutcomeTone, normalizeOutcomeCount } from "@/lib/outcomes";
 
 interface ResolutionModalProps {
   isOpen: boolean;
@@ -25,6 +26,8 @@ interface ResolutionModalProps {
     close_time: number;
     resolution_time: number;
     is_resolved: boolean;
+    market_type: number;
+    outcome_count: number;
   };
   proposal: {
     proposed_outcome: number;
@@ -51,6 +54,8 @@ export function ResolutionModal({
 }: ResolutionModalProps) {
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
   const { proposeResolution, disputeResolution, loading } = useAleoPrograms();
+  const normalizedOutcomeCount = normalizeOutcomeCount(market.outcome_count);
+  const outcomeLabels = getOutcomeLabels(market.market_type, normalizedOutcomeCount);
 
   const [step, setStep] = useState<Step>("action");
   const [txId, setTxId] = useState<string | null>(null);
@@ -150,7 +155,7 @@ export function ResolutionModal({
                       <div>
                         <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Current Proposal</p>
                         <p className="text-xl font-bold text-primary">
-                          {proposal.proposed_outcome === 1 ? "YES" : "NO"}
+                          {getOutcomeLabel(market.market_type, normalizedOutcomeCount, proposal.proposed_outcome).toUpperCase()}
                         </p>
                       </div>
                       <div className="text-right">
@@ -198,24 +203,30 @@ export function ResolutionModal({
                 </p>
               </div> */}
 
-                    <RadioGroup value={selectedOutcome?.toString()} onValueChange={(v) => setSelectedOutcome(parseInt(v))}>
+                    <RadioGroup value={selectedOutcome?.toString()} onValueChange={(v) => setSelectedOutcome(parseInt(v, 10))}>
                       <div className="grid grid-cols-2 gap-4">
-                        <Label
-                          htmlFor="yes"
-                          className={`flex flex-col items-center justify-between rounded-xl border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer transition-all ${selectedOutcome === 1 ? "border-primary bg-primary/5" : ""
-                            }`}
-                        >
-                          <RadioGroupItem value="1" id="yes" className="sr-only" disabled={!isOracle}/>
-                          <span className="text-lg font-bold">YES</span>
-                        </Label>
-                        <Label
-                          htmlFor="no"
-                          className={`flex flex-col items-center justify-between rounded-xl border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer transition-all ${selectedOutcome === 0 ? "border-primary bg-primary/5" : ""
-                            }`}
-                        >
-                          <RadioGroupItem value="0" id="no" className="sr-only" disabled={!isOracle} />
-                          <span className="text-lg font-bold">NO</span>
-                        </Label>
+                        {outcomeLabels.map((label, index) => {
+                          const optionId = `outcome-${index}`;
+                          const tone = getOutcomeTone(market.market_type, normalizedOutcomeCount, index);
+                          return (
+                            <Label
+                              key={optionId}
+                              htmlFor={optionId}
+                              className={`flex flex-col items-center justify-between rounded-xl border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer transition-all ${
+                                selectedOutcome === index
+                                  ? tone === "yes"
+                                    ? "border-success bg-success/10"
+                                    : tone === "no"
+                                      ? "border-destructive bg-destructive/10"
+                                      : "border-primary bg-primary/10"
+                                  : ""
+                              }`}
+                            >
+                              <RadioGroupItem value={String(index)} id={optionId} className="sr-only" disabled={!isOracle}/>
+                              <span className="text-lg font-bold">{label.toUpperCase()}</span>
+                            </Label>
+                          );
+                        })}
                       </div>
                     </RadioGroup>
                   </div>

@@ -54,6 +54,8 @@ export default function CreateMarketPage() {
     title: "",
     description: "",
     category: "",
+    marketType: "binary",
+    outcomeCount: "2",
     closingDate: "",
     closingTime: "23:59",
     resolutionSource: "",
@@ -97,6 +99,8 @@ export default function CreateMarketPage() {
       formData.title,
       formData.description,
       categoryMap[formData.category] ?? 0,
+      formData.marketType === "binary" ? 0 : 1,
+      Number.parseInt(formData.outcomeCount, 10) || 2,
       closeTime,
       resolutionTime,
       formData.resolutionSource,
@@ -157,7 +161,7 @@ export default function CreateMarketPage() {
                   className="h-14 bg-white/[0.03] border-white/10 rounded-2xl px-6 text-lg font-medium focus:border-primary/50 focus:ring-primary/20 transition-all placeholder:text-white/10"
                 />
                 <p className="text-[10px] text-muted-foreground/40 font-medium ml-1">
-                  Must be a verifiable Yes/No outcome.
+                  Must include clear, verifiable resolution criteria.
                 </p>
               </div>
 
@@ -195,6 +199,55 @@ export default function CreateMarketPage() {
                           {cat.label}
                         </SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Market Type */}
+                <div className="space-y-3">
+                  <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 flex items-center gap-2 ml-1">
+                    <Tag className="w-3.5 h-3.5 text-primary" />
+                    Market Type
+                  </Label>
+                  <Select
+                    value={formData.marketType}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        marketType: value,
+                        outcomeCount: value === "binary" ? "2" : prev.outcomeCount,
+                      }))
+                    }
+                  >
+                    <SelectTrigger className="h-14 bg-white/[0.03] border-white/10 rounded-2xl px-6">
+                      <SelectValue placeholder="Select market type" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-white/10 rounded-2xl">
+                      <SelectItem value="binary" className="h-12 rounded-xl focus:bg-white/10">Binary (Yes/No)</SelectItem>
+                      <SelectItem value="categorical" className="h-12 rounded-xl focus:bg-white/10">Categorical (2-4 options)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Outcome Count & Closing Date */}
+              <div className="grid md:grid-cols-2 gap-8">
+                <div className="space-y-3">
+                  <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 ml-1">
+                    Outcome Count
+                  </Label>
+                  <Select
+                    value={formData.outcomeCount}
+                    onValueChange={(value) => setFormData({ ...formData, outcomeCount: value })}
+                    disabled={formData.marketType === "binary"}
+                  >
+                    <SelectTrigger className="h-14 bg-white/[0.03] border-white/10 rounded-2xl px-6">
+                      <SelectValue placeholder="Outcomes" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-white/10 rounded-2xl">
+                      <SelectItem value="2" className="h-12 rounded-xl focus:bg-white/10">2 outcomes</SelectItem>
+                      <SelectItem value="3" className="h-12 rounded-xl focus:bg-white/10">3 outcomes</SelectItem>
+                      <SelectItem value="4" className="h-12 rounded-xl focus:bg-white/10">4 outcomes</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -323,6 +376,12 @@ export default function CreateMarketPage() {
                   <div className="space-y-1">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Category</p>
                     <p className="text-sm font-bold text-white capitalize">{formData.category}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Type</p>
+                    <p className="text-sm font-bold text-white capitalize">
+                      {formData.marketType} ({formData.marketType === "binary" ? "2" : formData.outcomeCount} outcomes)
+                    </p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Asset</p>

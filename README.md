@@ -2,11 +2,11 @@
 
 Privacy-first prediction markets on Aleo.
 
-VeilMarkets lets users create markets, place private bets, and claim payouts with zero-knowledge guarantees. The app currently supports binary markets (Yes/No) with multi-token settlement rails.
+VeilMarkets lets users create markets, place private bets, and claim payouts with zero-knowledge guarantees. The app supports binary and categorical markets (2-4 outcomes) with multi-token settlement rails.
 
 ## Current Scope
 
-- Binary outcome markets (Yes/No)
+- Binary and categorical markets (2-4 outcomes)
 - Market categories: Crypto, Finance, Sports, Politics, Entertainment, Tech, Other
 - Settlement tokens:
   - Aleo Credits
@@ -111,7 +111,7 @@ npm run dev
 
 - Stablecoin private spend paths rely on valid private records and proof inputs.
 - If currency filtering behaves differently in production, verify all `VITE_*_TOKEN_PROGRAM_ADDRESS` values were set correctly before build/deploy.
-- Multi-outcome market types beyond binary are not yet implemented in v7.
+- Outcome labels for categorical markets currently use generic option names (`Option 1..4`).
 
 ## License
 

@@ -31,6 +31,8 @@ export interface MarketInfo {
   creator: string;
   title_hash: string;
   category: number;
+  market_type: number;
+  outcome_count: number;
   close_time: number;
   resolution_time: number;
   is_resolved: boolean;
@@ -40,6 +42,11 @@ export interface MarketInfo {
 }
 
 export interface PoolInfo {
+  total_outcome_0: number;
+  total_outcome_1: number;
+  total_outcome_2: number;
+  total_outcome_3: number;
+  // Legacy aliases kept for backwards compatibility in existing UI.
   total_no: number;
   total_yes: number;
   participant_count: number;
@@ -274,10 +281,12 @@ export const parseMarketInfo = (raw: string | object, marketId: string): MarketI
     creator: "",
     title_hash: "",
     category: 0,
+    market_type: 0,
+    outcome_count: 2,
     close_time: 0,
     resolution_time: 0,
     is_resolved: false,
-    winning_outcome: 2,
+    winning_outcome: 254,
     resolved_by_oracle: false,
     token_id: "",
   };
@@ -291,6 +300,8 @@ export const parseMarketInfo = (raw: string | object, marketId: string): MarketI
       creator: stripTypeSuffixes(String(obj.creator ?? "")),
       title_hash: stripTypeSuffixes(String(obj.title_hash ?? "")),
       category: parseAleoInt(obj.category),
+      market_type: parseAleoInt(obj.market_type),
+      outcome_count: parseAleoInt(obj.outcome_count),
       close_time: parseAleoInt(obj.close_time),
       resolution_time: parseAleoInt(obj.resolution_time),
       is_resolved: parseAleoBool(obj.is_resolved),
@@ -308,6 +319,8 @@ export const parseMarketInfo = (raw: string | object, marketId: string): MarketI
     "creator:",
     "title_hash:",
     "category:",
+    "market_type:",
+    "outcome_count:",
     "close_time:",
     "resolution_time:",
     "is_resolved:",
@@ -321,7 +334,14 @@ export const parseMarketInfo = (raw: string | object, marketId: string): MarketI
     const match = str.match(pattern);
     if (match) {
       const value = match[1].trim();
-      if (key === "close_time:" || key === "resolution_time:" || key === "category:" || key === "winning_outcome:") {
+      if (
+        key === "close_time:" ||
+        key === "resolution_time:" ||
+        key === "category:" ||
+        key === "market_type:" ||
+        key === "outcome_count:" ||
+        key === "winning_outcome:"
+      ) {
         data[key.replace(":", "") as keyof MarketInfo] = parseAleoInt(value) as never;
       } else if (key === "is_resolved:" || key === "resolved_by_oracle:") {
         data[key.replace(":", "") as keyof MarketInfo] = parseAleoBool(value) as never;
@@ -339,6 +359,10 @@ export const parseMarketInfo = (raw: string | object, marketId: string): MarketI
  */
 export const parsePoolInfo = (raw: string | object): PoolInfo => {
   const base: PoolInfo = {
+    total_outcome_0: 0,
+    total_outcome_1: 0,
+    total_outcome_2: 0,
+    total_outcome_3: 0,
     total_no: 0,
     total_yes: 0,
     participant_count: 0,
@@ -350,9 +374,17 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
 
   if (typeof raw === "object") {
     const obj = asRecord(raw);
+    const totalOutcome0 = parseAleoInt(obj.total_outcome_0 ?? obj.total_no);
+    const totalOutcome1 = parseAleoInt(obj.total_outcome_1 ?? obj.total_yes);
+    const totalOutcome2 = parseAleoInt(obj.total_outcome_2);
+    const totalOutcome3 = parseAleoInt(obj.total_outcome_3);
     return {
-      total_no: parseAleoInt(obj.total_no),
-      total_yes: parseAleoInt(obj.total_yes),
+      total_outcome_0: totalOutcome0,
+      total_outcome_1: totalOutcome1,
+      total_outcome_2: totalOutcome2,
+      total_outcome_3: totalOutcome3,
+      total_no: totalOutcome0,
+      total_yes: totalOutcome1,
       participant_count: parseAleoInt(obj.participant_count),
       locked: parseAleoBool(obj.locked),
       escrowed_amount: parseAleoInt(obj.escrowed_amount),
@@ -376,12 +408,28 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
       continue;
     }
 
-    if (key === "total_no" || key === "total_yes" || key === "participant_count" || key === "escrowed_amount") {
+    if (
+      key === "total_outcome_0" ||
+      key === "total_outcome_1" ||
+      key === "total_outcome_2" ||
+      key === "total_outcome_3" ||
+      key === "total_no" ||
+      key === "total_yes" ||
+      key === "participant_count" ||
+      key === "escrowed_amount"
+    ) {
       parsed[key] = parseAleoInt(value) as never;
     }
   }
 
-  return { ...base, ...parsed };
+  const merged = { ...base, ...parsed };
+  return {
+    ...merged,
+    total_outcome_0: merged.total_outcome_0 || merged.total_no,
+    total_outcome_1: merged.total_outcome_1 || merged.total_yes,
+    total_no: merged.total_outcome_0 || merged.total_no,
+    total_yes: merged.total_outcome_1 || merged.total_yes,
+  };
 };
 
 /**
