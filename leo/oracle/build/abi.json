@@ -1,5 +1,5 @@
 {
-  "program": "veilmarkets_oracle_v6.aleo",
+  "program": "veilmarkets_oracle_v7.aleo",
   "structs": [
     {
       "path": [
@@ -124,7 +124,7 @@
           "path": [
             "ResolutionProposal"
           ],
-          "program": "veilmarkets_oracle_v6"
+          "program": "veilmarkets_oracle_v7"
         }
       }
     },
@@ -160,7 +160,7 @@
           "path": [
             "Dispute"
           ],
-          "program": "veilmarkets_oracle_v6"
+          "program": "veilmarkets_oracle_v7"
         }
       }
     }
@@ -213,7 +213,7 @@
               "path": [
                 "OracleCredential"
               ],
-              "program": "veilmarkets_oracle_v6"
+              "program": "veilmarkets_oracle_v7"
             }
           },
           "mode": "None"
@@ -322,7 +322,7 @@
               "path": [
                 "OracleCredential"
               ],
-              "program": "veilmarkets_oracle_v6"
+              "program": "veilmarkets_oracle_v7"
             }
           },
           "mode": "None"
@@ -355,7 +355,7 @@
               "path": [
                 "OracleCredential"
               ],
-              "program": "veilmarkets_oracle_v6"
+              "program": "veilmarkets_oracle_v7"
             }
           },
           "mode": "None"

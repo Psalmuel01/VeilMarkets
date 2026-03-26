@@ -42,12 +42,14 @@ interface ParsedBetRecord {
 import {
   PROGRAM_ID,
   ORACLE_PROGRAM_ID,
-  TOKEN_PROGRAM_ID,
+  CREDITS_TOKEN_PROGRAM_ID,
   USDCX_TOKEN_PROGRAM_ID,
+  USAD_TOKEN_PROGRAM_ID,
   resolveTokenAdapterProgram,
   resolveTokenBaseProgram,
   resolveTokenTicker,
   resolveTokenDisplayName,
+  resolveTokenKind,
 } from "../lib/constants";
 
 export interface ChainMarket {
@@ -104,11 +106,28 @@ const parseAleoAmount = (value: unknown): number => {
   return 0;
 };
 
+const unwrapValue = (value: unknown): unknown => {
+  let current: unknown = value;
+  let depth = 0;
+
+  while (depth < 5 && typeof current === "object" && current !== null) {
+    const obj = current as Record<string, unknown>;
+    if (obj.value === undefined) break;
+    current = obj.value;
+    depth += 1;
+  }
+
+  return current;
+};
+
 const toMicrocredits = (credits: number): number => Math.max(1_000_000, Math.floor(credits * 1_000_000));
 
 const formatU64 = (value: number): string => `${Math.max(0, Math.floor(value))}u64`;
 const formatU8 = (value: number): string => `${Math.max(0, Math.floor(value))}u8`;
 const formatField = (value: string): string => (value.endsWith("field") ? value : `${value}field`);
+const USDCX_FREEZELIST_PROGRAM_ID = "test_usdcx_freezelist.aleo";
+const USAD_FREEZELIST_PROGRAM_ID = "test_usad_freezelist.aleo";
+const MIN_ORACLE_STAKE_MICROCREDITS = 30_000_000;
 
 const parseMappingU64 = (value: unknown): number => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -122,6 +141,22 @@ const parseMappingU64 = (value: unknown): number => {
     if (obj.value !== undefined) return parseMappingU64(obj.value);
   }
   return 0;
+};
+
+const parseMappingString = (value: unknown): string | null => {
+  const unwrapped =
+    typeof value === "object" && value !== null && "value" in (value as Record<string, unknown>)
+      ? (value as Record<string, unknown>).value
+      : value;
+  if (typeof unwrapped !== "string") return null;
+  const cleaned = unwrapped.replace(/["']/g, "").trim();
+  return cleaned.length > 0 ? cleaned : null;
+};
+
+const resolveFreezeListProgramId = (baseTokenProgramId: string): string | null => {
+  if (baseTokenProgramId === "test_usdcx_stablecoin.aleo") return USDCX_FREEZELIST_PROGRAM_ID;
+  if (baseTokenProgramId === "test_usad_stablecoin.aleo") return USAD_FREEZELIST_PROGRAM_ID;
+  return null;
 };
 
 const getErrorMessage = (error: unknown): string => {
@@ -199,6 +234,314 @@ const extractRecordAmount = (record: WalletRecord): number => {
     }
   }
   return 0;
+};
+
+const isLikelyRecordPlaintext = (value: string, requiredFields: string[]): boolean =>
+  value.includes("{") &&
+  value.includes("}") &&
+  requiredFields.every((field) => new RegExp(`${field}\\s*:`).test(value));
+
+const buildRecordPlaintextFromData = (
+  record: WalletRecord,
+  requiredFields: string[],
+): string | null => {
+  const dataObj = toObject(record.data) ?? toObject(record);
+  if (!dataObj) return null;
+
+  const entries: string[] = [];
+  for (const field of requiredFields) {
+    const value = dataObj[field];
+    if (value === undefined) continue;
+    entries.push(`${field}: ${String(value).trim()}`);
+  }
+
+  const nonceValue = dataObj._nonce ?? dataObj.nonce;
+  if (nonceValue !== undefined && !entries.some((entry) => entry.startsWith("_nonce:"))) {
+    entries.push(`_nonce: ${String(nonceValue).trim()}`);
+  }
+
+  if (!requiredFields.every((field) => entries.some((entry) => entry.startsWith(`${field}:`)))) {
+    return null;
+  }
+  return `{ ${entries.join(", ")} }`;
+};
+
+const extractRecordPlaintextInput = (
+  record: WalletRecord,
+  requiredFields: string[],
+): string | null => {
+  const candidates: unknown[] = [record.recordPlaintext, (record as any).plaintext];
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string") continue;
+    const text = candidate.trim();
+    if (isLikelyRecordPlaintext(text, requiredFields)) return text;
+  }
+
+  return buildRecordPlaintextFromData(record, requiredFields);
+};
+
+const normalizeU32 = (value: unknown): string => {
+  const raw = unwrapValue(value);
+  const str = String(raw ?? "")
+    .trim()
+    .replace(/\.private|\.public/g, "");
+  return /u32$/.test(str) ? str : `${str.replace(/u32$/g, "")}u32`;
+};
+
+const normalizeField = (value: unknown): string => {
+  const raw = unwrapValue(value);
+  const str = String(raw ?? "")
+    .trim()
+    .replace(/\.private|\.public/g, "");
+  return /field$/.test(str) ? str : `${str.replace(/field$/g, "")}field`;
+};
+
+const formatMerkleProof = (value: unknown): string | null => {
+  if (typeof value === "string") {
+    const trimmed = value.trim().replace(/\.private|\.public/g, "");
+    if (trimmed.includes("siblings") && (trimmed.includes("leaf_index") || trimmed.includes("leafIndex"))) {
+      return trimmed;
+    }
+    return null;
+  }
+
+  if (!value || typeof value !== "object") return null;
+  const obj = value as Record<string, unknown>;
+  const siblingsRaw =
+    (Array.isArray(obj.siblings) && obj.siblings) ||
+    (Array.isArray(obj.path) && obj.path) ||
+    (Array.isArray(obj.merkle_path) && obj.merkle_path) ||
+    (Array.isArray(obj.merklePath) && obj.merklePath) ||
+    null;
+  const leafIndex = obj.leaf_index ?? obj.leafIndex ?? obj.index ?? obj.leaf;
+  if (!siblingsRaw || leafIndex === undefined) return null;
+
+  const siblings = siblingsRaw.map((entry) => normalizeField(entry));
+  return `{ siblings: [${siblings.join(", ")}], leaf_index: ${normalizeU32(leafIndex)} }`;
+};
+
+const parseMerkleProofPairString = (value: string): [string, string] | null => {
+  const trimmed = value.trim().replace(/\.private|\.public/g, "");
+  if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) return null;
+
+  const inner = trimmed.slice(1, -1).trim();
+  if (!inner) return null;
+
+  let depth = 0;
+  let splitIndex = -1;
+  for (let i = 0; i < inner.length; i++) {
+    const char = inner[i];
+    if (char === "{") depth += 1;
+    if (char === "}") depth = Math.max(0, depth - 1);
+    if (char === "," && depth === 0) {
+      splitIndex = i;
+      break;
+    }
+  }
+
+  if (splitIndex < 0) return null;
+  const left = inner.slice(0, splitIndex).trim();
+  const right = inner.slice(splitIndex + 1).trim();
+  if (!left || !right) return null;
+  return [left, right];
+};
+
+const collectMerkleProofCandidates = (value: unknown): string[] => {
+  const queue: unknown[] = [value];
+  const visited = new Set<unknown>();
+  const candidates: string[] = [];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || visited.has(current)) continue;
+    visited.add(current);
+
+    const formatted = formatMerkleProof(current);
+    if (formatted) {
+      const parsedPair = parseMerkleProofPairString(formatted);
+      if (parsedPair) {
+        candidates.push(parsedPair[0], parsedPair[1]);
+      } else {
+        candidates.push(formatted);
+      }
+      continue;
+    }
+
+    if (typeof current === "string") {
+      const parsedPair = parseMerkleProofPairString(current);
+      if (parsedPair) candidates.push(parsedPair[0], parsedPair[1]);
+      continue;
+    }
+
+    if (Array.isArray(current)) {
+      for (const item of current) queue.push(item);
+      continue;
+    }
+
+    if (typeof current === "object") {
+      for (const nested of Object.values(current as Record<string, unknown>)) {
+        queue.push(nested);
+      }
+    }
+  }
+
+  return candidates;
+};
+
+const extractUsdcMerkleProofInputs = (record: WalletRecord): [string, string] | null => {
+  const sources: unknown[] = [];
+  const direct = toObject(record);
+  const data = toObject(record.data);
+
+  if (direct) {
+    sources.push(
+      direct.token_proof,
+      direct.tokenProof,
+      direct.merkle_proof,
+      direct.merkleProof,
+      direct.merkle_path,
+      direct.merklePath,
+      direct.token_proof_0,
+      direct.token_proof_1,
+      direct.proof_0,
+      direct.proof_1,
+      direct.proofs,
+      direct.proof,
+      direct.membershipProof,
+      direct.witness,
+    );
+  }
+  if (data) {
+    sources.push(
+      data.token_proof,
+      data.tokenProof,
+      data.merkle_proof,
+      data.merkleProof,
+      data.merkle_path,
+      data.merklePath,
+      data.token_proof_0,
+      data.token_proof_1,
+      data.proof_0,
+      data.proof_1,
+      data.proofs,
+      data.proof,
+      data.membershipProof,
+      data.witness,
+    );
+  }
+
+  for (const source of sources) {
+    if (!source) continue;
+    if (typeof source === "string") {
+      const trimmed = source.trim();
+      const parsed = parseMerkleProofPairString(trimmed);
+      if (parsed) return parsed;
+    }
+    if (Array.isArray(source) && source.length >= 2) {
+      const p0 = formatMerkleProof(source[0]);
+      const p1 = formatMerkleProof(source[1]);
+      if (p0 && p1) return [p0, p1];
+    }
+    if (typeof source === "object" && source !== null) {
+      const obj = source as Record<string, unknown>;
+      const p0 = formatMerkleProof(
+        obj[0] ??
+          obj.proof0 ??
+          obj.first ??
+          obj.left ??
+          obj.token_proof_0 ??
+          obj.proof_0 ??
+          obj.a ??
+          obj.p0,
+      );
+      const p1 = formatMerkleProof(
+        obj[1] ??
+          obj.proof1 ??
+          obj.second ??
+          obj.right ??
+          obj.token_proof_1 ??
+          obj.proof_1 ??
+          obj.b ??
+          obj.p1,
+      );
+      if (p0 && p1) return [p0, p1];
+    }
+  }
+
+  const deepCandidates = collectMerkleProofCandidates(record);
+  if (deepCandidates.length >= 2) return [deepCandidates[0], deepCandidates[1]];
+
+  const deepDataCandidates = collectMerkleProofCandidates(record.data);
+  if (deepDataCandidates.length >= 2) return [deepDataCandidates[0], deepDataCandidates[1]];
+
+  return null;
+};
+
+const generateFreezeListProof = async (
+  freezeListProgramId: string,
+  targetIndex = 1,
+): Promise<string | null> => {
+  try {
+    const firstIndexRaw = await fetchMappingValue(freezeListProgramId, "freeze_list_index", "0u32");
+    const firstIndexAddress = parseMappingString(firstIndexRaw);
+
+    let occupiedLeafValue: string | undefined;
+    if (firstIndexAddress) {
+      const wasm = await import("@provablehq/wasm");
+      const addr = wasm.Address.from_string(firstIndexAddress);
+      occupiedLeafValue = addr.toGroup().toXCoordinate().toString();
+    }
+
+    const wasm = await import("@provablehq/wasm");
+    const hasher = new wasm.Poseidon4();
+    const emptyHashes: string[] = [];
+    let currentEmpty = "0field";
+
+    for (let i = 0; i < 16; i++) {
+      emptyHashes.push(currentEmpty);
+      const f = wasm.Field.fromString(currentEmpty);
+      const nextHashField = hasher.hash([f, f]);
+      currentEmpty = nextHashField.toString();
+    }
+
+    let currentHash = "0field";
+    let currentIndex = targetIndex;
+    const proofSiblings: string[] = [];
+
+    for (let i = 0; i < 16; i++) {
+      const isLeft = currentIndex % 2 === 0;
+      const siblingIndex = isLeft ? currentIndex + 1 : currentIndex - 1;
+
+      let siblingHash = emptyHashes[i];
+      if (i === 0 && siblingIndex === 0 && occupiedLeafValue) {
+        siblingHash = occupiedLeafValue;
+      }
+
+      proofSiblings.push(siblingHash);
+
+      const left = wasm.Field.fromString(isLeft ? currentHash : siblingHash);
+      const right = wasm.Field.fromString(isLeft ? siblingHash : currentHash);
+      currentHash = hasher.hash([left, right]).toString();
+      currentIndex = Math.floor(currentIndex / 2);
+    }
+
+    return `{ siblings: [${proofSiblings.join(", ")}], leaf_index: ${targetIndex}u32 }`;
+  } catch (error) {
+    console.warn(`[FreezeList] Failed to generate proof for ${freezeListProgramId}:`, error);
+    const siblings = Array(16).fill("0field").join(", ");
+    return `{ siblings: [${siblings}], leaf_index: ${targetIndex}u32 }`;
+  }
+};
+
+const buildStablecoinMerkleProofInputs = async (
+  baseTokenProgramId: string,
+): Promise<[string, string] | null> => {
+  const freezeListProgramId = resolveFreezeListProgramId(baseTokenProgramId);
+  if (!freezeListProgramId) return null;
+  const proof = await generateFreezeListProof(freezeListProgramId, 1);
+  if (!proof) return null;
+  return [proof, proof];
 };
 
 export const useAleoPrograms = () => {
@@ -440,8 +783,8 @@ export const useAleoPrograms = () => {
     if (!address) return [];
     setLoading(true);
     try {
-      // Query both token adapters for EscrowedBet records (where bets are escrowed)
-      const tokenPrograms = [TOKEN_PROGRAM_ID, USDCX_TOKEN_PROGRAM_ID];
+      // Query token adapters for EscrowedBet records (where bets are escrowed)
+      const tokenPrograms = [CREDITS_TOKEN_PROGRAM_ID, USDCX_TOKEN_PROGRAM_ID, USAD_TOKEN_PROGRAM_ID];
       const unspentRecords: WalletRecord[] = [];
 
       for (const programId of tokenPrograms) {
@@ -538,25 +881,28 @@ export const useAleoPrograms = () => {
     return balances.total;
   }, [fetchBalances]);
 
-  const fetchUSDCxBalances = useCallback(async (): Promise<TokenBalanceSummary> => {
+  const fetchArc20Balances = useCallback(async (
+    baseProgramId: string,
+    label: string,
+  ): Promise<TokenBalanceSummary> => {
     if (!address) return { private: 0, public: 0, total: 0 };
 
     let privateMicro = 0;
     try {
-      const rawRecords = await requestRecordsWithRetry(requestRecords, "test_usdcx_stablecoin.aleo", "USDCx");
+      const rawRecords = await requestRecordsWithRetry(requestRecords, baseProgramId, label);
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       privateMicro = records.filter((record) => !record.spent).reduce((acc, record) => acc + extractRecordAmount(record), 0);
     } catch (e) {
-      console.warn("[USDCx Balance] Private record fetch failed");
+      console.warn(`[${label} Balance] Private record fetch failed`);
     }
 
     let publicMicro = 0;
     try {
       // ARC-20 stablecoin uses `balances` mapping (address => u128)
-      const rawValue = await fetchMappingValue("test_usdcx_stablecoin.aleo", "balances", address);
+      const rawValue = await fetchMappingValue(baseProgramId, "balances", address);
       publicMicro = parseMappingU64(rawValue);
     } catch (e) {
-      console.warn("[USDCx Balance] Public mapping fetch failed");
+      console.warn(`[${label} Balance] Public mapping fetch failed`);
     }
 
     return {
@@ -566,10 +912,23 @@ export const useAleoPrograms = () => {
     };
   }, [address, requestRecords]);
 
+  const fetchUSDCxBalances = useCallback(async (): Promise<TokenBalanceSummary> => {
+    return fetchArc20Balances("test_usdcx_stablecoin.aleo", "USDCx");
+  }, [fetchArc20Balances]);
+
   const fetchUSDCxBalance = useCallback(async (): Promise<number> => {
     const balances = await fetchUSDCxBalances();
     return balances.total;
   }, [fetchUSDCxBalances]);
+
+  const fetchUSADBalances = useCallback(async (): Promise<TokenBalanceSummary> => {
+    return fetchArc20Balances("test_usad_stablecoin.aleo", "USAD");
+  }, [fetchArc20Balances]);
+
+  const fetchUSADBalance = useCallback(async (): Promise<number> => {
+    const balances = await fetchUSADBalances();
+    return balances.total;
+  }, [fetchUSADBalances]);
 
 
   const createMarket = async (
@@ -627,7 +986,7 @@ export const useAleoPrograms = () => {
           } catch (metadataError) {
             const maybeError = metadataError as { code?: string; message?: string };
             if (maybeError?.code === "42501") {
-              toast.warning("Market created on-chain, but metadata save was blocked by Supabase RLS for markets_v6.");
+              toast.warning("Market created on-chain, but metadata save was blocked by Supabase RLS for markets_v7.");
             } else {
               toast.warning("Market created on-chain, but metadata save failed.");
             }
@@ -653,20 +1012,41 @@ export const useAleoPrograms = () => {
     // In a real app, link to the specific USDCx faucet/bridge if available
   };
 
-  const findTokenRecord = async (tokenProgramId: string, requiredAmountMicro: number): Promise<WalletRecord | null> => {
+  const requestUSAD = async () => {
+    toast.info("USAD can be obtained via the official USAD bridge/faucet on testnet.");
+    // In a real app, link to the specific USAD faucet/bridge if available
+  };
+
+  const findTokenRecord = async (
+    tokenProgramId: string,
+    requiredAmountMicro: number,
+    options?: { requireMerkleProof?: boolean },
+  ): Promise<WalletRecord | null> => {
     if (!address) return null;
 
     try {
-      const label = tokenProgramId === "credits.aleo" ? "Credits" : "USDCx";
+      const label =
+        tokenProgramId === "credits.aleo"
+          ? "Credits"
+          : tokenProgramId === "test_usad_stablecoin.aleo"
+            ? "USAD"
+            : "USDCx";
       const rawRecords = await requestRecordsWithRetry(requestRecords, tokenProgramId, label);
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
-      
+
       const unspent = records.filter(r => !r.spent);
-      
-      const matchingRecord = unspent.find((record) => extractRecordAmount(record) >= requiredAmountMicro);
+
+      const matchingRecord = unspent.find((record) => {
+        if (extractRecordAmount(record) < requiredAmountMicro) return false;
+        if (!options?.requireMerkleProof) return true;
+        return Boolean(extractUsdcMerkleProofInputs(record));
+      });
 
       if (!matchingRecord) {
-        console.warn(`[findTokenRecord] No record with >= ${requiredAmountMicro} for ${tokenProgramId} found among ${unspent.length} unspent records`);
+        const proofMode = options?.requireMerkleProof ? " with Merkle proof" : "";
+        console.warn(
+          `[findTokenRecord] No record with >= ${requiredAmountMicro}${proofMode} for ${tokenProgramId} found among ${unspent.length} unspent records`,
+        );
       }
 
       return matchingRecord ?? null;
@@ -715,7 +1095,7 @@ export const useAleoPrograms = () => {
 
   const findEscrowedBetRecord = async (
     marketId: string,
-    tokenProgramId: string = TOKEN_PROGRAM_ID
+    tokenProgramId: string = CREDITS_TOKEN_PROGRAM_ID
   ): Promise<WalletRecord | null> => {
     if (!address) return null;
 
@@ -796,34 +1176,110 @@ export const useAleoPrograms = () => {
 
     try {
       const tokenProgram = resolveTokenAdapterProgram(tokenId);
-      const baseTokenProgram = resolveTokenBaseProgram(tokenId);
+      const tokenKind = resolveTokenKind(tokenId);
       const tokenLabel = resolveTokenDisplayName(tokenId);
 
-      if (!tokenProgram || !baseTokenProgram) {
+      if (!tokenProgram || !tokenKind) {
         toast.error(`Unsupported market token: ${tokenId}`);
         return;
       }
 
       toast.info(`Placing bet using ${tokenLabel}...`);
-      const tokenRecord = await findTokenRecord(baseTokenProgram, amountMicro);
+      let betResult: { transactionId: string; transition: any } | null = null;
 
-      if (!tokenRecord) {
-        toast.error(`Insufficient private ${tokenLabel} balance.`);
-        return;
+      if (tokenKind === "usdcx" || tokenKind === "usad") {
+        const baseTokenProgram = resolveTokenBaseProgram(tokenId);
+        if (!baseTokenProgram) {
+          toast.error(`Unsupported market token: ${tokenId}`);
+          return;
+        }
+
+        const tokenRecord = await findTokenRecord(baseTokenProgram, amountMicro);
+        if (!tokenRecord) {
+          toast.error(`Insufficient private ${tokenLabel} balance.`);
+          return;
+        }
+
+        const tokenInput = extractRecordPlaintextInput(tokenRecord, ["owner", "amount"]);
+        if (!tokenInput) {
+          toast.error(`Unable to prepare private ${tokenLabel} record input.`);
+          return;
+        }
+
+        const generatedProofInputs = await buildStablecoinMerkleProofInputs(baseTokenProgram);
+        const walletProofInputs = extractUsdcMerkleProofInputs(tokenRecord);
+
+        const proofCandidates: Array<[string, string]> = [];
+        if (generatedProofInputs) proofCandidates.push(generatedProofInputs);
+        if (
+          walletProofInputs &&
+          (!generatedProofInputs ||
+            walletProofInputs[0] !== generatedProofInputs[0] ||
+            walletProofInputs[1] !== generatedProofInputs[1])
+        ) {
+          proofCandidates.push(walletProofInputs);
+        }
+
+        if (proofCandidates.length === 0) {
+          toast.error(`Missing private ${tokenLabel} proof inputs. Reconnect wallet and try again.`);
+          console.warn(`[${tokenLabel}] Unable to prepare private inputs for place_bet`, {
+            recordKeys: Object.keys(tokenRecord ?? {}),
+            dataKeys: Object.keys(toObject(tokenRecord?.data) ?? {}),
+          });
+          return;
+        }
+
+        for (const [proof0, proof1] of proofCandidates) {
+          betResult = await executeAndPoll({
+            program: tokenProgram,
+            function: "place_bet",
+            inputs: [
+              tokenInput,
+              proof0,
+              proof1,
+              cleanMarketId,
+              formatU8(outcome),
+              formatU64(amountMicro),
+            ],
+            fee: 1_500_000,
+            privateFee: false,
+          }, tokenProgram, "place_bet");
+          if (betResult) break;
+        }
+      } else {
+        const baseTokenProgram = resolveTokenBaseProgram(tokenId);
+        if (!baseTokenProgram) {
+          toast.error(`Unsupported market token: ${tokenId}`);
+          return;
+        }
+
+        const tokenRecord = await findTokenRecord(baseTokenProgram, amountMicro);
+        if (!tokenRecord) {
+          toast.error(`Insufficient private ${tokenLabel} balance.`);
+          return;
+        }
+
+        const tokenInput =
+          extractRecordPlaintextInput(tokenRecord, ["owner", "microcredits"]) ??
+          (tokenRecord.recordPlaintext || tokenRecord.plaintext);
+        if (!tokenInput) {
+          toast.error("Unable to prepare private credits record input.");
+          return;
+        }
+
+        betResult = await executeAndPoll({
+          program: tokenProgram,
+          function: "place_bet",
+          inputs: [
+            tokenInput,
+            cleanMarketId,
+            formatU8(outcome),
+            formatU64(amountMicro),
+          ],
+          fee: 1_500_000,
+          privateFee: false,
+        }, tokenProgram, "place_bet");
       }
-
-      const betResult = await executeAndPoll({
-        program: tokenProgram,
-        function: "place_bet",
-        inputs: [
-          tokenRecord.recordPlaintext || tokenRecord.plaintext,
-          cleanMarketId,
-          formatU8(outcome),
-          formatU64(amountMicro),
-        ],
-        fee: 1_500_000,
-        privateFee: false,
-      }, tokenProgram, "place_bet");
 
       if (betResult) triggerRefresh();
       return betResult ? betResult.transactionId : null;
@@ -935,6 +1391,46 @@ export const useAleoPrograms = () => {
       return result ? result.transactionId : null;
     } catch (error) {
       console.error("Oracle registration failed:", error);
+      return null;
+    }
+  };
+
+  const fetchOracleStake = useCallback(async (): Promise<number> => {
+    if (!publicKey) return 0;
+    try {
+      const raw = await fetchMappingValue(ORACLE_PROGRAM_ID, "active_oracles", publicKey);
+      return parseMappingU64(raw);
+    } catch (error) {
+      console.error("Failed to fetch oracle stake:", error);
+      return 0;
+    }
+  }, [publicKey]);
+
+  const unstakeOracleCredits = async (amountCredits: number) => {
+    if (!address) return null;
+    const amountMicro = Math.max(1_000_000, Math.floor(amountCredits * 1_000_000));
+
+    try {
+      const currentStake = await fetchOracleStake();
+      if (currentStake < amountMicro) {
+        toast.error("Unstake amount exceeds your current oracle stake.");
+        return null;
+      }
+
+      const result = await executeAndPoll({
+        program: ORACLE_PROGRAM_ID,
+        function: "unstake_credits",
+        inputs: [formatU64(amountMicro)],
+        fee: 1_000_000,
+        privateFee: false,
+      }, ORACLE_PROGRAM_ID, "unstake_credits");
+
+      if (result) {
+        triggerRefresh();
+      }
+      return result ? result.transactionId : null;
+    } catch (error) {
+      console.error("Oracle unstake failed:", error);
       return null;
     }
   };
@@ -1088,15 +1584,9 @@ export const useAleoPrograms = () => {
   };
 
   const isOracleRegistered = useCallback(async (): Promise<boolean> => {
-    if (!publicKey) return false;
-    try {
-      const raw = await fetchMappingValue(ORACLE_PROGRAM_ID, "active_oracles", publicKey);
-      return raw !== null;
-    } catch (error) {
-      console.error("Failed to check oracle registration:", error);
-      return false;
-    }
-  }, [publicKey]);
+    const stake = await fetchOracleStake();
+    return stake >= MIN_ORACLE_STAKE_MICROCREDITS;
+  }, [fetchOracleStake]);
 
   const fetchResolutionProposal = useCallback(async (marketId: string) => {
     try {
@@ -1118,6 +1608,8 @@ export const useAleoPrograms = () => {
     proposeResolution,
     disputeResolution,
     registerAsOracle,
+    unstakeOracleCredits,
+    fetchOracleStake,
     fetchResolutionProposal,
     claimWinnings,
     shieldCredits,
@@ -1127,10 +1619,13 @@ export const useAleoPrograms = () => {
     fetchTokenBalance,
     fetchUSDCxBalances,
     fetchUSDCxBalance,
+    fetchUSADBalances,
+    fetchUSADBalance,
     fetchPoolStats,
     isOracleRegistered,
     requestCredits,
     requestUSDCx,
+    requestUSAD,
     refreshSignal,
     publicKey,
     loading,

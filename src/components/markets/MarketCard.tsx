@@ -1,3 +1,4 @@
+import type { SupportedTokenKind } from "@/lib/constants";
 import { Clock, Users, Timer, ChevronRight, History, CheckCircle2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -8,12 +9,15 @@ export interface Market {
   id: string;
   title: string;
   description: string;
-  category: "Sports" | "Finance" | "Crypto" | "Politics" | "Entertainment" | "Tech";
+  category: "Sports" | "Finance" | "Crypto" | "Politics" | "Entertainment" | "Tech" | "Other";
   status: "Open" | "Closed" | "Settled";
   closingTime: string;
   creationTime?: string;
   betsPlaced: number;
   outcome?: "Yes" | "No";
+  tokenId: string;
+  tokenTicker: string;
+  tokenKind: SupportedTokenKind | null;
 }
 
 interface MarketCardProps {
@@ -26,7 +30,8 @@ const categoryStyles: Record<string, string> = {
   Crypto: "text-orange-400 bg-orange-400/10 border-orange-400/20",
   Politics: "text-purple-400 bg-purple-400/10 border-purple-400/20",
   Entertainment: "text-pink-400 bg-pink-400/10 border-pink-400/20",
-  Tech: "text-cyan-400 bg-cyan-400/10 border-cyan-400/20"
+  Tech: "text-cyan-400 bg-cyan-400/10 border-cyan-400/20",
+  Other: "text-slate-300 bg-slate-300/10 border-slate-300/20",
 };
 
 export function MarketCard({ market }: MarketCardProps) {
@@ -52,7 +57,7 @@ export function MarketCard({ market }: MarketCardProps) {
           <div className="flex gap-2">
             <span className={cn(
               "px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider border",
-              categoryStyles[market.category] || categoryStyles.Tech
+              categoryStyles[market.category] || categoryStyles.Other
             )}>
               {market.category}
             </span>
@@ -67,6 +72,11 @@ export function MarketCard({ market }: MarketCardProps) {
             <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-success/10 border border-success/20">
               <CheckCircle2 className="w-3 h-3 text-success" />
               <span className="text-[10px] font-bold uppercase tracking-widest text-success">Settled</span>
+            </div>
+          ) : market.status === "Closed" ? (
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20">
+              <Clock className="w-3 h-3 text-amber-400" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400">Closed</span>
             </div>
           ) : (
             <div className="flex items-center gap-1.5">
@@ -83,6 +93,9 @@ export function MarketCard({ market }: MarketCardProps) {
           </h3>
           <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed mb-6 group-hover:text-muted-foreground/80 transition-colors">
             {market.description}
+          </p>
+          <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-white/35">
+            {market.tokenTicker}
           </p>
         </div>
 

@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
-import { Network } from "@provablehq/aleo-types";
-import { DecryptPermission } from "@provablehq/aleo-wallet-adaptor-core";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -23,7 +21,7 @@ export function ConnectWalletButton({ className, collapsed }: { className?: stri
         if (!chosen) return;
         selectWallet(walletName);
         try {
-            await connect(Network.TESTNET);
+            await connect();
             setShowModal(false);
         } catch (error) {
             const message = error instanceof Error ? error.message : "Unknown error";

@@ -1,4 +1,4 @@
-import veilmarkets_token_credits_v6.aleo;
+import veilmarkets_token_credits_v7.aleo;
 
 program test_veilmarkets_token.aleo {
     @test

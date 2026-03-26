@@ -8,7 +8,7 @@ import { BetCard, UserBet } from "@/components/dashboard/BetCard";
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { fetchMappingValue, parseMarketInfo } from "@/lib/aleo";
-import { PROGRAM_ID, resolveTokenTicker } from "@/lib/constants";
+import { PROGRAM_ID, resolveTokenDisplayName, resolveTokenKind, resolveTokenTicker } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,13 +19,26 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+const mapCategoryLabel = (value: number | undefined): string => {
+  switch (value) {
+    case 0: return "Crypto";
+    case 1: return "Finance";
+    case 2: return "Sports";
+    case 3: return "Politics";
+    case 4: return "Entertainment";
+    case 5: return "Tech";
+    case 6: return "Other";
+    default: return "Other";
+  }
+};
+
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("all");
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [claimStep, setClaimStep] = useState<"confirm" | "processing" | "success">("confirm");
   const [userBets, setUserBets] = useState<UserBet[]>([]);
-  const [tokenBalance, setTokenBalance] = useState<number | null>(null);
+  const [privateBalances, setPrivateBalances] = useState<{ credits: number; usdcx: number; usad: number } | null>(null);
   const [stats, setStats] = useState([
     { icon: Trophy, label: "Total Bets", value: "0" },
     { icon: TrendingUp, label: "Win Rate", value: "0%" },
@@ -43,20 +56,26 @@ export default function DashboardPage() {
       is_resolved: boolean;
     }>
   >([]);
-  const { fetchUserBets, fetchMarkets, fetchTokenBalance, loading, claimWinnings, refreshSignal, publicKey } = useAleoPrograms();
+  const { fetchUserBets, fetchMarkets, fetchBalances, fetchUSDCxBalances, fetchUSADBalances, loading, claimWinnings, refreshSignal, publicKey } = useAleoPrograms();
 
   useEffect(() => {
     const loadData = async () => {
       if (!publicKey) return;
 
       try {
-        const [records, allMarkets, balance] = await Promise.all([
+        const [records, allMarkets, creditsBalances, usdcxBalances, usadBalances] = await Promise.all([
           fetchUserBets(),
           fetchMarkets(),
-          fetchTokenBalance()
+          fetchBalances(),
+          fetchUSDCxBalances(),
+          fetchUSADBalances(),
         ]);
 
-        setTokenBalance(balance);
+        setPrivateBalances({
+          credits: creditsBalances.private,
+          usdcx: usdcxBalances.private,
+          usad: usadBalances.private,
+        });
 
         const marketMap = new Map(allMarkets.map(m => [m.id.replace("field", "").trim(), m]));
         const missingMarketIds = Array.from(
@@ -102,7 +121,7 @@ export default function DashboardPage() {
             id: betId,
             marketId: record.market_id,
             marketTitle: market?.title || `Market ${record.market_id.substring(0, 8)}...`,
-            category: market?.category === 0 ? "Crypto" : market?.category === 1 ? "Sports" : "Misc",
+            category: mapCategoryLabel(market?.category),
             tokenTicker: resolveTokenTicker(market?.token_id ?? ""),
             status,
             outcome: outcomeLabel,
@@ -147,7 +166,7 @@ export default function DashboardPage() {
     };
 
     loadData();
-  }, [fetchUserBets, fetchMarkets, fetchTokenBalance, publicKey, refreshSignal]);
+  }, [fetchUserBets, fetchMarkets, fetchBalances, fetchUSDCxBalances, fetchUSADBalances, publicKey, refreshSignal]);
 
   const filteredBets = userBets.filter((bet) => {
     if (activeTab === "all") return true;
@@ -221,7 +240,7 @@ export default function DashboardPage() {
               Monitor your private predictions and settled winnings.
             </p>
           </div>
-          
+
           <div className="flex items-center gap-4">
              <div className="flex -space-x-3 pointer-events-none opacity-50">
                {[1, 2, 3].map(i => (
@@ -258,7 +277,7 @@ export default function DashboardPage() {
               </div>
             </motion.div>
           ))}
-          
+
           {/* Active Status Card (New) */}
           {/* <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -289,23 +308,37 @@ export default function DashboardPage() {
           {/* Decorative Elements */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[80px] rounded-full -translate-y-1/2 translate-x-1/2 group-hover:bg-primary/10 transition-colors duration-700" />
           <div className="absolute bottom-0 left-0 w-32 h-32 bg-accent/5 blur-[60px] rounded-full translate-y-1/2 -translate-x-1/2" />
-          
+
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
             <div className="flex items-center gap-6">
               <div className="w-12 h-12 rounded-[2rem] bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center shadow-[0_0_30px_rgba(var(--primary),0.1)]">
                 <Wallet className="w-6 h-6 text-primary" />
               </div>
               <div className="space-y-1">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">Total Vault Balance</p>
-                <div className="flex items-baseline gap-3">
-                  <h2 className="text-xl md:text-2xl font-bold text-white font-mono tracking-tighter">
-                    {tokenBalance !== null ? tokenBalance.toLocaleString() : "••••••••"}
-                  </h2>
-                  <span className="text-lg font-semibold text-primary/60 font-mono">ALEO Credits</span>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">Private Vault Balances</p>
+                <div className="flex gap-5 items-center space-y-1">
+                  <div className="flex items-baseline gap-3">
+                    <h2 className="text-lg md:text-xl font-bold text-white font-mono tracking-tighter">
+                      {privateBalances !== null ? privateBalances.credits.toLocaleString() : "••••••••"}
+                    </h2>
+                    <span className="text-sm font-medium text-primary/60 font-mono">{resolveTokenTicker("credits.aleo")}</span>
+                  </div>
+                  <div className="flex items-baseline gap-3">
+                    <h2 className="text-lg md:text-xl font-bold text-white font-mono tracking-tighter">
+                      {privateBalances !== null ? privateBalances.usdcx.toLocaleString() : "••••••••"}
+                    </h2>
+                    <span className="text-sm font-medium text-accent/70 font-mono">{resolveTokenTicker("test_usdcx_stablecoin.aleo")}</span>
+                  </div>
+                  <div className="flex items-baseline gap-3">
+                    <h2 className="text-lg md:text-xl font-bold text-white font-mono tracking-tighter">
+                      {privateBalances !== null ? privateBalances.usad.toLocaleString() : "••••••••"}
+                    </h2>
+                    <span className="text-sm font-medium text-accent/70 font-mono">{resolveTokenTicker("test_usad_stablecoin.aleo")}</span>
+                  </div>
                 </div>
               </div>
             </div>
-            
+
             <div className="flex flex-col gap-4">
                <div className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.05] transition-colors cursor-help group/tip">
                   <ShieldCheck className="w-4 h-4 text-success" />
@@ -329,9 +362,9 @@ export default function DashboardPage() {
               { id: "lost", label: "Historical" },
               { id: "created", label: "My Markets" },
             ].map((tab) => (
-              <TabsTrigger 
+              <TabsTrigger
                 key={tab.id}
-                value={tab.id} 
+                value={tab.id}
                 className="rounded-xl px-6 py-2.5 text-[10px] font-bold uppercase tracking-[0.15em] data-[state=active]:bg-primary h-10 data-[state=active]:text-slate-950 transition-all duration-300"
               >
                 {tab.label}
@@ -349,7 +382,7 @@ export default function DashboardPage() {
                   <div className="absolute top-0 right-0 p-6 opacity-0 group-hover:opacity-10 transition-opacity">
                      <Zap className="w-16 h-16 text-primary" />
                   </div>
-                  
+
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
                     <div className="space-y-2">
                       <div className="flex items-center gap-3">
@@ -366,10 +399,10 @@ export default function DashboardPage() {
                          <span>HASH: {m.title_hash}</span>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-3">
-                       <Button 
-                         variant="outline" 
+                       <Button
+                         variant="outline"
                          onClick={() => navigate(`/market/${m.id}`)}
                          className="rounded-2xl border-white/10 text-white font-bold h-6 px-6 hover:bg-white/5"
                        >
@@ -419,7 +452,7 @@ export default function DashboardPage() {
 
       {/* Claim Modal */}
       <Dialog open={showClaimModal} onOpenChange={() => setShowClaimModal(false)}>
-        <DialogContent className="sm:max-w-md bg-slate-900/90 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-md bg-slate-900/90 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-100 overflow-hidden">
           <DialogHeader>
             <DialogTitle>Claim Winnings</DialogTitle>
           </DialogHeader>

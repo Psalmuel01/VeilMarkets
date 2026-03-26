@@ -1,5 +1,5 @@
 {
-  "program": "veilmarkets_token_credits_v6.aleo",
+  "program": "veilmarkets_token_credits_v7.aleo",
   "structs": [
     {
       "path": [
@@ -120,7 +120,7 @@
           "path": [
             "EscrowInfo"
           ],
-          "program": "veilmarkets_token_credits_v6"
+          "program": "veilmarkets_token_credits_v7"
         }
       }
     },
@@ -215,7 +215,7 @@
               "path": [
                 "EscrowedBet"
               ],
-              "program": "veilmarkets_token_credits_v6"
+              "program": "veilmarkets_token_credits_v7"
             }
           },
           "mode": "None"

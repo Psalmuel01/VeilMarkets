@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { formatDateFriendly, formatVolume } from "@/lib/utils";
 import { getAllMarketMetadata } from "@/lib/metadata";
+import { resolveTokenKind, resolveTokenTicker, type SupportedTokenKind } from "@/lib/constants";
 
 const mapCategory = (value: number): Market["category"] => {
   switch (value) {
@@ -21,13 +22,16 @@ const mapCategory = (value: number): Market["category"] => {
       return "Entertainment";
     case 5:
       return "Tech";
+    case 6:
+      return "Other";
     default:
-      return "Tech";
+      return "Other";
   }
 };
 
 export default function MarketsPage() {
   const [activeCategory, setActiveCategory] = useState("all");
+  const [activeToken, setActiveToken] = useState<"all" | SupportedTokenKind>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [markets, setMarkets] = useState<Market[]>([]);
   const [totalVolume, setTotalVolume] = useState<number>(0);
@@ -63,6 +67,9 @@ export default function MarketsPage() {
           creationTime: createdTs ? formatDateFriendly(createdTs) : undefined,
           betsPlaced: 0,
           outcome: market.is_resolved ? (market.winning_outcome === 1 ? "Yes" : "No") : undefined,
+          tokenId: market.token_id,
+          tokenTicker: resolveTokenTicker(market.token_id),
+          tokenKind: resolveTokenKind(market.token_id),
         };
       });
 
@@ -91,9 +98,10 @@ export default function MarketsPage() {
 
   const filteredMarkets = markets.filter((market) => {
     const matchesCategory = activeCategory === "all" || market.category === activeCategory;
+    const matchesToken = activeToken === "all" || market.tokenKind === activeToken;
     const matchesSearch = market.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       market.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
+    return matchesCategory && matchesToken && matchesSearch;
   });
 
   return (
@@ -139,6 +147,8 @@ export default function MarketsPage() {
             onCategoryChange={setActiveCategory}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
+            activeToken={activeToken}
+            onTokenChange={setActiveToken}
           />
         </div>
 

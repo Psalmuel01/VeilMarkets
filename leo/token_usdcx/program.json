@@ -1,18 +1,18 @@
 {
-  "program": "veilmarkets_token_usdcx_v6.aleo",
+  "program": "veilmarkets_token_usdcx_v7.aleo",
   "version": "0.1.0",
   "description": "",
   "license": "MIT",
   "leo": "3.5.0",
   "dependencies": [
     {
-      "name": "veilmarkets_v6.aleo",
+      "name": "veilmarkets_v7.aleo",
       "location": "network",
       "path": null,
       "edition": null
     },
     {
-      "name": "veilmarkets_factory_v6.aleo",
+      "name": "veilmarkets_factory_v7.aleo",
       "location": "network",
       "path": null,
       "edition": null

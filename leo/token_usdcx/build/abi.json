@@ -1,5 +1,5 @@
 {
-  "program": "veilmarkets_token_usdcx_v6.aleo",
+  "program": "veilmarkets_token_usdcx_v7.aleo",
   "structs": [
     {
       "path": [
@@ -38,6 +38,32 @@
           "name": "escrow_id",
           "ty": {
             "Primitive": "Field"
+          }
+        }
+      ]
+    },
+    {
+      "path": [
+        "TokenMerkleProof"
+      ],
+      "fields": [
+        {
+          "name": "siblings",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": "Field"
+              },
+              "length": 16
+            }
+          }
+        },
+        {
+          "name": "leaf_index",
+          "ty": {
+            "Primitive": {
+              "UInt": "U32"
+            }
           }
         }
       ]
@@ -120,7 +146,7 @@
           "path": [
             "EscrowInfo"
           ],
-          "program": "veilmarkets_token_usdcx_v6"
+          "program": "veilmarkets_token_usdcx_v7"
         }
       }
     },
@@ -166,23 +192,32 @@
           "mode": "None"
         },
         {
-          "name": "token_proof",
+          "name": "token_proof_0",
           "ty": {
             "Plaintext": {
-              "Array": {
-                "element": {
-                  "Struct": {
-                    "path": [
-                      "MerkleProof"
-                    ],
-                    "program": "test_usdcx_stablecoin"
-                  }
-                },
-                "length": 2
+              "Struct": {
+                "path": [
+                  "TokenMerkleProof"
+                ],
+                "program": "veilmarkets_token_usdcx_v7"
               }
             }
           },
-          "mode": "Private"
+          "mode": "None"
+        },
+        {
+          "name": "token_proof_1",
+          "ty": {
+            "Plaintext": {
+              "Struct": {
+                "path": [
+                  "TokenMerkleProof"
+                ],
+                "program": "veilmarkets_token_usdcx_v7"
+              }
+            }
+          },
+          "mode": "None"
         },
         {
           "name": "market_id",
@@ -245,7 +280,7 @@
               "path": [
                 "EscrowedBet"
               ],
-              "program": "veilmarkets_token_usdcx_v6"
+              "program": "veilmarkets_token_usdcx_v7"
             }
           },
           "mode": "None"

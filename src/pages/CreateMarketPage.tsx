@@ -29,8 +29,9 @@ import { ZKBadge } from "@/components/ui/ZKBadge";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { getTimestampFromDate } from "@/lib/aleo";
 import {
-  TOKEN_PROGRAM_ADDRESS,
-  USDCX_TOKEN_PROGRAM_ADDRESS,
+  CREDITS_TOKEN_PROGRAM_ADDRESS,
+  USDCX_CREDITS_TOKEN_PROGRAM_ADDRESS,
+  USAD_CREDITS_TOKEN_PROGRAM_ADDRESS,
   resolveTokenTicker,
 } from "@/lib/constants";
 
@@ -41,6 +42,7 @@ const categories = [
   { value: "politics", label: "Politics" },
   { value: "entertainment", label: "Entertainment" },
   { value: "tech", label: "Tech" },
+  { value: "other", label: "Other" },
 ];
 
 type Step = "form" | "review" | "creating" | "success" | "failed";
@@ -55,7 +57,7 @@ export default function CreateMarketPage() {
     closingDate: "",
     closingTime: "23:59",
     resolutionSource: "",
-    tokenId: TOKEN_PROGRAM_ADDRESS,
+    tokenId: CREDITS_TOKEN_PROGRAM_ADDRESS,
   });
 
   const { createMarket } = useAleoPrograms();
@@ -88,6 +90,7 @@ export default function CreateMarketPage() {
       politics: 3,
       entertainment: 4,
       tech: 5,
+      other: 6,
     };
 
     const result = await createMarket(
@@ -249,15 +252,21 @@ export default function CreateMarketPage() {
                       <SelectValue placeholder="Token" />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-white/10 rounded-2xl">
-                      <SelectItem value={TOKEN_PROGRAM_ADDRESS} className="h-12 rounded-xl focus:bg-white/10">
+                      <SelectItem value={CREDITS_TOKEN_PROGRAM_ADDRESS} className="h-12 rounded-xl focus:bg-white/10">
                         <div className="flex items-center gap-2">
                           <span>Aleo Credits</span>
                           <span className="text-[8px] px-1.5 py-0.5 rounded-full border border-primary/30 text-primary uppercase font-black">Native</span>
                         </div>
                       </SelectItem>
-                      <SelectItem value={USDCX_TOKEN_PROGRAM_ADDRESS} className="h-12 rounded-xl focus:bg-white/10">
+                      <SelectItem value={USDCX_CREDITS_TOKEN_PROGRAM_ADDRESS} className="h-12 rounded-xl focus:bg-white/10">
                         <div className="flex items-center gap-2">
                           <span>USDCx</span>
+                          <span className="text-[8px] px-1.5 py-0.5 rounded-full border border-emerald-500/30 text-emerald-400 uppercase font-black">ARC20</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value={USAD_CREDITS_TOKEN_PROGRAM_ADDRESS} className="h-12 rounded-xl focus:bg-white/10">
+                        <div className="flex items-center gap-2">
+                          <span>USAD</span>
                           <span className="text-[8px] px-1.5 py-0.5 rounded-full border border-emerald-500/30 text-emerald-400 uppercase font-black">ARC20</span>
                         </div>
                       </SelectItem>

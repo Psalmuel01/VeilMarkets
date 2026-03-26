@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Shield, Loader2, CheckCircle2, X, Wallet, ArrowRight, TrendingUp } from "lucide-react";
+import { Shield, Loader2, X, Wallet, ArrowRight, TrendingUp, CheckCircle2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import {
   Dialog,
@@ -36,17 +37,19 @@ export const PlaceBetModal = ({
   tokenId,
   onBetPlaced,
 }: PlaceBetModalProps) => {
+  const navigate = useNavigate();
   const [step, setStep] = useState<Step>("select");
   const [selectedOutcome, setSelectedOutcome] = useState<"Yes" | "No" | null>(null);
   const [wagerAmount, setWagerAmount] = useState(5);
   const [txId, setTxId] = useState<string | null>(null);
-  const { placeBet, fetchPoolStats, fetchBalances, fetchUSDCxBalances, publicKey } = useAleoPrograms();
+  const { placeBet, fetchPoolStats, fetchBalances, fetchUSDCxBalances, fetchUSADBalances, publicKey } = useAleoPrograms();
   const [pool, setPool] = useState<{ total_yes: number; total_no: number } | null>(null);
   const [balances, setBalances] = useState<{ private: number; public: number; total: number } | null>(null);
   const tokenKind = resolveTokenKind(tokenId);
   const tokenTicker = resolveTokenTicker(tokenId);
   const tokenDisplayName = resolveTokenDisplayName(tokenId);
-  const hasLowPrivateBalance = !!balances && balances.private < wagerAmount;
+  const availableRequiredBalance = balances ? balances.private : 0;
+  const hasLowBalance = !!balances && availableRequiredBalance < wagerAmount;
 
   useEffect(() => {
     if (!open) return;
@@ -60,6 +63,10 @@ export const PlaceBetModal = ({
         setBalances(await fetchUSDCxBalances());
         return;
       }
+      if (tokenKind === "usad") {
+        setBalances(await fetchUSADBalances());
+        return;
+      }
       const credits = await fetchBalances();
       setBalances({
         private: credits.private,
@@ -69,7 +76,7 @@ export const PlaceBetModal = ({
     };
 
     loadBalances();
-  }, [marketId, open, publicKey, tokenKind, fetchPoolStats, fetchBalances, fetchUSDCxBalances]);
+  }, [marketId, open, publicKey, tokenKind, fetchPoolStats, fetchBalances, fetchUSDCxBalances, fetchUSADBalances]);
 
   const calculateReturn = () => {
     if (!pool || !selectedOutcome) return null;
@@ -89,7 +96,16 @@ export const PlaceBetModal = ({
 
   const potentialReturn = calculateReturn();
 
+  const resetForm = () => {
+    setStep("select");
+    setSelectedOutcome(null);
+    setWagerAmount(5);
+    setTxId(null);
+  };
+
   const handleSubmit = async () => {
+    if (!selectedOutcome) return;
+
     setStep("processing");
 
     const result = await placeBet(
@@ -102,21 +118,40 @@ export const PlaceBetModal = ({
     if (result) {
       setTxId(result);
       setStep("success");
+
       onBetPlaced?.();
+
+      try {
+        const [updatedPool, updatedBalances] = await Promise.all([
+          fetchPoolStats(marketId),
+          tokenKind === "usdcx" ? fetchUSDCxBalances() : tokenKind === "usad" ? fetchUSADBalances() : fetchBalances(),
+        ]);
+        if (updatedPool) setPool(updatedPool);
+        if (updatedBalances) {
+          setBalances(updatedBalances);
+        }
+      } catch (e) {
+        // Non-fatal: if refresh fails, we still show success state
+        console.warn("Failed to refresh pool or balances after placing bet:", e);
+      }
     } else {
       setStep("failed");
     }
   };
 
   const handleClose = () => {
-    setStep("select");
-    setSelectedOutcome(null);
-    setWagerAmount(10);
+    resetForm();
     onClose();
   };
 
+  const handleViewBets = () => {
+    handleClose();
+    navigate("/dashboard");
+  };
+
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <>
+    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleClose(); }}>
       <DialogContent className="sm:max-w-xl glass-panel !rounded-[2.5rem] border-white/10 p-0 overflow-hidden">
         {/* Decorative Background */}
         <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-primary/10 to-transparent pointer-events-none" />
@@ -206,7 +241,7 @@ export const PlaceBetModal = ({
                         Wager Amount
                       </label>
                     </div>
-                    <span className="text-xs font-mono text-muted-foreground">Max: 1000 {tokenTicker}</span>
+                    <span className="text-xs font-mono text-muted-foreground">Max: 10 {tokenTicker}</span>
                   </div>
                   <WagerSlider
                     value={wagerAmount}
@@ -215,7 +250,7 @@ export const PlaceBetModal = ({
                   />
                 </div>
 
-                {hasLowPrivateBalance && (
+                {hasLowBalance && (
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -226,9 +261,11 @@ export const PlaceBetModal = ({
                         <Shield className="w-4 h-4 text-warning" />
                       </div>
                       <div className="space-y-1">
-                        <p className="text-sm font-bold text-warning uppercase tracking-wider">Low Private Balance</p>
+                        <p className="text-sm font-bold text-warning uppercase tracking-wider">
+                          Low Private Balance
+                        </p>
                         <p className="text-xs text-muted-foreground leading-relaxed">
-                          This market requires <span className="text-white font-bold">{wagerAmount} {tokenDisplayName}</span> privately. Available private balance: <span className="text-white font-bold">{balances?.private.toLocaleString()} {tokenTicker}</span>.
+                          This market requires <span className="text-white font-bold">{wagerAmount} {tokenDisplayName}</span> from your private balance. Available private balance: <span className="text-white font-bold">{availableRequiredBalance.toLocaleString()} {tokenTicker}</span>.
                         </p>
                       </div>
                     </div>
@@ -237,7 +274,7 @@ export const PlaceBetModal = ({
 
                 <Button
                   onClick={() => setStep("confirm")}
-                  disabled={!selectedOutcome || hasLowPrivateBalance}
+                  disabled={!selectedOutcome || hasLowBalance}
                   className="w-full btn-premium h-16 rounded-[1.5rem] group"
                 >
                   <span className="text-base font-bold">Continue to Review</span>
@@ -351,42 +388,56 @@ export const PlaceBetModal = ({
             {step === "success" && (
               <motion.div
                 key="success"
-                initial={{ opacity: 0, scale: 0.9 }}
+                initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="py-12 text-center space-y-8"
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="py-8 text-center space-y-8 overflow-hidden relative"
               >
+                <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-success/50 to-transparent" />
+
                 <motion.div
-                  initial={{ scale: 0, rotate: -45 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  transition={{ type: "spring", damping: 10, delay: 0.2 }}
-                  className="mx-auto w-32 h-32 rounded-[2.5rem] bg-success/10 border border-success/30 flex items-center justify-center shadow-[0_0_50px_hsla(160,84%,45%,0.15)]"
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.2 }}
+                  className="mx-auto w-24 h-24 rounded-full bg-success/10 border border-success/30 flex items-center justify-center shadow-[0_0_40px_hsla(160,84%,45%,0.2)]"
                 >
-                  <CheckCircle2 className="w-16 h-16 text-success" />
+                  <CheckCircle2 className="w-12 h-12 text-success" />
                 </motion.div>
 
                 <div className="space-y-3">
-                  <div>
-                    <h3 className="text-2xl font-bold text-white tracking-tight">Bet Confirmed</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Your transaction has been securely broadcast to Aleo.
-                    </p>
-                  </div>
-                  <div className="flex justify-center">
+                  <h3 className="text-3xl font-black text-white tracking-tight">Bet Confirmed</h3>
+                  <p className="text-muted-foreground font-medium max-w-sm mx-auto">
+                    Your private bet is now recorded on-chain and secured by ZK proofs.
+                  </p>
+                  <div className="flex justify-center pt-2">
                     <ZKBadge variant="verified" size="lg" animated />
                   </div>
                 </div>
 
-                <div className="p-6 rounded-3xl bg-white/[0.03] border border-white/5 group">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Transaction Hash</div>
-                  <code className="text-xs font-mono text-primary break-all group-hover:text-primary/100 transition-colors">
-                    {txId || "aleo1tx..."}
-                  </code>
+                <div className="max-w-md mx-auto p-6 rounded-[2rem] bg-white/[0.03] border border-white/5 space-y-3">
+                  <div className="flex flex-col gap-1 items-center">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40">Transaction Signature</span>
+                    <code className="text-xs font-mono text-primary/80 break-all bg-primary/5 px-4 py-2 rounded-lg border border-primary/10">
+                      {txId || "aleo1tx..."}
+                    </code>
+                  </div>
                 </div>
 
-                <Button onClick={handleClose} className="w-full btn-premium h-14 rounded-2xl font-bold">
-                  View My Bets
-                </Button>
+                <div className="flex gap-4 max-w-md mx-auto">
+                  <Button
+                    variant="outline"
+                    onClick={handleClose}
+                    className="flex-1 h-14 rounded-2xl border-white/10 text-white font-bold"
+                  >
+                    BACK TO MARKET
+                  </Button>
+                  <Button
+                    onClick={handleViewBets}
+                    className="flex-[2] h-14 rounded-2xl btn-premium text-base font-black"
+                  >
+                    VIEW MY BETS
+                  </Button>
+                </div>
               </motion.div>
             )}
 
@@ -435,5 +486,5 @@ export const PlaceBetModal = ({
         </div>
       </DialogContent>
     </Dialog>
-  );
+  </>);
 };

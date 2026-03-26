@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -27,12 +27,43 @@ export function OracleRegistrationModal({
   onClose,
   onSuccess,
 }: OracleRegistrationModalProps) {
-  const { registerAsOracle, loading } = useAleoPrograms();
+  const { registerAsOracle, unstakeOracleCredits, fetchOracleStake, loading } = useAleoPrograms();
   const [step, setStep] = useState<Step>("input");
   const [stakeAmount, setStakeAmount] = useState<string>("30");
   const [txId, setTxId] = useState<string | null>(null);
+  const [oracleStakeMicro, setOracleStakeMicro] = useState<number>(0);
+  const [oracleActive, setOracleActive] = useState(false);
+  const [oracleStatusLoading, setOracleStatusLoading] = useState(false);
+  const [lastAction, setLastAction] = useState<"register" | "unstake" | null>(null);
 
   const minStake = 30;
+  const minStakeMicro = minStake * 1_000_000;
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+
+    const loadOracleStatus = async () => {
+      setOracleStatusLoading(true);
+      try {
+        const stake = await fetchOracleStake();
+        if (cancelled) return;
+        setOracleStakeMicro(stake);
+        setOracleActive(stake >= minStakeMicro);
+      } finally {
+        if (!cancelled) setOracleStatusLoading(false);
+      }
+    };
+
+    setStep("input");
+    setTxId(null);
+    setLastAction(null);
+    loadOracleStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, fetchOracleStake, minStakeMicro]);
 
   const handleRegister = async () => {
     const amount = parseFloat(stakeAmount);
@@ -42,11 +73,34 @@ export function OracleRegistrationModal({
     }
 
     setStep("processing");
+    setLastAction("register");
     const resultTx = await registerAsOracle(amount);
     
     if (resultTx) {
       setTxId(resultTx);
       setStep("success");
+      setOracleActive(true);
+      onSuccess?.();
+    } else {
+      setStep("failed");
+    }
+  };
+
+  const handleUnstakeAll = async () => {
+    if (oracleStakeMicro <= 0) {
+      toast.error("No oracle stake found to unstake.");
+      return;
+    }
+
+    setStep("processing");
+    setLastAction("unstake");
+    const resultTx = await unstakeOracleCredits(oracleStakeMicro / 1_000_000);
+
+    if (resultTx) {
+      setTxId(resultTx);
+      setStep("success");
+      setOracleActive(false);
+      setOracleStakeMicro(0);
       onSuccess?.();
     } else {
       setStep("failed");
@@ -63,7 +117,7 @@ export function OracleRegistrationModal({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
+    <Dialog open={isOpen} onOpenChange={(nextOpen) => { if (!nextOpen) handleClose(); }}>
       <DialogContent className="sm:max-w-md bg-card">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -85,43 +139,75 @@ export function OracleRegistrationModal({
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-6"
               >
-                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-3">
-                  <div className="flex items-center gap-2 text-amber-500">
-                    <AlertTriangle className="w-4 h-4" />
-                    <span className="text-sm font-semibold">Staking Requirements</span>
+                {oracleStatusLoading ? (
+                  <div className="py-10 text-center space-y-3">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto text-amber-500" />
+                    <p className="text-sm text-muted-foreground">Checking oracle stake status...</p>
                   </div>
-                  <ul className="text-xs text-muted-foreground leading-relaxed space-y-1 list-disc list-inside">
-                    <li>Minimum stake: <strong>{minStake} ALEO Credits</strong></li>
-                    <li>Oracles earn rewards for correct proposals.</li>
-                    <li>Malicious proposals can be disputed, resulting in slashed bonds.</li>
-                  </ul>
-                </div>
+                ) : oracleActive ? (
+                  <>
+                    <div className="p-4 rounded-xl bg-success/10 border border-success/20 space-y-3">
+                      <div className="flex items-center gap-2 text-success">
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span className="text-sm font-semibold">Active Oracle</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Current stake: <strong>{(oracleStakeMicro / 1_000_000).toLocaleString()} Credits</strong>
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Unstaking all credits will remove your oracle status immediately.
+                      </p>
+                    </div>
 
-                <div className="space-y-3">
-                  <Label htmlFor="stake-amount">Stake Amount (ALEO)</Label>
-                  <Input
-                    id="stake-amount"
-                    type="number"
-                    min={minStake}
-                    step="1"
-                    value={stakeAmount}
-                    onChange={(e) => setStakeAmount(e.target.value)}
-                    className="font-mono text-lg"
-                    placeholder="30"
-                  />
-                  {parseFloat(stakeAmount) < minStake && (
-                     <p className="text-xs text-destructive">Amount must be at least {minStake} credits.</p>
-                  )}
-                </div>
+                    <Button
+                      className="w-full bg-destructive hover:bg-destructive/90 text-white"
+                      onClick={handleUnstakeAll}
+                      disabled={loading || oracleStakeMicro <= 0}
+                    >
+                      Unstake All & Remove Oracle Status
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-3">
+                      <div className="flex items-center gap-2 text-amber-500">
+                        <AlertTriangle className="w-4 h-4" />
+                        <span className="text-sm font-semibold">Staking Requirements</span>
+                      </div>
+                      <ul className="text-xs text-muted-foreground leading-relaxed space-y-1 list-disc list-inside">
+                        <li>Minimum stake: <strong>{minStake} ALEO Credits</strong></li>
+                        <li>Oracles earn rewards for correct proposals.</li>
+                        <li>Malicious proposals can be disputed, resulting in slashed bonds.</li>
+                      </ul>
+                    </div>
 
-                <Button
-                  className="w-full bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/20"
-                  onClick={handleRegister}
-                  disabled={loading || parseFloat(stakeAmount) < minStake || isNaN(parseFloat(stakeAmount))}
-                >
-                  <Shield className="w-4 h-4 mr-2" />
-                  Stake {stakeAmount || 0} Credits & Register
-                </Button>
+                    <div className="space-y-3">
+                      <Label htmlFor="stake-amount">Stake Amount (ALEO)</Label>
+                      <Input
+                        id="stake-amount"
+                        type="number"
+                        min={minStake}
+                        step="1"
+                        value={stakeAmount}
+                        onChange={(e) => setStakeAmount(e.target.value)}
+                        className="font-mono text-lg"
+                        placeholder="30"
+                      />
+                      {parseFloat(stakeAmount) < minStake && (
+                        <p className="text-xs text-destructive">Amount must be at least {minStake} credits.</p>
+                      )}
+                    </div>
+
+                    <Button
+                      className="w-full bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/20"
+                      onClick={handleRegister}
+                      disabled={loading || parseFloat(stakeAmount) < minStake || isNaN(parseFloat(stakeAmount))}
+                    >
+                      <Shield className="w-4 h-4 mr-2" />
+                      Stake {stakeAmount || 0} Credits & Register
+                    </Button>
+                  </>
+                )}
               </motion.div>
             )}
 
@@ -142,7 +228,9 @@ export function OracleRegistrationModal({
                 <div>
                   <h3 className="text-lg font-semibold mb-2">Registering Oracle</h3>
                   <p className="text-sm text-muted-foreground">
-                    Securing your stake and generating proof...
+                    {lastAction === "unstake"
+                      ? "Withdrawing your oracle stake and updating status..."
+                      : "Securing your stake and generating proof..."}
                   </p>
                 </div>
               </motion.div>
@@ -166,9 +254,13 @@ export function OracleRegistrationModal({
                 </motion.div>
 
                 <div>
-                  <h3 className="text-lg font-semibold mb-2">Registration Successful!</h3>
+                  <h3 className="text-lg font-semibold mb-2">
+                    {lastAction === "unstake" ? "Unstake Successful!" : "Registration Successful!"}
+                  </h3>
                   <p className="text-sm text-muted-foreground mb-4">
-                    You are now a registered Oracle. You can propose and dispute outcomes.
+                    {lastAction === "unstake"
+                      ? "Your stake has been withdrawn and oracle status was removed."
+                      : "You are now a registered Oracle. You can propose and dispute outcomes."}
                   </p>
                 </div>
 
