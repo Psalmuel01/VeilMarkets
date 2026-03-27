@@ -25,7 +25,7 @@ This guide covers:
 - Ensure wallet has **on-chain history access** (required for private record proofs)
 - Supported tokens:
   - **USDCx**
-  - **USDA**
+  - **USAD**
 
 ---
 
@@ -63,7 +63,7 @@ Navigate to **Create Market** and configure:
 
 - Define outcomes
 - Set expiration date
-- Choose token (**USDCx / USDA**)
+- Choose token (**USDCx / USAD**)
 - Specify settlement logic
 
 ---
@@ -152,7 +152,7 @@ Each market progresses through:
 
 - Navigate to resolved markets
 - Claim winnings if prediction was correct
-- Payouts in **USDCx / USDA**
+- Payouts in **USDCx / USAD**
 
 ---
 
