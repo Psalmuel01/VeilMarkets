@@ -9,6 +9,7 @@ import { ZKBadge } from "@/components/ui/ZKBadge";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { fetchMappingValue, parseMarketInfo } from "@/lib/aleo";
 import { PROGRAM_ID, resolveTokenDisplayName, resolveTokenKind, resolveTokenTicker } from "@/lib/constants";
+import { getOutcomeLabel, isCancelledOutcome } from "@/lib/outcomes";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -99,17 +100,23 @@ export default function DashboardPage() {
         const mapped: UserBet[] = records.map((record) => {
           // record.market_id is already cleaned by the hook
           const market = marketMap.get(record.market_id);
-          const outcomeLabel = record.outcome === "1" ? "Yes" : "No";
+          const parsedOutcome = Number.parseInt(record.outcome, 10);
+          const outcomeLabel = getOutcomeLabel(
+            market?.market_type ?? 0,
+            market?.outcome_count ?? 2,
+            parsedOutcome,
+            market?.outcome_labels,
+          );
           const betId = `${record.market_id}-${record.escrow_id}`;
 
           let status: "Pending" | "Won" | "Lost" | "Cancelled" = "Pending";
           let canClaim = false;
 
           if (market?.is_resolved) {
-            if (market.winning_outcome === 3) {
+            if (isCancelledOutcome(market.winning_outcome)) {
               status = "Cancelled";
-              canClaim = !record.position_spent;
-            } else if (market.winning_outcome === (record.outcome === "1" ? 1 : 0)) {
+              canClaim = false;
+            } else if (Number.isFinite(parsedOutcome) && market.winning_outcome === parsedOutcome) {
               status = "Won";
               canClaim = !record.position_spent;
             } else {
@@ -452,7 +459,7 @@ export default function DashboardPage() {
 
       {/* Claim Modal */}
       <Dialog open={showClaimModal} onOpenChange={() => setShowClaimModal(false)}>
-        <DialogContent className="sm:max-w-md bg-slate-900/90 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-100 overflow-hidden">
+        <DialogContent className="sm:max-w-md bg-slate-900/90 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-10 overflow-hidden">
           <DialogHeader>
             <DialogTitle>Claim Winnings</DialogTitle>
           </DialogHeader>

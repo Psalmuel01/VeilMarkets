@@ -12,7 +12,7 @@ export interface UserBet {
   category: string;
   tokenTicker: string;
   status: "Pending" | "Won" | "Lost" | "Cancelled";
-  outcome: "Yes" | "No";
+  outcome: string;
   placedAt: string;
   canClaim: boolean;
   claimedAmount?: number;

@@ -1,7 +1,7 @@
-import veilmarkets_factory_v7.aleo;
-import veilmarkets_v7.aleo;
+import veilmarkets_factory_v8.aleo;
+import veilmarkets_v8.aleo;
 import credits.aleo;
-program veilmarkets_token_credits_v7.aleo;
+program veilmarkets_token_credits_v8.aleo;
 
 record EscrowedBet:
     owner as address.private;
@@ -43,23 +43,21 @@ function place_bet:
     assert.eq r4 true;
     gte r3 1000000u64 into r5;
     assert.eq r5 true;
-    is.eq r2 0u8 into r6;
-    is.eq r2 1u8 into r7;
-    or r6 r7 into r8;
-    assert.eq r8 true;
-    call credits.aleo/transfer_private_to_public r0 veilmarkets_token_credits_v7.aleo r3 into r9 r10;
-    cast self.caller into r11 as field;
-    add r11 r1 into r12;
-    cast r3 into r13 as field;
-    add r12 r13 into r14;
-    hash.bhp256 r14 into r15 as field;
-    call veilmarkets_v7.aleo/place_bet r1 r2 r3 r15 self.caller into r16;
-    hash.bhp256 r15 into r17 as group;
-    cast self.signer r1 r3 r2 r15 r17 into r18 as EscrowedBet.record;
-    async place_bet r1 r2 r3 r15 self.caller r10 r16 into r19;
-    output r9 as credits.aleo/credits.record;
-    output r18 as EscrowedBet.record;
-    output r19 as veilmarkets_token_credits_v7.aleo/place_bet.future;
+    lte r2 3u8 into r6;
+    assert.eq r6 true;
+    call credits.aleo/transfer_private_to_public r0 veilmarkets_token_credits_v8.aleo r3 into r7 r8;
+    cast self.caller into r9 as field;
+    add r9 r1 into r10;
+    cast r3 into r11 as field;
+    add r10 r11 into r12;
+    hash.bhp256 r12 into r13 as field;
+    call veilmarkets_v8.aleo/place_bet r1 r2 r3 r13 self.caller into r14;
+    hash.bhp256 r13 into r15 as group;
+    cast self.signer r1 r3 r2 r13 r15 into r16 as EscrowedBet.record;
+    async place_bet r1 r2 r3 r13 self.caller r8 r14 into r17;
+    output r7 as credits.aleo/credits.record;
+    output r16 as EscrowedBet.record;
+    output r17 as veilmarkets_token_credits_v8.aleo/place_bet.future;
 
 finalize place_bet:
     input r0 as field.public;
@@ -68,7 +66,7 @@ finalize place_bet:
     input r3 as field.public;
     input r4 as address.public;
     input r5 as credits.aleo/transfer_private_to_public.future;
-    input r6 as veilmarkets_v7.aleo/place_bet.future;
+    input r6 as veilmarkets_v8.aleo/place_bet.future;
     await r5;
     await r6;
     contains escrow_details[r3] into r7;
@@ -83,16 +81,16 @@ finalize place_bet:
 function claim_payout:
     input r0 as u64.public;
     input r1 as field.public;
-    call veilmarkets_v7.aleo/verify_claim r1 r0 into r2;
+    call veilmarkets_v8.aleo/verify_claim r1 r0 into r2;
     call credits.aleo/transfer_public_to_private self.caller r0 into r3 r4;
     async claim_payout r1 r4 r2 into r5;
     output r3 as credits.aleo/credits.record;
-    output r5 as veilmarkets_token_credits_v7.aleo/claim_payout.future;
+    output r5 as veilmarkets_token_credits_v8.aleo/claim_payout.future;
 
 finalize claim_payout:
     input r0 as field.public;
     input r1 as credits.aleo/transfer_public_to_private.future;
-    input r2 as veilmarkets_v7.aleo/verify_claim.future;
+    input r2 as veilmarkets_v8.aleo/verify_claim.future;
     await r1;
     await r2;
     get.or_use spent_escrow[r0] false into r3;
@@ -106,7 +104,7 @@ function refund_bet:
     call credits.aleo/transfer_public_to_private self.caller r1 into r2 r3;
     async refund_bet r0 r1 self.caller r3 into r4;
     output r2 as credits.aleo/credits.record;
-    output r4 as veilmarkets_token_credits_v7.aleo/refund_bet.future;
+    output r4 as veilmarkets_token_credits_v8.aleo/refund_bet.future;
 
 finalize refund_bet:
     input r0 as field.public;

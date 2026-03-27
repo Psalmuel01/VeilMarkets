@@ -1,10 +1,10 @@
-// VeilMarkets Token — Credits Adapter (v7)
+// VeilMarkets Token — Credits Adapter (v8)
 // Handles betting and pro-rata payouts using native credits.aleo
 import credits.aleo;
-import veilmarkets_v7.aleo;
-import veilmarkets_factory_v7.aleo;
+import veilmarkets_v8.aleo;
+import veilmarkets_factory_v8.aleo;
 
-program veilmarkets_token_credits_v7.aleo {
+program veilmarkets_token_credits_v8.aleo {
 
     // ── Structs ────────────────────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ program veilmarkets_token_credits_v7.aleo {
     ) -> (credits.aleo/credits, EscrowedBet, Future) {
         assert(input_credits.microcredits >= bet_amount);
         assert(bet_amount >= MIN_BET);
-        assert(outcome == 0u8 || outcome == 1u8);
+        assert(outcome <= 3u8);
 
         // Transfer bet_amount to this contract's public balance
         let (change, transfer_future): (credits.aleo/credits, Future) =
@@ -74,7 +74,7 @@ program veilmarkets_token_credits_v7.aleo {
             self.caller as field + market_id + bet_amount as field,
         );
 
-        let core_future: Future = veilmarkets_v7.aleo/place_bet(
+        let core_future: Future = veilmarkets_v8.aleo/place_bet(
             market_id,
             outcome,
             bet_amount,
@@ -142,7 +142,7 @@ program veilmarkets_token_credits_v7.aleo {
         public nullifier: field,
     ) -> (credits.aleo/credits, Future) {
         // Core verifies the payout amount and marks the nullifier consumed
-        let core_result: Future = veilmarkets_v7.aleo/verify_claim(nullifier, payout_amount);
+        let core_result: Future = veilmarkets_v8.aleo/verify_claim(nullifier, payout_amount);
 
         // Transfer payout from contract's public balance to caller's private record
         let (payout_record, transfer_future): (credits.aleo/credits, Future) =
@@ -170,7 +170,7 @@ program veilmarkets_token_credits_v7.aleo {
     }
 
     // ── Refund bet ─────────────────────────────────────────────────────────────
-    // Used when a market is cancelled (winning_outcome == 3u8).
+    // Used when a market is cancelled (winning_outcome == 255u8).
     // The caller must be the original bettor (holder check in finalize).
 
     async transition refund_bet(
@@ -200,7 +200,7 @@ program veilmarkets_token_credits_v7.aleo {
         assert_eq(details.holder, caller);
         assert_eq(details.amount, amount);
 
-        // Verify the market is actually cancelled (winning_outcome == 3u8)
+        // Verify the market is actually cancelled (winning_outcome == 255u8)
         // This is enforced by core via the escrow link — the caller cannot
         // fabricate a refund for a live market because the market mapping
         // in core is authoritative and separate from this contract.

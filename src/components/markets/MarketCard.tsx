@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { Badge } from "@/components/ui/badge";
+import { getOutcomeTone, normalizeOutcomeCount } from "@/lib/outcomes";
 
 export interface Market {
   id: string;
@@ -14,7 +15,10 @@ export interface Market {
   closingTime: string;
   creationTime?: string;
   betsPlaced: number;
-  outcome?: "Yes" | "No";
+  marketType: number;
+  outcomeCount: number;
+  winningOutcome?: number;
+  outcome?: string;
   tokenId: string;
   tokenTicker: string;
   tokenKind: SupportedTokenKind | null;
@@ -35,6 +39,10 @@ const categoryStyles: Record<string, string> = {
 };
 
 export function MarketCard({ market }: MarketCardProps) {
+  const outcomeTone = typeof market.winningOutcome === "number"
+    ? getOutcomeTone(market.marketType, normalizeOutcomeCount(market.outcomeCount), market.winningOutcome)
+    : "neutral";
+
   return (
     <Link
       to={`/market/${market.id}`}
@@ -47,9 +55,11 @@ export function MarketCard({ market }: MarketCardProps) {
         {/* Hover Gradient Effect */}
         <div className={cn(
           "absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500",
-          market.status === "Settled" && market.outcome === "No" 
-            ? "bg-gradient-to-br from-destructive/10 via-transparent to-destructive/5" 
-            : "bg-gradient-to-br from-primary/5 via-transparent to-accent/5"
+          market.status === "Settled" && outcomeTone === "no"
+            ? "bg-gradient-to-br from-destructive/10 via-transparent to-destructive/5"
+            : market.status === "Settled" && outcomeTone === "yes"
+              ? "bg-gradient-to-br from-success/10 via-transparent to-success/5"
+              : "bg-gradient-to-br from-primary/5 via-transparent to-accent/5"
         )} />
         
         {/* Top Header */}
@@ -128,15 +138,27 @@ export function MarketCard({ market }: MarketCardProps) {
           <div className="absolute top-0 right-0 left-0 bottom-0 bg-black/60 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center p-6 text-center">
             <div className={cn(
               "px-6 py-3 rounded-2xl border",
-              market.outcome === "Yes" ? "bg-success/20 border-success/30" : "bg-destructive/20 border-destructive/30"
+              outcomeTone === "yes"
+                ? "bg-success/20 border-success/30"
+                : outcomeTone === "no"
+                  ? "bg-destructive/20 border-destructive/30"
+                  : "bg-primary/20 border-primary/30"
             )}>
               <div className={cn(
                 "text-[10px] font-semibold uppercase tracking-[0.2em] mb-1",
-                market.outcome === "Yes" ? "text-success/80" : "text-destructive/80"
+                outcomeTone === "yes"
+                  ? "text-success/80"
+                  : outcomeTone === "no"
+                    ? "text-destructive/80"
+                    : "text-primary/80"
               )}>Final Result</div>
               <div className={cn(
                 "text-2xl font-bold font-heading",
-                market.outcome === "Yes" ? "text-success" : "text-destructive"
+                outcomeTone === "yes"
+                  ? "text-success"
+                  : outcomeTone === "no"
+                    ? "text-destructive"
+                    : "text-primary"
               )}>{market.outcome.toUpperCase()}</div>
             </div>
           </div>

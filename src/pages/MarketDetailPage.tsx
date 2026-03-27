@@ -36,6 +36,7 @@ import { cn, formatDateFriendly } from "@/lib/utils";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { ADMIN_ADDRESS, resolveTokenDisplayName, resolveTokenTicker } from "@/lib/constants";
 import { PoolInfo } from "@/lib/aleo";
+import { getOutcomeLabel, getOutcomeLabels, getOutcomeTone, isCancelledOutcome, normalizeOutcomeCount } from "@/lib/outcomes";
 
 
 const categoryStyles: Record<string, string> = {
@@ -56,7 +57,7 @@ export default function MarketDetailPage() {
   const [finalizeStep, setFinalizeStep] = useState<"confirm" | "processing" | "success" | "failed">("confirm");
   const [finalizeTxId, setFinalizeTxId] = useState<string | null>(null);
   const [hasUserBet, setHasUserBet] = useState(false);
-  const [userBetOutcome, setUserBetOutcome] = useState<"Yes" | "No" | null>(null);
+  const [userBetOutcome, setUserBetOutcome] = useState<string | null>(null);
   const [userBetResult, setUserBetResult] = useState<"Won" | "Lost" | "Cancelled" | null>(null);
   const [proposal, setProposal] = useState<{
     proposed_outcome: number;
@@ -78,6 +79,9 @@ export default function MarketDetailPage() {
     close_time: number;
     resolution_time: number;
     is_resolved: boolean;
+    market_type: number;
+    outcome_count: number;
+    outcome_labels: string[];
     winningOutcome?: number;
     token_id: string;
   } | null>(null);
@@ -128,12 +132,18 @@ export default function MarketDetailPage() {
         const userBet = userBets.find((b) => cleanId(b.market_id) === currentId);
         if (userBet) {
           setHasUserBet(true);
-          const outcomeLabel = userBet.outcome === "1" ? "Yes" : "No";
+          const numericOutcome = Number.parseInt(userBet.outcome, 10);
+          const outcomeLabel = getOutcomeLabel(
+            found.market_type,
+            found.outcome_count,
+            numericOutcome,
+            found.outcome_labels,
+          );
           setUserBetOutcome(outcomeLabel);
           if (found.is_resolved) {
-            if (found.winning_outcome === 3) {
+            if (isCancelledOutcome(found.winning_outcome)) {
               setUserBetResult("Cancelled");
-            } else if (found.winning_outcome === (userBet.outcome === "1" ? 1 : 0)) {
+            } else if (Number.isFinite(numericOutcome) && found.winning_outcome === numericOutcome) {
               setUserBetResult("Won");
             } else {
               setUserBetResult("Lost");
@@ -161,6 +171,9 @@ export default function MarketDetailPage() {
           close_time: found.close_time,
           resolution_time: found.resolution_time || found.close_time + 3600, // Fallback if 0
           is_resolved: found.is_resolved,
+          market_type: found.market_type,
+          outcome_count: found.outcome_count,
+          outcome_labels: found.outcome_labels ?? [],
           winningOutcome: found.winning_outcome,
           token_id: found.token_id,
         });
@@ -205,19 +218,29 @@ export default function MarketDetailPage() {
   const isSettled = !!market?.is_resolved;
   const isClosed = !isSettled && market?.close_time && nowTs >= market.close_time;
   const marketStatus = isSettled ? "Settled" : isClosed ? "Closed" : "Open";
+  const normalizedOutcomeCount = normalizeOutcomeCount(market?.outcome_count ?? 2);
+  const outcomeLabels = getOutcomeLabels(market?.market_type ?? 0, normalizedOutcomeCount, market?.outcome_labels);
 
   // Calculate stats
-  const totalVolume = pool ? (pool.total_yes + pool.total_no) / 1_000_000 : 0;
-  const yesPercent = pool && (pool.total_yes + pool.total_no) > 0
-    ? Math.round((pool.total_yes / (pool.total_yes + pool.total_no)) * 100)
-    : 50;
-  const noPercent = 100 - yesPercent;
+  const outcomeTotals = [
+    pool?.total_outcome_0 ?? pool?.total_no ?? 0,
+    pool?.total_outcome_1 ?? pool?.total_yes ?? 0,
+    pool?.total_outcome_2 ?? 0,
+    pool?.total_outcome_3 ?? 0,
+  ];
+  const activeOutcomeTotals = outcomeTotals.slice(0, normalizedOutcomeCount);
+  const totalPoolMicro = activeOutcomeTotals.reduce((acc, value) => acc + value, 0);
+  const totalVolume = totalPoolMicro / 1_000_000;
+  const outcomePercents = activeOutcomeTotals.map((amount) =>
+    totalPoolMicro > 0 ? Math.round((amount / totalPoolMicro) * 100) : Math.round(100 / normalizedOutcomeCount),
+  );
 
-  const resolvedOutcomeLabel =
-    market?.winningOutcome === 1 ? "YES" :
-      market?.winningOutcome === 0 ? "NO" :
-        market?.winningOutcome === 3 ? "CANCELLED" :
-          null;
+  const resolvedOutcomeLabel = isCancelledOutcome(market?.winningOutcome)
+    ? "CANCELLED"
+    : getOutcomeLabel(market?.market_type ?? 0, normalizedOutcomeCount, market?.winningOutcome, market?.outcome_labels);
+  const resolvedOutcomeTone = isCancelledOutcome(market?.winningOutcome)
+    ? "neutral"
+    : getOutcomeTone(market?.market_type ?? 0, normalizedOutcomeCount, market?.winningOutcome ?? 0);
 
   const isAdmin = publicKey
     ? publicKey.replace(/address/g, "").trim().toLowerCase() === ADMIN_ADDRESS.toLowerCase()
@@ -358,30 +381,52 @@ export default function MarketDetailPage() {
           </div>
         </motion.div>
 
-        {/* Global Probability Bar (New) */}
-        <div className="mb-12">
-          <div className="flex justify-between items-end mb-4 px-2">
-            <div className="flex flex-col">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-success/60 mb-1">Yes Outcome</span>
-              <span className="text-3xl font-bold text-success font-mono">{yesPercent}%</span>
-            </div>
-            <div className="flex flex-col items-end">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-destructive/60 mb-1">No Outcome</span>
-              <span className="text-3xl font-bold text-destructive font-mono">{noPercent}%</span>
-            </div>
-          </div>
-          <div className="h-4 w-full bg-white/[0.03] rounded-full border border-white/5 p-1 flex overflow-hidden">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${yesPercent}%` }}
-              className="h-full bg-gradient-to-r from-success/40 to-success rounded-l-full shadow-[0_0_20px_hsla(160,84%,45%,0.3)] transition-all duration-1000"
-            />
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${noPercent}%` }}
-              className="h-full bg-gradient-to-l from-destructive/40 to-destructive rounded-r-full shadow-[0_0_20px_hsla(0,84%,60%,0.3)] transition-all duration-1000"
-            />
-          </div>
+        {/* Outcome Distribution */}
+        <div className="mb-12 space-y-3">
+          {outcomeLabels.map((label, index) => {
+            const tone = getOutcomeTone(market.market_type, normalizedOutcomeCount, index);
+            const percent = outcomePercents[index] ?? 0;
+            return (
+              <div key={label} className="space-y-2">
+                <div className="flex justify-between items-end px-2">
+                  <span className={cn(
+                    "text-[10px] font-semibold uppercase tracking-widest",
+                    tone === "yes"
+                      ? "text-success/60"
+                      : tone === "no"
+                        ? "text-destructive/60"
+                        : "text-primary/60",
+                  )}>
+                    {label}
+                  </span>
+                  <span className={cn(
+                    "text-2xl font-bold font-mono",
+                    tone === "yes"
+                      ? "text-success"
+                      : tone === "no"
+                        ? "text-destructive"
+                        : "text-primary",
+                  )}>
+                    {percent}%
+                  </span>
+                </div>
+                <div className="h-3 w-full bg-white/[0.03] rounded-full border border-white/5 p-0.5 flex overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${percent}%` }}
+                    className={cn(
+                      "h-full rounded-full transition-all duration-1000",
+                      tone === "yes"
+                        ? "bg-gradient-to-r from-success/30 to-success"
+                        : tone === "no"
+                          ? "bg-gradient-to-r from-destructive/30 to-destructive"
+                          : "bg-gradient-to-r from-primary/30 to-primary",
+                    )}
+                  />
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Market Stats Cards */}
@@ -433,7 +478,13 @@ export default function MarketDetailPage() {
                 </h2>
                 <div className={cn(
                   "text-5xl font-bold font-mono tracking-tighter",
-                  resolvedOutcomeLabel === "YES" ? "text-success" : resolvedOutcomeLabel === "NO" ? "text-destructive" : "text-white/40"
+                  resolvedOutcomeLabel === "CANCELLED"
+                    ? "text-white/40"
+                    : resolvedOutcomeTone === "yes"
+                      ? "text-success"
+                      : resolvedOutcomeTone === "no"
+                        ? "text-destructive"
+                        : "text-primary"
                 )}>
                   {resolvedOutcomeLabel}
                 </div>
@@ -495,19 +546,17 @@ export default function MarketDetailPage() {
                 <Zap className="w-4 h-4 text-accent" />
                 Available Outcomes
               </h2>
-              <div className="flex gap-6">
-                <OutcomeCard
-                  outcome="Yes"
-                  selected={false}
-                  onSelect={() => { if (!hasUserBet && marketStatus === "Open") setShowBetModal(true); }}
-                  disabled={marketStatus !== "Open" || hasUserBet} 
-                />
-                <OutcomeCard
-                  outcome="No"
-                  selected={false}
-                  onSelect={() => { if (!hasUserBet && marketStatus === "Open") setShowBetModal(true); }}
-                  disabled={marketStatus !== "Open" || hasUserBet}
-                />
+              <div className="grid grid-cols-2 gap-6">
+                {outcomeLabels.map((label, index) => (
+                  <OutcomeCard
+                    key={label}
+                    outcome={label}
+                    tone={getOutcomeTone(market.market_type, normalizedOutcomeCount, index)}
+                    selected={false}
+                    onSelect={() => { if (!hasUserBet && marketStatus === "Open") setShowBetModal(true); }}
+                    disabled={marketStatus !== "Open" || hasUserBet}
+                  />
+                ))}
               </div>
 
               {marketStatus !== "Open" && (
@@ -627,9 +676,18 @@ export default function MarketDetailPage() {
                         <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Proposed Outcome</span>
                         <div className={cn(
                           "px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border",
-                          proposal.proposed_outcome === 1 ? "bg-success/20 text-success border-success/30" : "bg-destructive/20 text-destructive border-destructive/30"
+                          getOutcomeTone(market.market_type, normalizedOutcomeCount, proposal.proposed_outcome) === "yes"
+                            ? "bg-success/20 text-success border-success/30"
+                            : getOutcomeTone(market.market_type, normalizedOutcomeCount, proposal.proposed_outcome) === "no"
+                              ? "bg-destructive/20 text-destructive border-destructive/30"
+                              : "bg-primary/20 text-primary border-primary/30"
                         )}>
-                          {proposal.proposed_outcome === 1 ? "YES" : "NO"}
+                          {getOutcomeLabel(
+                            market.market_type,
+                            normalizedOutcomeCount,
+                            proposal.proposed_outcome,
+                            market.outcome_labels,
+                          ).toUpperCase()}
                         </div>
                       </div>
                       <div className="flex justify-between items-center">
@@ -726,6 +784,9 @@ export default function MarketDetailPage() {
         marketTitle={market.title}
         marketId={market.id}
         tokenId={market.token_id}
+        marketType={market.market_type}
+        outcomeCount={market.outcome_count}
+        outcomeLabels={market.outcome_labels}
       />
 
       <ResolutionModal
@@ -734,10 +795,13 @@ export default function MarketDetailPage() {
         market={{
           id: market.id,
           title: market.title,
-          close_block: market.close_time || 0,
-          resolution_block: market.resolution_time || 0,
+          close_time: market.close_time || 0,
+          resolution_time: market.resolution_time || 0,
           is_resolved: market.is_resolved,
-        } as any}
+          market_type: market.market_type,
+          outcome_count: market.outcome_count,
+          outcome_labels: market.outcome_labels,
+        }}
         proposal={proposal}
         nowTs={nowTs}
         isOracle={isOracle}
@@ -769,8 +833,22 @@ export default function MarketDetailPage() {
               {proposal && (
                 <div className="p-3 rounded-lg bg-muted/20 border border-border/50 text-sm flex justify-between">
                   <span className="text-muted-foreground">Proposed Outcome</span>
-                  <span className={cn("font-bold", proposal.proposed_outcome === 1 ? "text-success" : "text-destructive")}>
-                    {proposal.proposed_outcome === 1 ? "YES" : "NO"}
+                  <span
+                    className={cn(
+                      "font-bold",
+                      getOutcomeTone(market.market_type, normalizedOutcomeCount, proposal.proposed_outcome) === "yes"
+                        ? "text-success"
+                        : getOutcomeTone(market.market_type, normalizedOutcomeCount, proposal.proposed_outcome) === "no"
+                          ? "text-destructive"
+                          : "text-primary",
+                    )}
+                  >
+                    {getOutcomeLabel(
+                      market.market_type,
+                      normalizedOutcomeCount,
+                      proposal.proposed_outcome,
+                      market.outcome_labels,
+                    ).toUpperCase()}
                   </span>
                 </div>
               )}

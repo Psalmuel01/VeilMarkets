@@ -1,4 +1,5 @@
 import veilmarkets_factory_v8.aleo;
+
 program veilmarkets_v8.aleo;
 
 record BetPosition:

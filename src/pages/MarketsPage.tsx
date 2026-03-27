@@ -7,6 +7,7 @@ import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { formatDateFriendly, formatVolume } from "@/lib/utils";
 import { getAllMarketMetadata } from "@/lib/metadata";
 import { resolveTokenKind, resolveTokenTicker, type SupportedTokenKind } from "@/lib/constants";
+import { getOutcomeLabel, isCancelledOutcome, normalizeOutcomeCount } from "@/lib/outcomes";
 
 const mapCategory = (value: number): Market["category"] => {
   switch (value) {
@@ -66,7 +67,14 @@ export default function MarketsPage() {
           closingTime: formatDateFriendly(market.close_time),
           creationTime: createdTs ? formatDateFriendly(createdTs) : undefined,
           betsPlaced: 0,
-          outcome: market.is_resolved ? (market.winning_outcome === 1 ? "Yes" : "No") : undefined,
+          marketType: market.market_type,
+          outcomeCount: normalizeOutcomeCount(market.outcome_count),
+          winningOutcome: market.winning_outcome,
+          outcome: market.is_resolved
+            ? (isCancelledOutcome(market.winning_outcome)
+              ? "Cancelled"
+              : getOutcomeLabel(market.market_type, market.outcome_count, market.winning_outcome, market.outcome_labels))
+            : undefined,
           tokenId: market.token_id,
           tokenTicker: resolveTokenTicker(market.token_id),
           tokenKind: resolveTokenKind(market.token_id),

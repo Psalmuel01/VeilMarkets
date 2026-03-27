@@ -56,6 +56,9 @@ export interface ChainMarket {
   creator: string;
   title_hash: string;
   category: number;
+  market_type: number;
+  outcome_count: number;
+  outcome_labels?: string[];
   close_time: number;
   resolution_time: number;
   is_resolved: boolean;
@@ -734,7 +737,8 @@ export const useAleoPrograms = () => {
             title: row.title || `Market ${row.market_id.slice(0, 8)}...`,
             description: row.description || 'No description.',
             resolutionSource: row.source || 'Creator',
-            closesAtTs: row.expiry_time || parsed.close_time * 1000,
+            outcome_labels: row.outcome_labels,
+            closesAtTs: row.expiry_time || row.close_time * 1000 || parsed.close_time * 1000,
           } as ChainMarket;
         } catch (err) {
           console.error(`[fetchMarkets] Failed for market_id ${row.market_id}:`, err);
@@ -935,6 +939,9 @@ export const useAleoPrograms = () => {
     title: string,
     description: string,
     category: number,
+    marketType: number,
+    outcomeCount: number,
+    outcomeLabels: string[],
     closeTime: number, // Unix timestamp in seconds
     resolutionTime: number, // Unix timestamp in seconds
     resolutionSource: string,
@@ -953,7 +960,15 @@ export const useAleoPrograms = () => {
       const result = await executeAndPoll({
         program: PROGRAM_ID,
         function: "create_market",
-        inputs: [titleHash, formatU8(category), formatU64(closeTime), formatU64(resolutionTime), tokenId],
+        inputs: [
+          titleHash,
+          formatU8(category),
+          formatU8(marketType),
+          formatU8(outcomeCount),
+          formatU64(closeTime),
+          formatU64(resolutionTime),
+          tokenId,
+        ],
         fee: 2_500_000,
         privateFee: false,
       }, PROGRAM_ID, "create_market");
@@ -971,22 +986,34 @@ export const useAleoPrograms = () => {
             title,
             description,
             resolutionSource,
-            expiry_time: closeTime * 1000
+            marketType,
+            outcomeCount,
+            outcomeLabels,
+            tokenId,
+            closeTime,
+            resolutionTime,
           });
-          // Save metadata including expiry_time
+          // Save metadata for rendering and filtering.
           try {
-            await saveMarketMetadata(
-              result.transactionId,
-              marketId,
+            await saveMarketMetadata({
+              transaction_id: result.transactionId,
+              market_id: marketId,
               title,
               description,
-              resolutionSource,
-              closeTime * 1000 // absolute ms for metadata
-            );
+              source: resolutionSource || "Creator",
+              category,
+              market_type: marketType,
+              outcome_count: outcomeCount,
+              outcome_labels: outcomeLabels,
+              token_id: tokenId,
+              close_time: closeTime,
+              resolution_time: resolutionTime,
+              created_by: address,
+            });
           } catch (metadataError) {
             const maybeError = metadataError as { code?: string; message?: string };
             if (maybeError?.code === "42501") {
-              toast.warning("Market created on-chain, but metadata save was blocked by Supabase RLS for markets_v7.");
+              toast.warning("Market created on-chain, but metadata save was blocked by Supabase RLS for markets_v8.");
             } else {
               toast.warning("Market created on-chain, but metadata save failed.");
             }

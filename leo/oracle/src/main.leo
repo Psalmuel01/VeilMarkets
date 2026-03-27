@@ -1,10 +1,10 @@
 // VeilMarkets Oracle: Optimistic Edition
 // Fast, game-theoretic resolution with 24h dispute window
 import credits.aleo;
-import veilmarkets_v7.aleo;
-import veilmarkets_factory_v7.aleo;
+import veilmarkets_v8.aleo;
+import veilmarkets_factory_v8.aleo;
 
-program veilmarkets_oracle_v7.aleo {
+program veilmarkets_oracle_v8.aleo {
     // Records & Structs
     struct ResolutionProposal {
         market_id: field,
@@ -81,6 +81,7 @@ program veilmarkets_oracle_v7.aleo {
         proposed_outcome: u8,
         proposer: address,
     ) {
+        assert(proposed_outcome <= 3u8);
         // Verify proposer has stake
         let stake: u64 = Mapping::get(active_oracles, proposer);
         assert(stake >= MIN_ORACLE_STAKE);
@@ -142,8 +143,8 @@ program veilmarkets_oracle_v7.aleo {
         public market_id: field,
         public outcome: u8,
     ) -> (OracleCredential, Future) {
-        // Outcome: 0 = NO, 1 = YES
-        assert(outcome == 0u8 || outcome == 1u8);
+        // Outcomes are indexed from 0..3 (core validates market-specific bounds).
+        assert(outcome <= 3u8);
         let updated_credential: OracleCredential = OracleCredential {
             owner: credential.owner,
             staked_amount: credential.staked_amount,
@@ -167,8 +168,9 @@ program veilmarkets_oracle_v7.aleo {
     // FINALIZATION: The step that speaks to Core
     async transition resolve_on_core(public market_id: field, public outcome: u8) -> Future {
         assert_eq(self.caller, aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n);
+        assert(outcome <= 3u8);
         // One transition calls another
-        let f_core: Future = veilmarkets_v7.aleo/resolve_market(
+        let f_core: Future = veilmarkets_v8.aleo/resolve_market(
             market_id,
             outcome,
             self.address,
@@ -180,18 +182,34 @@ program veilmarkets_oracle_v7.aleo {
         f_core.await();
         let proposal: ResolutionProposal = Mapping::get(proposals, market_id);
         if (proposal.is_disputed) {
-            // If disputed, calculate winner from votes
-            let vote_no: u64 = Mapping::get_or_use(
+            // If disputed, calculate winner from up to 4 indexed outcomes.
+            let vote_0: u64 = Mapping::get_or_use(
                 votes,
                 BHP256::hash_to_field(market_id + 0u8 as field),
                 0u64,
             );
-            let vote_yes: u64 = Mapping::get_or_use(
+            let vote_1: u64 = Mapping::get_or_use(
                 votes,
                 BHP256::hash_to_field(market_id + 1u8 as field),
                 0u64,
             );
-            let winning_outcome: u8 = (vote_yes > vote_no) ? 1u8 : 0u8;
+            let vote_2: u64 = Mapping::get_or_use(
+                votes,
+                BHP256::hash_to_field(market_id + 2u8 as field),
+                0u64,
+            );
+            let vote_3: u64 = Mapping::get_or_use(
+                votes,
+                BHP256::hash_to_field(market_id + 3u8 as field),
+                0u64,
+            );
+
+            let best_01_outcome: u8 = (vote_1 > vote_0) ? 1u8 : 0u8;
+            let best_01_votes: u64 = (vote_1 > vote_0) ? vote_1 : vote_0;
+            let best_23_outcome: u8 = (vote_3 > vote_2) ? 3u8 : 2u8;
+            let best_23_votes: u64 = (vote_3 > vote_2) ? vote_3 : vote_2;
+            let winning_outcome: u8 =
+                (best_23_votes > best_01_votes) ? best_23_outcome : best_01_outcome;
             assert_eq(outcome, winning_outcome);
         } else {
             // If not disputed, check deadline and outcome

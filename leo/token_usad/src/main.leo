@@ -1,11 +1,11 @@
-// VeilMarkets Token — USAD Adapter (v7)
+// VeilMarkets Token — USAD Adapter (v8)
 // Handles betting and pro-rata payouts using an ARC-20 token (test_usad_stablecoin.aleo).
 // Structurally identical to the credits adapter; only the payment rail differs.
 import test_usad_stablecoin.aleo;
-import veilmarkets_v7.aleo;
-import veilmarkets_factory_v7.aleo;
+import veilmarkets_v8.aleo;
+import veilmarkets_factory_v8.aleo;
 
-program veilmarkets_token_usad_v7.aleo {
+program veilmarkets_token_usad_v8.aleo {
 
     // ── Structs ────────────────────────────────────────────────────────────────
 
@@ -75,7 +75,7 @@ program veilmarkets_token_usad_v7.aleo {
         let bet_amount_u128: u128 = bet_amount as u128;
         assert(input_token.amount >= bet_amount_u128);
         assert(bet_amount >= MIN_BET);
-        assert(outcome == 0u8 || outcome == 1u8);
+        assert(outcome <= 3u8);
 
         // Transfer bet_amount to this contract's public USAD balance
         let external_proof_0: test_usad_stablecoin.aleo/MerkleProof =
@@ -109,7 +109,7 @@ program veilmarkets_token_usad_v7.aleo {
             self.caller as field + market_id + bet_amount as field,
         );
 
-        let core_future: Future = veilmarkets_v7.aleo/place_bet(
+        let core_future: Future = veilmarkets_v8.aleo/place_bet(
             market_id,
             outcome,
             bet_amount,
@@ -183,7 +183,7 @@ program veilmarkets_token_usad_v7.aleo {
         let payout_amount_u128: u128 = payout_amount as u128;
 
         // Core verifies the payout amount and marks the nullifier consumed
-        let core_result: Future = veilmarkets_v7.aleo/verify_claim(nullifier, payout_amount);
+        let core_result: Future = veilmarkets_v8.aleo/verify_claim(nullifier, payout_amount);
 
         // Transfer payout from contract's public USAD balance to caller's private record
         let (compliance_record, payout_record, transfer_future): (
@@ -215,7 +215,7 @@ program veilmarkets_token_usad_v7.aleo {
     }
 
     // ── Refund bet ─────────────────────────────────────────────────────────────
-    // Used when a market is cancelled (winning_outcome == 3u8).
+    // Used when a market is cancelled (winning_outcome == 255u8).
     // Returns USAD to the original bettor. Caller must be the holder.
 
     async transition refund_bet(
