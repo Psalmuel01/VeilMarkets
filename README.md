@@ -1,4 +1,4 @@
-# VeilMarkets v8
+# VeilMarkets
 
 Privacy-first prediction markets on Aleo.
 
@@ -112,6 +112,16 @@ npm run dev
 - Stablecoin private spend paths rely on valid private records and proof inputs.
 - If currency filtering behaves differently in production, verify all `VITE_*_TOKEN_PROGRAM_ADDRESS` values were set correctly before build/deploy.
 - Outcome labels for categorical markets currently use generic option names (`Option 1..4`).
+
+## Documentation
+
+For a deeper understanding of VeilMarkets:
+
+- 📘 [Getting Started](./walkthrough.md)  
+  Learn how to use the platform: creating markets, placing bets, and claiming rewards  
+
+- 🧠 [Technical Architecture](./architecture.md)  
+  Explore the system design, contract interactions, and privacy model  
 
 ## License
 
