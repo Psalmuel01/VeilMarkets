@@ -1,5 +1,5 @@
 {
-  "program": "veilmarkets_token_usdcx_v7.aleo",
+  "program": "veilmarkets_token_usdcx_v8.aleo",
   "structs": [
     {
       "path": [
@@ -146,7 +146,7 @@
           "path": [
             "EscrowInfo"
           ],
-          "program": "veilmarkets_token_usdcx_v7"
+          "program": "veilmarkets_token_usdcx_v8"
         }
       }
     },
@@ -199,7 +199,7 @@
                 "path": [
                   "TokenMerkleProof"
                 ],
-                "program": "veilmarkets_token_usdcx_v7"
+                "program": "veilmarkets_token_usdcx_v8"
               }
             }
           },
@@ -213,7 +213,7 @@
                 "path": [
                   "TokenMerkleProof"
                 ],
-                "program": "veilmarkets_token_usdcx_v7"
+                "program": "veilmarkets_token_usdcx_v8"
               }
             }
           },
@@ -280,7 +280,7 @@
               "path": [
                 "EscrowedBet"
               ],
-              "program": "veilmarkets_token_usdcx_v7"
+              "program": "veilmarkets_token_usdcx_v8"
             }
           },
           "mode": "None"

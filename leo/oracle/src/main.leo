@@ -1,10 +1,10 @@
 // VeilMarkets Oracle: Optimistic Edition
 // Fast, game-theoretic resolution with 24h dispute window
 import credits.aleo;
-import veilmarkets_v7.aleo;
-import veilmarkets_factory_v7.aleo;
+import veilmarkets_v8.aleo;
+import veilmarkets_factory_v8.aleo;
 
-program veilmarkets_oracle_v7.aleo {
+program veilmarkets_oracle_v8.aleo {
     // Records & Structs
     struct ResolutionProposal {
         market_id: field,
@@ -170,7 +170,7 @@ program veilmarkets_oracle_v7.aleo {
         assert_eq(self.caller, aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n);
         assert(outcome <= 3u8);
         // One transition calls another
-        let f_core: Future = veilmarkets_v7.aleo/resolve_market(
+        let f_core: Future = veilmarkets_v8.aleo/resolve_market(
             market_id,
             outcome,
             self.address,

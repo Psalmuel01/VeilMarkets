@@ -1,4 +1,4 @@
-# VeilMarkets v7
+# VeilMarkets v8
 
 Privacy-first prediction markets on Aleo.
 
@@ -17,7 +17,7 @@ VeilMarkets lets users create markets, place private bets, and claim payouts wit
 
 ## Highlights (So Far)
 
-- v7 contract suite integrated end-to-end
+- v8 contract suite integrated end-to-end
 - Multi-token market creation and betting UX
 - Currency filter on markets page (All, ALEO, USDCx, USAD)
 - Token ticker shown on market cards
@@ -25,14 +25,14 @@ VeilMarkets lets users create markets, place private bets, and claim payouts wit
 - Oracle registration + unstake flow in UI
 - Oracle status now reflects effective stake threshold (loses status when unstaked below minimum)
 
-## Contracts (v7)
+## Contracts (v8)
 
-- Core: `veilmarkets_v7.aleo`
-- Factory: `veilmarkets_factory_v7.aleo`
-- Oracle: `veilmarkets_oracle_v7.aleo`
-- Credits adapter: `veilmarkets_token_credits_v7.aleo`
-- USDCx adapter: `veilmarkets_token_usdcx_v7.aleo`
-- USAD adapter: `veilmarkets_token_usad_v7.aleo`
+- Core: `veilmarkets_v8.aleo`
+- Factory: `veilmarkets_factory_v8.aleo`
+- Oracle: `veilmarkets_oracle_v8.aleo`
+- Credits adapter: `veilmarkets_token_credits_v8.aleo`
+- USDCx adapter: `veilmarkets_token_usdcx_v8.aleo`
+- USAD adapter: `veilmarkets_token_usad_v8.aleo`
 
 ## Architecture Overview
 
@@ -76,16 +76,16 @@ VITE_USDCX_TOKEN_PROGRAM_ADDRESS=aleo1...
 VITE_USAD_TOKEN_PROGRAM_ADDRESS=aleo1...
 ```
 
-### 3) Deploy v7 Contracts
+### 3) Deploy v8 Contracts
 
 Suggested order:
 
-1. `veilmarkets_factory_v7`
-2. `veilmarkets_v7`
-3. `veilmarkets_token_credits_v7`
-4. `veilmarkets_token_usdcx_v7`
-5. `veilmarkets_token_usad_v7`
-6. `veilmarkets_oracle_v7`
+1. `veilmarkets_factory_v8`
+2. `veilmarkets_v8`
+3. `veilmarkets_token_credits_v8`
+4. `veilmarkets_token_usdcx_v8`
+5. `veilmarkets_token_usad_v8`
+6. `veilmarkets_oracle_v8`
 
 ### 4) Register Contracts in Factory
 

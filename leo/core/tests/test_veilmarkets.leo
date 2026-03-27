@@ -1,4 +1,4 @@
-import veilmarkets_v7.aleo;
+import veilmarkets_v8.aleo;
 
 program test_veilmarkets.aleo {
     @test

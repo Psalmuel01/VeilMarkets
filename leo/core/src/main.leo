@@ -1,8 +1,8 @@
 // VeilMarkets Core
 // Private Prediction Markets with full cross-contract integration
-import veilmarkets_factory_v7.aleo;
+import veilmarkets_factory_v8.aleo;
 
-program veilmarkets_v7.aleo {
+program veilmarkets_v8.aleo {
     const OUTCOME_UNRESOLVED: u8 = 254u8;
     const OUTCOME_CANCELLED: u8 = 255u8;
 
@@ -79,7 +79,7 @@ program veilmarkets_v7.aleo {
         public token_id: address,
     ) -> Future {
         // Verify the token contract is officially registered via factory
-        let auth_future: Future = veilmarkets_factory_v7.aleo/verify_is_registered(
+        let auth_future: Future = veilmarkets_factory_v8.aleo/verify_is_registered(
             TOKEN_CONTRACT_TYPE,
             token_id,
         );
@@ -249,7 +249,7 @@ program veilmarkets_v7.aleo {
         public resolver: address,
     ) -> Future {
         // Must be called by the registered oracle contract via factory registry.
-        let auth_future: Future = veilmarkets_factory_v7.aleo/verify_is_registered(
+        let auth_future: Future = veilmarkets_factory_v8.aleo/verify_is_registered(
             ORACLE_CONTRACT_TYPE,
             self.caller,
         );

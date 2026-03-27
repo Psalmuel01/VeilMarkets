@@ -1,10 +1,10 @@
-// VeilMarkets Token — Credits Adapter (v7)
+// VeilMarkets Token — Credits Adapter (v8)
 // Handles betting and pro-rata payouts using native credits.aleo
 import credits.aleo;
-import veilmarkets_v7.aleo;
-import veilmarkets_factory_v7.aleo;
+import veilmarkets_v8.aleo;
+import veilmarkets_factory_v8.aleo;
 
-program veilmarkets_token_credits_v7.aleo {
+program veilmarkets_token_credits_v8.aleo {
 
     // ── Structs ────────────────────────────────────────────────────────────────
 
@@ -74,7 +74,7 @@ program veilmarkets_token_credits_v7.aleo {
             self.caller as field + market_id + bet_amount as field,
         );
 
-        let core_future: Future = veilmarkets_v7.aleo/place_bet(
+        let core_future: Future = veilmarkets_v8.aleo/place_bet(
             market_id,
             outcome,
             bet_amount,
@@ -142,7 +142,7 @@ program veilmarkets_token_credits_v7.aleo {
         public nullifier: field,
     ) -> (credits.aleo/credits, Future) {
         // Core verifies the payout amount and marks the nullifier consumed
-        let core_result: Future = veilmarkets_v7.aleo/verify_claim(nullifier, payout_amount);
+        let core_result: Future = veilmarkets_v8.aleo/verify_claim(nullifier, payout_amount);
 
         // Transfer payout from contract's public balance to caller's private record
         let (payout_record, transfer_future): (credits.aleo/credits, Future) =
