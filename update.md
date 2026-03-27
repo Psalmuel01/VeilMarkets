@@ -1,64 +1,95 @@
-# Submission Requirements
+# VeilMarkets Update
 
-### 1. Project Overview
-**Name**: VeilMarkets  
-**Description**: A decentralized, private binary prediction market platform built on the Aleo blockchain.  
-**Problem Being Solved**: Traditional prediction markets leak user preferences, wager amounts, and identities publicly. VeilMarkets leverages Zero-Knowledge Proofs (ZKPs) to allow users to participate in markets while keeping their positions and wallet activities entirely private.
+## Wave 4 Recap (v8 + Product Revamp)
 
-**Product Market Fit (PMF)**: Targeting privacy-conscious traders and anonymous market creators who require high-integrity resolution without exposing sensitive financial data.  
-**Go-To-Market (GTM) Plan**: Initial launch on Aleo Testnet followed by community-driven market creation incentives. Partnering with privacy-first DeFi protocols for liquidity integration.
+Wave 4 focused on turning VeilMarkets from a binary-only prototype into a production-shaped private prediction product with stronger UX, multi-token rails, and richer market structures.
 
-### 2. Working Demo
-**Deployment**: Integrated with Aleo Testnet using the Shield Wallet adapter.  
-**Functional Leo Contracts**:
-- `veilmarkets_factory_v6.aleo`: Central registry for system contracts.
-- `veilmarkets_v6.aleo`: Core logic for market creation and pool accounting.
-- `veilmarkets_token_credits_v6.aleo`: Credits escrow adapter.
-- `veilmarkets_token_usdcx_v6.aleo`: USDCx escrow adapter.
-- `veilmarkets_oracle_v6.aleo`: Governance framework for trusted resolution and disputes.
-**Core Features**:
-- Real-time on-chain market discovery.
-- Fully private bet placement (ZK proofs).
-- Dynamic market creation with off-chain metadata persistence (Supabase).
-- Automated winnings claiming for settled markets.
+### 1) Full UI/UX Revamp
+- Refreshed core product flows across market discovery, market details, market creation, and betting.
+- Improved interaction consistency and loading/success states (including post-bet success handling).
+- Added cleaner market card presentation with subtle token identity so currency context is clear at a glance.
 
-### 3. Technical Documentation
-**GitHub Repository**: [Psalmuel01/VeilMarkets](https://github.com/Psalmuel01/VeilMarkets)  
-**Architecture Overview**: A modular 4-program architecture separating **Registry** (Factory), **Logic** (Markets), **Finance** (Token Escrow), and **Governance** (Oracle).  
-**Privacy Model**: Uses shielded records and transition inputs to ensure that bet outcomes and wager amounts are never revealed to the public, while maintaining verifiable pool integrity.
+### 2) Better Experience for Non-Connected Users
+- Improved read-only browsing paths so users can discover markets before connecting.
+- Reduced wallet-gated friction in the default UI state.
+- Tightened conditional rendering for wallet-required actions and status cards.
 
-### 4. Progress Changelog (Wave 3 - v6 Upgrade)
-**What's New (v6 Implementation)**:
-- **Absolute Timestamp Transition**: Fully migrated from block-height based deadlines to `block.timestamp` (Unix seconds) for 100% accurate market closing and resolution.
-- **v6 Modular Architecture**: Deployed and integrated the latest v6 suite of Aleo contracts across the system.
-- **Friendly UX Refinements**: Implemented short-hand human-friendly dates (e.g., "Mar 15, 9:40pm") and optimized card layouts for readability.
-- **Robust Creation Flow**: Refactored the market creation deep-linking to use the persistent on-chain Market ID for immediate discovery.
-- **Comprehensive Technical Cleanup**: Resolved all legacy TypeScript lint errors and optimized internal transaction parsing for v6 record structures.
-- **Metadata Traceability**: Added real-time logging for Supabase synchronization to ensure data integrity during market creation.
+### 3) Multi-Token Support (ALEO Credits + USDCx + USAD)
+- Extended protocol support to three token rails:
+  - `credits.aleo` (Aleo Credits)
+  - `test_usdcx_stablecoin.aleo` via `veilmarkets_token_usdcx_v8.aleo`
+  - `test_usad_stablecoin.aleo` via `veilmarkets_token_usad_v8.aleo`
+- Added token-aware behavior in frontend flows (creation, market cards, filtering, bet placement).
+- Added currency filter UX in markets page so users can quickly segment by token.
 
-**Feedback Incorporated**:
-- **Chronological Assertions**: Implemented a mandatory 60-second resolution offset to satisfy on-chain chronological invariants.
-- **Short-form Datetimes**: Responding to PR feedback, simplified date formats by removing redundant labels and shortening month names.
-- **Iconic Visual Cues**: Replaced general clock icons with status-driven Timer icons to better communicate market urgency.
+### 4) Beyond Binary: Categorical Markets
+- Introduced market types beyond yes/no:
+  - Binary markets
+  - Categorical markets (2-4 outcomes)
+- Added outcome count and label support across stack:
+  - Create flow collects/validates outcomes
+  - Metadata stores `market_type`, `outcome_count`, `outcome_labels`
+  - Detail/betting/resolution UI renders dynamic outcome sets
+- Oracle/core logic upgraded to resolve indexed outcomes (not just boolean winner).
 
-### 5. Progress Status
-- [x] **Wave 1**: Architecture & Core Logic
-- [x] **Wave 2**: UI/UX & Integration
-- [x] **Wave 3**: Market Metrics & Analytics (v6 Timestamps)
-- [/] **Wave 4**: Automation & Governance (In Progress)
+### 5) Contract Suite Upgrade to v8
+- Upgraded and aligned contracts to v8 naming and interfaces:
+  - `veilmarkets_factory_v8.aleo`
+  - `veilmarkets_v8.aleo`
+  - `veilmarkets_oracle_v8.aleo`
+  - `veilmarkets_token_credits_v8.aleo`
+  - `veilmarkets_token_usdcx_v8.aleo`
+  - `veilmarkets_token_usad_v8.aleo`
+- Updated Leo program dependencies/imports/tests accordingly.
+- Rebuilt contracts and validated compile flow under v8 suite.
 
-### 5. Future Roadmap
+### 6) Supabase Metadata Upgrade
+- Introduced v8 metadata table design for market rendering and search: `markets_v8`
+- Added constraints/indexes and RLS policies required for public read + controlled writes.
+- Updated frontend metadata client to use v8 schema end to end.
 
-#### **Wave 3: Multi-Market Support & Market Metrics**
-*Goal: Expand scope and usability, introducing multiple simultaneous markets and abstract engagement metrics.*
-- **Multi-Market Management**: Full support for browsing and interacting with dozens of parallel markets simultaneously.
-- **Enhanced Settlement Flow**: Unified dashboard to claim winnings across multiple markets in a single session.
-- **Abstract Activity Metrics**: Display engagement (e.g., “X participants”) to provide social proof and popularity cues without revealing private bet amounts or outcomes.
-- **ZK Logic Optimization**: Improved internal Aleo program logic to handle high-concurrency bet resolution and aggregated settlement proofs.
+### 7) Oracle Lifecycle and Status Tracking
+- Improved oracle status tracking in frontend state.
+- Added unstake-driven status downgrade behavior (losing effective oracle status when stake falls below threshold).
+- Kept registration/staking flows aligned with updated contract semantics.
 
-#### **Wave 4: Automation, Liquidity & Governance**
-*Goal: Evolve into a fully autonomous, liquidity-rich prediction ecosystem.*
-- **Oracle & DAO Automation**: Fully automated resolution via API triggers and a decentralized dispute resolution system for Oracle token holders.
-- **ZK-AMM Implementation**: Deploy Automated Market Maker logic to provide dynamic odds and instant liquidity withdrawals.
-- **Permissionless Creator Fees**: Enabling market creators to earn a percentage of the pool, incentivizing the generation of high-quality markets.
-- **Mobile-First Scaling**: Optimize the Aleo Shield integration for a premium mobile experience and expand to multi-token support (Wrapped Aleo / Stablecoins).
+### 8) Dev/Build Stability Fixes in This Wave
+- Fixed Vite/esbuild compatibility issue caused by top-level await in dependency bundle path.
+- Stabilized local dev startup and contract-integration runtime behavior after upgrade iterations.
+
+---
+
+## Current Product State After Wave 4
+
+VeilMarkets now supports private prediction markets across multiple settlement tokens, with both binary and categorical outcomes, and a v8 contract/metadata backbone ready for repeated deployment cycles.
+
+---
+
+## Wave 5 Plan (Next)
+
+Wave 5 is focused on production hardening, deeper privacy guarantees, and scaling market design flexibility.
+
+### A) Advanced Market Types
+- Add additional non-binary market structures:
+  - Scalar/range markets
+  - Ranked/ordered outcome markets
+  - Multi-select outcome markets
+- Extend odds/probability visualization per market type.
+
+### B) Resolution and Governance Hardening
+- Expand oracle accountability (challenge/dispute tooling, slashing hooks where applicable).
+- Improve proposal/vote/finalization observability in UI.
+- Add stronger edge-case handling for expired/cancelled/inconclusive markets.
+
+### C) Liquidity and Payout UX
+- Improve low-balance and payout-path UX across all supported tokens.
+- Add unified claim/refund center and clearer pending-state tracking.
+- Strengthen payout error diagnostics for faster user recovery.
+
+### D) Data, Analytics, and Reliability
+- Add product analytics around funnel drop-off (create, bet, claim).
+- Improve production filtering/search resiliency across environments.
+- Expand test coverage (frontend integration + Leo interaction smoke tests).
+
+
+
