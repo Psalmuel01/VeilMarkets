@@ -10,34 +10,43 @@ import DashboardPage from "./pages/DashboardPage";
 import CreateMarketPage from "./pages/CreateMarketPage";
 import DocsPage from "./pages/DocsPage";
 import NotFound from "./pages/NotFound";
-import { WalletGuard } from "./components/auth/WalletGuard";
 import { RefreshProvider } from "./context/RefreshContext";
 import { SidebarProvider } from "./context/SidebarContext";
+import { MarketRealtimeProvider } from "./components/providers/MarketRealtimeProvider";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: true,
+      retry: 1,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <RefreshProvider>
-      <SidebarProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<LandingPage />} />
-              <Route path="/markets" element={<MarketsPage />} />
-              <Route path="/market/:id" element={<MarketDetailPage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/create" element={<CreateMarketPage />} />
-              <Route path="/docs" element={<DocsPage />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </SidebarProvider>
-    </RefreshProvider>
+    <MarketRealtimeProvider>
+      <RefreshProvider>
+        <SidebarProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/markets" element={<MarketsPage />} />
+                <Route path="/market/:id" element={<MarketDetailPage />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/create" element={<CreateMarketPage />} />
+                <Route path="/docs" element={<DocsPage />} />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TooltipProvider>
+        </SidebarProvider>
+      </RefreshProvider>
+    </MarketRealtimeProvider>
   </QueryClientProvider>
 );
 

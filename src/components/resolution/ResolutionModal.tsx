@@ -10,12 +10,12 @@ import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { AlertTriangle, CheckCircle2, Gavel, Timer, Shield, Loader2, X } from "lucide-react";
-import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { formatDateFriendly } from "@/lib/utils";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { OracleRegistrationModal } from "@/components/resolution/OracleRegistrationModal";
 import { getOutcomeLabel, getOutcomeLabels, getOutcomeTone, normalizeOutcomeCount } from "@/lib/outcomes";
+import { useDisputeResolutionMutation, useProposeResolutionMutation } from "@/hooks/useVeilQuery";
 
 interface ResolutionModalProps {
   isOpen: boolean;
@@ -54,7 +54,9 @@ export function ResolutionModal({
   onUpdate,
 }: ResolutionModalProps) {
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
-  const { proposeResolution, disputeResolution, loading } = useAleoPrograms();
+  const proposeMutation = useProposeResolutionMutation();
+  const disputeMutation = useDisputeResolutionMutation();
+  const loading = proposeMutation.isPending || disputeMutation.isPending;
   const normalizedOutcomeCount = normalizeOutcomeCount(market.outcome_count);
   const outcomeLabels = getOutcomeLabels(market.market_type, normalizedOutcomeCount, market.outcome_labels);
 
@@ -88,14 +90,16 @@ export function ResolutionModal({
       return;
     }
     await handleAction(async () => {
-      const tx = await proposeResolution(market.id, selectedOutcome);
+      const tx = await proposeMutation.mutateAsync({ marketId: market.id, outcome: selectedOutcome });
       if (tx) setDidPropose(true);
       return tx;
     });
   };
 
   const handleDispute = async () => {
-    await handleAction(() => disputeResolution(market.id, DISPUTE_BOND_CREDITS));
+    await handleAction(() =>
+      disputeMutation.mutateAsync({ marketId: market.id, amountCredits: DISPUTE_BOND_CREDITS }),
+    );
   };
 
   const isResolved = market.is_resolved;

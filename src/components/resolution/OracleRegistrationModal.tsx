@@ -10,9 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { AlertTriangle, CheckCircle2, Shield, Loader2, X } from "lucide-react";
-import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { useOracleStakeQuery, useRegisterOracleMutation, useUnstakeOracleMutation } from "@/hooks/useVeilQuery";
 
 interface OracleRegistrationModalProps {
   isOpen: boolean;
@@ -27,13 +27,15 @@ export function OracleRegistrationModal({
   onClose,
   onSuccess,
 }: OracleRegistrationModalProps) {
-  const { registerAsOracle, unstakeOracleCredits, fetchOracleStake, loading } = useAleoPrograms();
+  const registerMutation = useRegisterOracleMutation();
+  const unstakeMutation = useUnstakeOracleMutation();
+  const { data: oracleStakeData = 0, isLoading: oracleStatusLoading } = useOracleStakeQuery();
+  const loading = registerMutation.isPending || unstakeMutation.isPending;
   const [step, setStep] = useState<Step>("input");
   const [stakeAmount, setStakeAmount] = useState<string>("30");
   const [txId, setTxId] = useState<string | null>(null);
   const [oracleStakeMicro, setOracleStakeMicro] = useState<number>(0);
   const [oracleActive, setOracleActive] = useState(false);
-  const [oracleStatusLoading, setOracleStatusLoading] = useState(false);
   const [lastAction, setLastAction] = useState<"register" | "unstake" | null>(null);
 
   const minStake = 30;
@@ -41,29 +43,16 @@ export function OracleRegistrationModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    let cancelled = false;
-
-    const loadOracleStatus = async () => {
-      setOracleStatusLoading(true);
-      try {
-        const stake = await fetchOracleStake();
-        if (cancelled) return;
-        setOracleStakeMicro(stake);
-        setOracleActive(stake >= minStakeMicro);
-      } finally {
-        if (!cancelled) setOracleStatusLoading(false);
-      }
-    };
 
     setStep("input");
     setTxId(null);
     setLastAction(null);
-    loadOracleStatus();
+  }, [isOpen]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [isOpen, fetchOracleStake, minStakeMicro]);
+  useEffect(() => {
+    setOracleStakeMicro(oracleStakeData);
+    setOracleActive(oracleStakeData >= minStakeMicro);
+  }, [oracleStakeData, minStakeMicro]);
 
   const handleRegister = async () => {
     const amount = parseFloat(stakeAmount);
@@ -74,7 +63,7 @@ export function OracleRegistrationModal({
 
     setStep("processing");
     setLastAction("register");
-    const resultTx = await registerAsOracle(amount);
+    const resultTx = await registerMutation.mutateAsync(amount).catch(() => null);
     
     if (resultTx) {
       setTxId(resultTx);
@@ -94,7 +83,7 @@ export function OracleRegistrationModal({
 
     setStep("processing");
     setLastAction("unstake");
-    const resultTx = await unstakeOracleCredits(oracleStakeMicro / 1_000_000);
+    const resultTx = await unstakeMutation.mutateAsync(oracleStakeMicro / 1_000_000).catch(() => null);
 
     if (resultTx) {
       setTxId(resultTx);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -35,8 +35,16 @@ import {
 import { cn, formatDateFriendly } from "@/lib/utils";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { ADMIN_ADDRESS, resolveTokenDisplayName, resolveTokenTicker } from "@/lib/constants";
-import { PoolInfo } from "@/lib/aleo";
 import { getOutcomeLabel, getOutcomeLabels, getOutcomeTone, isCancelledOutcome, normalizeOutcomeCount } from "@/lib/outcomes";
+import {
+  useMarketPoolQuery,
+  useMarketsQuery,
+  useOracleStatusQuery,
+  useResolutionProposalQuery,
+  useResolveMarketMutation,
+  useUserBetsQuery,
+} from "@/hooks/useVeilQuery";
+import { normalizeMarketIdKey } from "@/lib/queryKeys";
 
 
 const categoryStyles: Record<string, string> = {
@@ -49,6 +57,16 @@ const categoryStyles: Record<string, string> = {
   Other: "text-slate-300 bg-slate-300/10 border-slate-300/20",
 };
 
+const categoryRevMap: Record<number, string> = {
+  0: "Crypto",
+  1: "Finance",
+  2: "Sports",
+  3: "Politics",
+  4: "Entertainment",
+  5: "Tech",
+  6: "Other",
+};
+
 export default function MarketDetailPage() {
   const { id } = useParams();
   const [showBetModal, setShowBetModal] = useState(false);
@@ -56,162 +74,71 @@ export default function MarketDetailPage() {
   const [showFinalizeModal, setShowFinalizeModal] = useState(false);
   const [finalizeStep, setFinalizeStep] = useState<"confirm" | "processing" | "success" | "failed">("confirm");
   const [finalizeTxId, setFinalizeTxId] = useState<string | null>(null);
-  const [hasUserBet, setHasUserBet] = useState(false);
-  const [userBetOutcome, setUserBetOutcome] = useState<string | null>(null);
-  const [userBetResult, setUserBetResult] = useState<"Won" | "Lost" | "Cancelled" | null>(null);
-  const [proposal, setProposal] = useState<{
-    proposed_outcome: number;
-    challenge_deadline: number;
-    is_disputed: boolean;
-    proposer: string;
-  } | null>(null);
-  const [market, setMarket] = useState<{
-    id: string;
-    title: string;
-    description: string;
-    category: string;
-    status: string;
-    closingTime: string;
-    closingDate: string;
-    betsPlaced: number;
-    createdAt: string;
-    resolutionSource: string;
-    close_time: number;
-    resolution_time: number;
-    is_resolved: boolean;
-    market_type: number;
-    outcome_count: number;
-    outcome_labels: string[];
-    winningOutcome?: number;
-    token_id: string;
-  } | null>(null);
-  const [notFound, setNotFound] = useState(false);
-  const [loadingMarket, setLoadingMarket] = useState(true);
-  const [pool, setPool] = useState<PoolInfo | null>(null);
-  const [isOracle, setIsOracle] = useState<boolean | null>(null);
-  const { fetchMarkets, fetchPoolStats, fetchResolutionProposal, fetchUserBets, resolveMarket, currentHeight, isOracleRegistered, refreshSignal, publicKey } = useAleoPrograms();
+  const { publicKey } = useAleoPrograms();
+  const resolveMarketMutation = useResolveMarketMutation();
+  const { data: allMarkets = [], isLoading: isMarketsLoading } = useMarketsQuery();
+  const { data: pool } = useMarketPoolQuery(id);
+  const { data: proposal = null } = useResolutionProposalQuery(id);
+  const { data: userBets = [] } = useUserBetsQuery();
+  const { data: isOracle = false } = useOracleStatusQuery();
 
-  const loadMarket = useCallback(async (opts?: { silent?: boolean }) => {
-    if (!id) {
-      setNotFound(true);
-      if (!opts?.silent) setLoadingMarket(false);
-      return;
-    }
-    if (!opts?.silent) setLoadingMarket(true);
+  const normalizedRouteId = normalizeMarketIdKey(id ?? "");
+  const foundMarket = useMemo(
+    () => allMarkets.find((market) => normalizeMarketIdKey(market.id) === normalizedRouteId),
+    [allMarkets, normalizedRouteId],
+  );
 
-    try {
-      const [allMarkets, stats, oracleStatus, userBets] = await Promise.all([
-        fetchMarkets(),
-        fetchPoolStats(id),
-        isOracleRegistered(),
-        fetchUserBets()
-      ]);
+  const market = useMemo(() => {
+    if (!foundMarket) return null;
+    return {
+      id: foundMarket.id,
+      title: foundMarket.title,
+      description: foundMarket.description,
+      category: categoryRevMap[foundMarket.category] || "Other",
+      status: foundMarket.is_resolved ? "Settled" : "Open",
+      closingTime: formatDateFriendly(foundMarket.close_time),
+      closingDate: new Date(foundMarket.close_time * 1000).toLocaleDateString(),
+      betsPlaced: pool?.participant_count || 0,
+      createdAt: "On-chain",
+      resolutionSource: foundMarket.resolutionSource || "Creator",
+      close_time: foundMarket.close_time,
+      resolution_time: foundMarket.resolution_time || foundMarket.close_time + 3600,
+      is_resolved: foundMarket.is_resolved,
+      market_type: foundMarket.market_type,
+      outcome_count: foundMarket.outcome_count,
+      outcome_labels: foundMarket.outcome_labels ?? [],
+      winningOutcome: foundMarket.winning_outcome,
+      token_id: foundMarket.token_id,
+    };
+  }, [foundMarket, pool?.participant_count]);
 
-      setPool(stats);
-      setIsOracle(oracleStatus);
+  const userBet = useMemo(
+    () => userBets.find((entry) => normalizeMarketIdKey(entry.market_id) === normalizedRouteId),
+    [normalizedRouteId, userBets],
+  );
 
-      // Flexible matching: check against market.id OR market.transactionId
-      const cleanId = (sid: string) => (sid || "").replace("field", "").trim();
-      const currentId = cleanId(id);
+  const hasUserBet = Boolean(userBet);
+  const numericUserOutcome = userBet ? Number.parseInt(userBet.outcome, 10) : null;
+  const userBetOutcome =
+    userBet && market && Number.isFinite(numericUserOutcome)
+      ? getOutcomeLabel(
+          market.market_type,
+          market.outcome_count,
+          numericUserOutcome as number,
+          market.outcome_labels,
+        )
+      : null;
+  const userBetResult: "Won" | "Lost" | "Cancelled" | null =
+    userBet && market?.is_resolved && Number.isFinite(numericUserOutcome)
+      ? isCancelledOutcome(market.winningOutcome)
+        ? "Cancelled"
+        : market.winningOutcome === (numericUserOutcome as number)
+          ? "Won"
+          : "Lost"
+      : null;
 
-      const found = allMarkets.find((chainMarket) =>
-        cleanId(chainMarket.id) === currentId
-      );
-
-      if (found) {
-        const categoryRevMap: Record<number, string> = {
-          0: "Crypto",
-          1: "Finance",
-          2: "Sports",
-          3: "Politics",
-          4: "Entertainment",
-          5: "Tech",
-          6: "Other",
-        };
-
-        const userBet = userBets.find((b) => cleanId(b.market_id) === currentId);
-        if (userBet) {
-          setHasUserBet(true);
-          const numericOutcome = Number.parseInt(userBet.outcome, 10);
-          const outcomeLabel = getOutcomeLabel(
-            found.market_type,
-            found.outcome_count,
-            numericOutcome,
-            found.outcome_labels,
-          );
-          setUserBetOutcome(outcomeLabel);
-          if (found.is_resolved) {
-            if (isCancelledOutcome(found.winning_outcome)) {
-              setUserBetResult("Cancelled");
-            } else if (Number.isFinite(numericOutcome) && found.winning_outcome === numericOutcome) {
-              setUserBetResult("Won");
-            } else {
-              setUserBetResult("Lost");
-            }
-          } else {
-            setUserBetResult(null);
-          }
-        } else {
-          setHasUserBet(false);
-          setUserBetOutcome(null);
-          setUserBetResult(null);
-        }
-
-        setMarket({
-          id: found.id,
-          title: found.title,
-          description: found.description,
-          category: categoryRevMap[found.category] || "Other",
-          status: found.is_resolved ? "Settled" : "Open",
-          closingTime: formatDateFriendly(found.close_time),
-          closingDate: new Date(found.close_time * 1000).toLocaleDateString(),
-          betsPlaced: stats?.participant_count || 0,
-          createdAt: "On-chain",
-          resolutionSource: found.resolutionSource || "Creator",
-          close_time: found.close_time,
-          resolution_time: found.resolution_time || found.close_time + 3600, // Fallback if 0
-          is_resolved: found.is_resolved,
-          market_type: found.market_type,
-          outcome_count: found.outcome_count,
-          outcome_labels: found.outcome_labels ?? [],
-          winningOutcome: found.winning_outcome,
-          token_id: found.token_id,
-        });
-        setNotFound(false);
-      } else {
-        setNotFound(true);
-      }
-    } catch (error) {
-      console.error("Error loading market details:", error);
-    } finally {
-      if (!opts?.silent) setLoadingMarket(false);
-    }
-  }, [id, fetchMarkets, fetchPoolStats, fetchUserBets, isOracleRegistered]);
-
-  const loadProposal = useCallback(async () => {
-    if (!id) return;
-    const p = await fetchResolutionProposal(id);
-    setProposal(p);
-    console.log("[MarketDetailPage] proposal:", p);
-  }, [id, fetchResolutionProposal]);
-
-  useEffect(() => {
-    loadMarket();
-    loadProposal();
-  }, [id, loadMarket, loadProposal]);
-
-  useEffect(() => {
-    if (!id) return;
-    loadMarket({ silent: true });
-    loadProposal();
-  }, [refreshSignal, id, loadMarket, loadProposal]);
-
-  useEffect(() => {
-    if (!publicKey) return;
-    const normalized = publicKey.replace(/address/g, "").trim().toLowerCase();
-    const isAdminAddress = normalized === ADMIN_ADDRESS.toLowerCase();
-    console.log("[MarketDetailPage] admin check:", { address: normalized, isAdmin: isAdminAddress });
-  }, [publicKey]);
+  const notFound = Boolean(id) && !isMarketsLoading && !foundMarket;
+  const loadingMarket = !id || (isMarketsLoading && !foundMarket);
 
   // Calculate status
   const nowTs = Math.floor(Date.now() / 1000);
@@ -267,15 +194,16 @@ export default function MarketDetailPage() {
   })();
 
   const handleFinalize = async () => {
-    if (!proposal) return;
+    if (!proposal || !market) return;
     setFinalizeStep("processing");
-    const outcome = proposal.proposed_outcome;
-    const tx = await resolveMarket(market.id, outcome);
-    if (tx) {
-      setFinalizeTxId(tx);
+    try {
+      const txId = await resolveMarketMutation.mutateAsync({
+        marketId: market.id,
+        outcome: proposal.proposed_outcome,
+      });
+      setFinalizeTxId(txId);
       setFinalizeStep("success");
-      await Promise.all([loadMarket({ silent: true }), loadProposal()]);
-    } else {
+    } catch (_error) {
       setFinalizeStep("failed");
     }
   };
@@ -694,9 +622,9 @@ export default function MarketDetailPage() {
                         <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Window Status</span>
                         <span className={cn(
                           "text-[10px] font-black uppercase tracking-[0.1em]",
-                          proposal.is_disputed ? "text-destructive" : (currentHeight && currentHeight >= proposal.challenge_deadline) ? "text-white/40" : "text-amber-500"
+                          proposal.is_disputed ? "text-destructive" : nowTs >= proposal.challenge_deadline ? "text-white/40" : "text-amber-500"
                         )}>
-                          {proposal.is_disputed ? "Disputed" : (currentHeight && currentHeight >= proposal.challenge_deadline) ? "Closed" : "Active"}
+                          {proposal.is_disputed ? "Disputed" : nowTs >= proposal.challenge_deadline ? "Closed" : "Active"}
                         </span>
                       </div>
                     </div>
@@ -780,7 +708,6 @@ export default function MarketDetailPage() {
       <PlaceBetModal
         open={showBetModal}
         onClose={() => setShowBetModal(false)}
-        onBetPlaced={() => setHasUserBet(true)}
         marketTitle={market.title}
         marketId={market.id}
         tokenId={market.token_id}
@@ -805,9 +732,7 @@ export default function MarketDetailPage() {
         proposal={proposal}
         nowTs={nowTs}
         isOracle={isOracle}
-        onUpdate={async () => {
-          await Promise.all([loadMarket({ silent: true }), loadProposal()]);
-        }}
+        onUpdate={() => {}}
       />
 
       <Dialog

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Wallet, TrendingUp, Clock, Trophy, CheckCircle2, Loader2, Activity, ShieldCheck, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -7,8 +7,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { BetCard, UserBet } from "@/components/dashboard/BetCard";
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
-import { fetchMappingValue, parseMarketInfo } from "@/lib/aleo";
-import { PROGRAM_ID, resolveTokenDisplayName, resolveTokenKind, resolveTokenTicker } from "@/lib/constants";
+import { resolveTokenTicker } from "@/lib/constants";
 import { getOutcomeLabel, isCancelledOutcome } from "@/lib/outcomes";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +18,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  useClaimWinningsMutation,
+  useCreditsBalancesQuery,
+  useMarketsQuery,
+  useUSADBalancesQuery,
+  useUSDCxBalancesQuery,
+  useUserBetsQuery,
+} from "@/hooks/useVeilQuery";
 
 const mapCategoryLabel = (value: number | undefined): string => {
   switch (value) {
@@ -38,142 +45,94 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [claimStep, setClaimStep] = useState<"confirm" | "processing" | "success">("confirm");
-  const [userBets, setUserBets] = useState<UserBet[]>([]);
-  const [privateBalances, setPrivateBalances] = useState<{ credits: number; usdcx: number; usad: number } | null>(null);
-  const [stats, setStats] = useState([
-    { icon: Trophy, label: "Total Bets", value: "0" },
-    { icon: TrendingUp, label: "Win Rate", value: "0%" },
-    { icon: Clock, label: "Pending", value: "0" },
-  ]);
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
   const [claimedAmount, setClaimedAmount] = useState<number | null>(null);
   const [claimedTicker, setClaimedTicker] = useState<string>("ALEO");
-  const [myMarkets, setMyMarkets] = useState<
-    Array<{
-      id: string;
-      title: string;
-      description: string;
-      title_hash: string;
-      is_resolved: boolean;
-    }>
-  >([]);
-  const { fetchUserBets, fetchMarkets, fetchBalances, fetchUSDCxBalances, fetchUSADBalances, loading, claimWinnings, refreshSignal, publicKey } = useAleoPrograms();
+  const { publicKey } = useAleoPrograms();
+  const claimMutation = useClaimWinningsMutation();
+  const { data: records = [] } = useUserBetsQuery();
+  const { data: allMarkets = [] } = useMarketsQuery();
+  const { data: creditsBalances } = useCreditsBalancesQuery();
+  const { data: usdcxBalances } = useUSDCxBalancesQuery();
+  const { data: usadBalances } = useUSADBalancesQuery();
 
-  useEffect(() => {
-    const loadData = async () => {
-      if (!publicKey) return;
-
-      try {
-        const [records, allMarkets, creditsBalances, usdcxBalances, usadBalances] = await Promise.all([
-          fetchUserBets(),
-          fetchMarkets(),
-          fetchBalances(),
-          fetchUSDCxBalances(),
-          fetchUSADBalances(),
-        ]);
-
-        setPrivateBalances({
-          credits: creditsBalances.private,
-          usdcx: usdcxBalances.private,
-          usad: usadBalances.private,
-        });
-
-        const marketMap = new Map(allMarkets.map(m => [m.id.replace("field", "").trim(), m]));
-        const missingMarketIds = Array.from(
-          new Set(records.map(r => r.market_id).filter((id) => !marketMap.has(id)))
-        );
-
-        if (missingMarketIds.length > 0) {
-          const fetched = await Promise.all(
-            missingMarketIds.map(async (id) => {
-              const fieldId = id.endsWith("field") ? id : `${id}field`;
-              const raw = await fetchMappingValue(PROGRAM_ID, "markets", fieldId);
-              if (!raw) return null;
-              return parseMarketInfo(raw as string | object, fieldId);
-            })
-          );
-          fetched.filter(Boolean).forEach((m: any) => {
-            marketMap.set(m.id.replace("field", "").trim(), m);
-          });
-        }
-
-        const mapped: UserBet[] = records.map((record) => {
-          // record.market_id is already cleaned by the hook
-          const market = marketMap.get(record.market_id);
-          const parsedOutcome = Number.parseInt(record.outcome, 10);
-          const outcomeLabel = getOutcomeLabel(
-            market?.market_type ?? 0,
-            market?.outcome_count ?? 2,
-            parsedOutcome,
-            market?.outcome_labels,
-          );
-          const betId = `${record.market_id}-${record.escrow_id}`;
-
-          let status: "Pending" | "Won" | "Lost" | "Cancelled" = "Pending";
-          let canClaim = false;
-
-          if (market?.is_resolved) {
-            if (isCancelledOutcome(market.winning_outcome)) {
-              status = "Cancelled";
-              canClaim = false;
-            } else if (Number.isFinite(parsedOutcome) && market.winning_outcome === parsedOutcome) {
-              status = "Won";
-              canClaim = !record.position_spent;
-            } else {
-              status = "Lost";
-            }
-          }
-
-          return {
-            id: betId,
-            marketId: record.market_id,
-            marketTitle: market?.title || `Market ${record.market_id.substring(0, 8)}...`,
-            category: mapCategoryLabel(market?.category),
-            tokenTicker: resolveTokenTicker(market?.token_id ?? ""),
-            status,
-            outcome: outcomeLabel,
-            placedAt: "Recorded", // TODO - need timestamp in the record
-            canClaim,
-            isClaimed: Boolean(record.position_spent),
-          };
-        });
-
-        setUserBets(mapped);
-
-        // Calculate Stats
-        const total = mapped.length;
-        const pending = mapped.filter(b => b.status === "Pending").length;
-        const resolved = mapped.filter(b => b.status === "Won" || b.status === "Lost");
-        const won = resolved.filter(b => b.status === "Won").length;
-        const rate = resolved.length > 0 ? Math.round((won / resolved.length) * 100) : 0;
-
-        setStats([
-          { icon: Trophy, label: "Total Bets", value: total.toString() },
-          { icon: TrendingUp, label: "Win Rate", value: `${rate}%` },
-          { icon: Clock, label: "Pending", value: pending.toString() },
-        ]);
-
-        // Filter created markets
-        const currentAddr = (publicKey || "").replace(/address/g, "").trim();
-        const filtered = allMarkets.filter((market) =>
-          market.creator && market.creator.replace(/address/g, "").trim() === currentAddr
-        );
-        setMyMarkets(
-          filtered.map((market) => ({
-            id: market.id,
-            title: market.title,
-            description: market.description,
-            title_hash: market.title_hash,
-            is_resolved: market.is_resolved,
-          })),
-        );
-      } catch (error) {
-        console.error("Dashboard error:", error);
-      }
+  const privateBalances = useMemo(() => {
+    if (!publicKey) return null;
+    if (!creditsBalances || !usdcxBalances || !usadBalances) return null;
+    return {
+      credits: creditsBalances.private,
+      usdcx: usdcxBalances.private,
+      usad: usadBalances.private,
     };
+  }, [creditsBalances, usdcxBalances, usadBalances, publicKey]);
 
-    loadData();
-  }, [fetchUserBets, fetchMarkets, fetchBalances, fetchUSDCxBalances, fetchUSADBalances, publicKey, refreshSignal]);
+  const userBets = useMemo<UserBet[]>(() => {
+    const marketMap = new Map(allMarkets.map((market) => [market.id.replace("field", "").trim(), market]));
+    return records.map((record) => {
+      const market = marketMap.get(record.market_id);
+      const parsedOutcome = Number.parseInt(record.outcome, 10);
+      const outcomeLabel = getOutcomeLabel(
+        market?.market_type ?? 0,
+        market?.outcome_count ?? 2,
+        parsedOutcome,
+        market?.outcome_labels,
+      );
+
+      let status: "Pending" | "Won" | "Lost" | "Cancelled" = "Pending";
+      let canClaim = false;
+
+      if (market?.is_resolved) {
+        if (isCancelledOutcome(market.winning_outcome)) {
+          status = "Cancelled";
+        } else if (Number.isFinite(parsedOutcome) && market.winning_outcome === parsedOutcome) {
+          status = "Won";
+          canClaim = !record.position_spent;
+        } else {
+          status = "Lost";
+        }
+      }
+
+      return {
+        id: `${record.market_id}-${record.escrow_id}`,
+        marketId: record.market_id,
+        marketTitle: market?.title || `Market ${record.market_id.substring(0, 8)}...`,
+        category: mapCategoryLabel(market?.category),
+        tokenTicker: resolveTokenTicker(market?.token_id ?? ""),
+        status,
+        outcome: outcomeLabel,
+        placedAt: "Recorded",
+        canClaim,
+        isClaimed: Boolean(record.position_spent),
+      };
+    });
+  }, [allMarkets, records]);
+
+  const stats = useMemo(() => {
+    const total = userBets.length;
+    const pending = userBets.filter((bet) => bet.status === "Pending").length;
+    const resolved = userBets.filter((bet) => bet.status === "Won" || bet.status === "Lost");
+    const won = resolved.filter((bet) => bet.status === "Won").length;
+    const rate = resolved.length > 0 ? Math.round((won / resolved.length) * 100) : 0;
+
+    return [
+      { icon: Trophy, label: "Total Bets", value: total.toString() },
+      { icon: TrendingUp, label: "Win Rate", value: `${rate}%` },
+      { icon: Clock, label: "Pending", value: pending.toString() },
+    ];
+  }, [userBets]);
+
+  const myMarkets = useMemo(() => {
+    const currentAddr = (publicKey || "").replace(/address/g, "").trim();
+    return allMarkets
+      .filter((market) => market.creator && market.creator.replace(/address/g, "").trim() === currentAddr)
+      .map((market) => ({
+        id: market.id,
+        title: market.title,
+        description: market.description,
+        title_hash: market.title_hash,
+        is_resolved: market.is_resolved,
+      }));
+  }, [allMarkets, publicKey]);
 
   const filteredBets = userBets.filter((bet) => {
     if (activeTab === "all") return true;
@@ -182,8 +141,6 @@ export default function DashboardPage() {
     if (activeTab === "lost") return bet.status === "Lost";
     return true;
   });
-
-  const [txId, setTxId] = useState<string | null>(null);
 
   const handleClaim = (marketId: string) => {
     setSelectedMarketId(marketId);
@@ -197,29 +154,17 @@ export default function DashboardPage() {
   const processClaim = async () => {
     setClaimStep("processing");
 
-    if (!selectedMarketId) return;
-    const result = await claimWinnings(selectedMarketId);
+    if (!selectedMarketId) {
+      setClaimStep("confirm");
+      return;
+    }
 
-    if (result) {
-      setTxId(result.transactionId);
+    try {
+      const result = await claimMutation.mutateAsync(selectedMarketId);
       setClaimedAmount(result.payoutAmount);
       setClaimedTicker(result.payoutTicker);
-      const claimedAt = new Date().toLocaleString();
-      setUserBets((prev) =>
-        prev.map((bet) =>
-          bet.marketId === selectedMarketId && bet.status === "Won"
-            ? {
-                ...bet,
-                canClaim: false,
-                isClaimed: true,
-                claimedAmount: result.payoutAmount,
-                claimedAt,
-              }
-            : bet,
-        ),
-      );
       setClaimStep("success");
-    } else {
+    } catch (_error) {
       setClaimStep("confirm");
     }
   };

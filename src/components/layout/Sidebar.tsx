@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutGrid,
@@ -15,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { useSidebar } from "@/context/SidebarContext";
+import { useCreditsBalancesQuery, useMarketsQuery, useUSADBalancesQuery, useUSDCxBalancesQuery } from "@/hooks/useVeilQuery";
 
 const navItems = [
   { icon: LayoutGrid, label: "Markets", path: "/markets" },
@@ -27,31 +27,12 @@ export function Sidebar() {
   const { isCollapsed, toggleSidebar } = useSidebar();
   const collapsed = isCollapsed;
   const location = useLocation();
-  const { fetchMarkets, fetchBalances, fetchUSDCxBalances, fetchUSADBalances, publicKey, refreshSignal } = useAleoPrograms();
-  const [activeMarketsCount, setActiveMarketsCount] = useState<number | null>(null);
-  const [balances, setBalances] = useState<{ private: number } | null>(null);
-  const [usdcxBalances, setUsdcxBalances] = useState<{ private: number } | null>(null);
-  const [usadBalances, setUsadBalances] = useState<{ private: number } | null>(null);
-
-  useEffect(() => {
-    const loadStats = async () => {
-      try {
-        const [markets, bal, usdcx, usad] = await Promise.all([
-          fetchMarkets(),
-          fetchBalances(),
-          fetchUSDCxBalances(),
-          fetchUSADBalances(),
-        ]);
-        setActiveMarketsCount(markets.length);
-        setBalances({ private: bal.private });
-        setUsdcxBalances({ private: usdcx.private });
-        setUsadBalances({ private: usad.private });
-      } catch (error) {
-        console.error("Failed to fetch sidebar stats:", error);
-      }
-    };
-    loadStats();
-  }, [fetchMarkets, fetchBalances, fetchUSDCxBalances, fetchUSADBalances, publicKey, refreshSignal]);
+  const { publicKey } = useAleoPrograms();
+  const { data: markets = [] } = useMarketsQuery();
+  const { data: balances } = useCreditsBalancesQuery();
+  const { data: usdcxBalances } = useUSDCxBalancesQuery();
+  const { data: usadBalances } = useUSADBalancesQuery();
+  const activeMarketsCount = markets.length;
 
   return (
     <aside
@@ -115,7 +96,7 @@ export function Sidebar() {
                 <div className="flex justify-between items-baseline">
                   <span className="text-xs text-muted-foreground">Markets</span>
                   <span className="text-lg font-semibold font-mono text-white leading-none">
-                    {activeMarketsCount !== null ? activeMarketsCount : "..."}
+                    {activeMarketsCount}
                   </span>
                 </div>
                 {publicKey && (
@@ -123,19 +104,19 @@ export function Sidebar() {
                     <div className="flex justify-between items-center group/bal">
                       <span className="text-[10px] text-muted-foreground group-hover/bal:text-white transition-colors">Aleo Credits (Private)</span>
                       <span className="text-sm font-semibold font-mono text-primary">
-                        {balances !== null ? `${balances.private.toLocaleString()}` : "..."}
+                        {balances ? `${balances.private.toLocaleString()}` : "..."}
                       </span>
                     </div>
                     <div className="flex justify-between items-center group/bal">
                       <span className="text-[10px] text-muted-foreground group-hover/bal:text-white transition-colors">USDCx (Private)</span>
                       <span className="text-sm font-semibold font-mono text-accent">
-                        {usdcxBalances !== null ? `${usdcxBalances.private.toLocaleString()}` : "..."}
+                        {usdcxBalances ? `${usdcxBalances.private.toLocaleString()}` : "..."}
                       </span>
                     </div>
                     <div className="flex justify-between items-center group/bal">
                       <span className="text-[10px] text-muted-foreground group-hover/bal:text-white transition-colors">USAD (Private)</span>
                       <span className="text-sm font-semibold font-mono text-accent">
-                        {usadBalances !== null ? `${usadBalances.private.toLocaleString()}` : "..."}
+                        {usadBalances ? `${usadBalances.private.toLocaleString()}` : "..."}
                       </span>
                     </div>
                   </div>
