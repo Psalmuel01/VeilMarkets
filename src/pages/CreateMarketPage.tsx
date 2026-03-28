@@ -28,12 +28,14 @@ import {
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { getTimestampFromDate } from "@/lib/aleo";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   CREDITS_TOKEN_PROGRAM_ADDRESS,
   USDCX_CREDITS_TOKEN_PROGRAM_ADDRESS,
   USAD_CREDITS_TOKEN_PROGRAM_ADDRESS,
   resolveTokenTicker,
 } from "@/lib/constants";
+import { queryKeys } from "@/lib/queryKeys";
 
 const categories = [
   { value: "crypto", label: "Crypto" },
@@ -50,6 +52,7 @@ const DEFAULT_OUTCOME_LABELS = ["No", "Yes", "Option 3", "Option 4"];
 
 export default function CreateMarketPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [step, setStep] = useState<Step>("form");
   const [formData, setFormData] = useState({
     title: "",
@@ -126,6 +129,7 @@ export default function CreateMarketPage() {
     if (result) {
       setCreationResult(result);
       setStep("success");
+      queryClient.invalidateQueries({ queryKey: queryKeys.markets });
     } else {
       setStep("failed");
     }

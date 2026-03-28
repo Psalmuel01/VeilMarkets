@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Shield, Loader2, X, Wallet, ArrowRight, TrendingUp, CheckCircle2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -16,8 +16,9 @@ import { PrivacyChecklist } from "@/components/ui/PrivacyChecklist";
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { cn } from "@/lib/utils";
-import { resolveTokenDisplayName, resolveTokenKind, resolveTokenTicker } from "@/lib/constants";
+import { resolveTokenDisplayName, resolveTokenTicker } from "@/lib/constants";
 import { getOutcomeLabel, getOutcomeLabels, getOutcomeTone, normalizeOutcomeCount } from "@/lib/outcomes";
+import { useMarketPoolQuery, usePlaceBetMutation, useTokenBalanceQuery } from "@/hooks/useVeilQuery";
 
 interface PlaceBetModalProps {
   open: boolean;
@@ -49,50 +50,17 @@ export const PlaceBetModal = ({
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
   const [wagerAmount, setWagerAmount] = useState(5);
   const [txId, setTxId] = useState<string | null>(null);
-  const { placeBet, fetchPoolStats, fetchBalances, fetchUSDCxBalances, fetchUSADBalances, publicKey } = useAleoPrograms();
-  const [pool, setPool] = useState<{
-    total_outcome_0: number;
-    total_outcome_1: number;
-    total_outcome_2: number;
-    total_outcome_3: number;
-    total_yes: number;
-    total_no: number;
-  } | null>(null);
-  const [balances, setBalances] = useState<{ private: number; public: number; total: number } | null>(null);
-  const tokenKind = resolveTokenKind(tokenId);
+  const { publicKey } = useAleoPrograms();
+  const placeBetMutation = usePlaceBetMutation();
+  const { data: pool } = useMarketPoolQuery(marketId, open);
+  const balanceQuery = useTokenBalanceQuery(tokenId, open && Boolean(publicKey));
+  const balances = balanceQuery.data ?? null;
   const tokenTicker = resolveTokenTicker(tokenId);
   const tokenDisplayName = resolveTokenDisplayName(tokenId);
   const normalizedOutcomeCount = normalizeOutcomeCount(outcomeCount);
   const resolvedOutcomeLabels = getOutcomeLabels(marketType, normalizedOutcomeCount, outcomeLabels);
   const availableRequiredBalance = balances ? balances.private : 0;
   const hasLowBalance = !!balances && availableRequiredBalance < wagerAmount;
-
-  useEffect(() => {
-    if (!open) return;
-
-    fetchPoolStats(marketId).then(setPool);
-
-    if (!publicKey) return;
-
-    const loadBalances = async () => {
-      if (tokenKind === "usdcx") {
-        setBalances(await fetchUSDCxBalances());
-        return;
-      }
-      if (tokenKind === "usad") {
-        setBalances(await fetchUSADBalances());
-        return;
-      }
-      const credits = await fetchBalances();
-      setBalances({
-        private: credits.private,
-        public: credits.public,
-        total: credits.private + credits.public,
-      });
-    };
-
-    loadBalances();
-  }, [marketId, open, publicKey, tokenKind, fetchPoolStats, fetchBalances, fetchUSDCxBalances, fetchUSADBalances]);
 
   const calculateReturn = () => {
     if (!pool || selectedOutcome === null) return null;
@@ -126,33 +94,17 @@ export const PlaceBetModal = ({
 
     setStep("processing");
 
-    const result = await placeBet(
-      marketId,
-      selectedOutcome,
-      wagerAmount,
-      tokenId
-    );
-
-    if (result) {
+    try {
+      const result = await placeBetMutation.mutateAsync({
+        marketId,
+        outcome: selectedOutcome,
+        amountCredits: wagerAmount,
+        tokenId,
+      });
       setTxId(result);
       setStep("success");
-
       onBetPlaced?.();
-
-      try {
-        const [updatedPool, updatedBalances] = await Promise.all([
-          fetchPoolStats(marketId),
-          tokenKind === "usdcx" ? fetchUSDCxBalances() : tokenKind === "usad" ? fetchUSADBalances() : fetchBalances(),
-        ]);
-        if (updatedPool) setPool(updatedPool);
-        if (updatedBalances) {
-          setBalances(updatedBalances);
-        }
-      } catch (e) {
-        // Non-fatal: if refresh fails, we still show success state
-        console.warn("Failed to refresh pool or balances after placing bet:", e);
-      }
-    } else {
+    } catch (_error) {
       setStep("failed");
     }
   };

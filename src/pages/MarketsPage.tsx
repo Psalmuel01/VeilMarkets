@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { MarketCard, Market } from "@/components/markets/MarketCard";
 import { MarketFilters } from "@/components/markets/MarketFilters";
 import { motion } from "framer-motion";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { formatDateFriendly, formatVolume } from "@/lib/utils";
-import { getAllMarketMetadata } from "@/lib/metadata";
 import { resolveTokenKind, resolveTokenTicker, type SupportedTokenKind } from "@/lib/constants";
 import { getOutcomeLabel, isCancelledOutcome, normalizeOutcomeCount } from "@/lib/outcomes";
+import { useQueries } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
+import { useMarketsQuery } from "@/hooks/useVeilQuery";
 
 const mapCategory = (value: number): Market["category"] => {
   switch (value) {
@@ -34,75 +36,72 @@ export default function MarketsPage() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [activeToken, setActiveToken] = useState<"all" | SupportedTokenKind>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [markets, setMarkets] = useState<Market[]>([]);
-  const [totalVolume, setTotalVolume] = useState<number>(0);
-  const { fetchMarkets, fetchPoolStats, loading, currentHeight, refreshSignal } = useAleoPrograms();
+  const { fetchPoolStats } = useAleoPrograms();
+  const { data: chainMarkets = [], isLoading: isMarketsLoading } = useMarketsQuery();
 
-  useEffect(() => {
-    const loadMarkets = async () => {
-      const [realMarkets, metadata] = await Promise.all([
-        fetchMarkets(),
-        getAllMarketMetadata()
-      ]);
+  const poolQueries = useQueries({
+    queries: chainMarkets.map((market) => ({
+      queryKey: queryKeys.marketPool(market.id),
+      queryFn: () => fetchPoolStats(market.id),
+      enabled: chainMarkets.length > 0,
+      refetchInterval: 7_000,
+      staleTime: 3_000,
+    })),
+  });
 
-      const metadataMap = new Map((metadata || []).map(m => [m.market_id, m]));
-
-      // Initially map with 0 bets
-      const initialMapped: Market[] = realMarkets.map((market) => {
-        const nowTs = Math.floor(Date.now() / 1000);
-        const meta = metadataMap.get(market.id);
-        
-        const isSettled = market.is_resolved;
-        const isClosed = !isSettled && nowTs >= market.close_time;
-        const status = isSettled ? "Settled" : isClosed ? "Closed" : "Open";
-
-        const createdTs = meta?.created_at ? Math.floor(new Date(meta.created_at).getTime() / 1000) : null;
-
-        return {
-          id: market.id,
-          title: market.title,
-          description: market.description,
-          category: mapCategory(market.category),
-          status: status,
-          closingTime: formatDateFriendly(market.close_time),
-          creationTime: createdTs ? formatDateFriendly(createdTs) : undefined,
-          betsPlaced: 0,
-          marketType: market.market_type,
-          outcomeCount: normalizeOutcomeCount(market.outcome_count),
-          winningOutcome: market.winning_outcome,
-          outcome: market.is_resolved
-            ? (isCancelledOutcome(market.winning_outcome)
-              ? "Cancelled"
-              : getOutcomeLabel(market.market_type, market.outcome_count, market.winning_outcome, market.outcome_labels))
-            : undefined,
-          tokenId: market.token_id,
-          tokenTicker: resolveTokenTicker(market.token_id),
-          tokenKind: resolveTokenKind(market.token_id),
-        };
+  const poolsByMarketId = useMemo(() => {
+    const map = new Map<string, { participant_count: number; escrowed_amount: number }>();
+    chainMarkets.forEach((market, index) => {
+      const query = poolQueries[index];
+      const pool = query?.data;
+      map.set(market.id, {
+        participant_count: pool?.participant_count ?? 0,
+        escrowed_amount: pool?.escrowed_amount ?? 0,
       });
+    });
+    return map;
+  }, [chainMarkets, poolQueries]);
 
-      setMarkets(initialMapped);
+  const markets = useMemo<Market[]>(() => {
+    const nowTs = Math.floor(Date.now() / 1000);
+    return chainMarkets.map((market) => {
+      const isSettled = market.is_resolved;
+      const isClosed = !isSettled && nowTs >= market.close_time;
+      const status: Market["status"] = isSettled ? "Settled" : isClosed ? "Closed" : "Open";
+      const pool = poolsByMarketId.get(market.id);
 
-      // Fetch real pool stats for each market to get bet counts
-      try {
-        const statsPromises = realMarkets.map(m => fetchPoolStats(m.id));
-        const allStats = await Promise.all(statsPromises);
+      return {
+        id: market.id,
+        title: market.title,
+        description: market.description,
+        category: mapCategory(market.category),
+        status,
+        closingTime: formatDateFriendly(market.close_time),
+        betsPlaced: pool?.participant_count ?? 0,
+        marketType: market.market_type,
+        outcomeCount: normalizeOutcomeCount(market.outcome_count),
+        winningOutcome: market.winning_outcome,
+        outcome: market.is_resolved
+          ? (isCancelledOutcome(market.winning_outcome)
+            ? "Cancelled"
+            : getOutcomeLabel(market.market_type, market.outcome_count, market.winning_outcome, market.outcome_labels))
+          : undefined,
+        tokenId: market.token_id,
+        tokenTicker: resolveTokenTicker(market.token_id),
+        tokenKind: resolveTokenKind(market.token_id),
+      };
+    });
+  }, [chainMarkets, poolsByMarketId]);
 
-        const updated = initialMapped.map((m, i) => ({
-          ...m,
-          betsPlaced: allStats[i]?.participant_count || 0
-        }));
+  const totalVolume = useMemo(() => {
+    const totalEscrowed = Array.from(poolsByMarketId.values()).reduce(
+      (acc, pool) => acc + (pool.escrowed_amount || 0),
+      0,
+    );
+    return totalEscrowed / 1_000_000;
+  }, [poolsByMarketId]);
 
-        const totalEscrowed = allStats.reduce((acc, stat) => acc + (stat?.escrowed_amount || 0), 0);
-        setTotalVolume(totalEscrowed / 1_000_000);
-
-        setMarkets(updated);
-      } catch (error) {
-        console.error("Failed to fetch pool stats for markets:", error);
-      }
-    };
-    loadMarkets();
-  }, [fetchMarkets, fetchPoolStats, currentHeight, refreshSignal]);
+  const loading = isMarketsLoading && markets.length === 0;
 
   const filteredMarkets = markets.filter((market) => {
     const matchesCategory = activeCategory === "all" || market.category === activeCategory;
@@ -161,7 +160,7 @@ export default function MarketsPage() {
         </div>
 
         {/* Market Grid */}
-        {loading && markets.length === 0 ? (
+        {loading ? (
           <div className="flex flex-col items-center justify-center py-20">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
             <p className="text-muted-foreground text-lg">Fetching markets from the ZK network...</p>
