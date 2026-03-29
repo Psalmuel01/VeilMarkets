@@ -131,15 +131,15 @@ const sections = [
       },
       {
         title: "3) Propose Resolution",
-        description: "Registered oracles can propose the outcome after the resolution block. This writes a proposal and sets a challenge deadline.",
+        description: "Registered oracles can propose the outcome after the resolution block. This requires a staking bond (min. 30 Credits). Incorrect proposals result in a slash.",
       },
       {
         title: "4) Challenge & Vote",
-        description: "Anyone can dispute a proposal within the challenge window. If disputed, oracle votes determine the winning outcome.",
+        description: "Anyone can dispute a proposal within the challenge window by posting a bond. If disputed, oracle votes determine the winner. The winner (proposer or disputer) receives 90% of the loser's stake, with 10% going to the platform.",
       },
       {
         title: "5) Finalize",
-        description: "The oracle owner finalizes on-chain via resolve_on_core, which resolves the market in the core contract.",
+        description: "The oracle owner finalizes on-chain via resolve_on_core. This transition enforces the 90/10 reward split and platform fee collection.",
       },
       {
         title: "6) Claim Winnings",
@@ -164,7 +164,7 @@ const faqs = [
   },
   {
     question: "Are there any fees?",
-    answer: "You pay normal Aleo network transaction fees. Platform fee fields exist in adapters for future use, but they are not the primary user-facing mechanism today.",
+    answer: "You pay normal Aleo network transaction fees. Additionally, during resolved disputes, a 10% platform fee is collected from the slashed stake/bond. The remaining 90% is awarded to the winning party.",
   },
 ];
 

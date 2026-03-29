@@ -43,20 +43,22 @@ Wave 4 focused on turning VeilMarkets from a binary-only prototype into a produc
 - Updated Leo program dependencies/imports/tests accordingly.
 - Rebuilt contracts and validated compile flow under v8 suite.
 
-### 6) Supabase Metadata Upgrade
-- Introduced v8 metadata table design for market rendering and search: `markets_v8`
-- Added constraints/indexes and RLS policies required for public read + controlled writes.
-- Updated frontend metadata client to use v8 schema end to end.
 
-### 7) Oracle Lifecycle and Status Tracking
+### 6) Oracle Lifecycle and Status Tracking
 - Improved oracle status tracking in frontend state.
 - Added unstake-driven status downgrade behavior (losing effective oracle status when stake falls below threshold).
 - Kept registration/staking flows aligned with updated contract semantics.
 
-### 8) Dev/Build Stability Fixes in This Wave
-- Fixed Vite/esbuild compatibility issue caused by top-level await in dependency bundle path.
-- Stabilized local dev startup and contract-integration runtime behavior after upgrade iterations.
+### 7) Economic Hardening: Oracle Dispute Rewards
+- Introduced a **90/10 reward split** for market resolution disputes:
+  - **Winners** (Proposer or Disputer) receive 90% of the loser's stake/bond.
+  - **Platform** collects 10% as residues to maintain the oracle network.
+- **Fixed-Stake Slashing for Proposers**: Wrong proposals result in a slash of 30 Credits (minimum stake) to ensure accountability without over-penalizing large oracles.
+- **Disputer-Stake Slashing**: Disputers lose their entire bond if they lose a challenge, discouraging spam/lazy disputes.
 
+
+
+### 8) Implemented end-to-end auto-refresh behavior with React Query, invalidation, and realtime updates, for smooth user experience.
 ---
 
 ## Current Product State After Wave 4

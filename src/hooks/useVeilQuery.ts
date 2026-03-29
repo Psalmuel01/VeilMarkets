@@ -4,7 +4,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { resolveTokenKind, type SupportedTokenKind } from "@/lib/constants";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 
-const POLL_INTERVAL_MS = 7_000;
+const POLL_INTERVAL_MS = 5_000;
 const DEFAULT_STALE_MS = 3_000;
 
 interface TokenBalanceSummary {

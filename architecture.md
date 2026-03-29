@@ -128,7 +128,13 @@ Handles market resolution via an **optimistic mechanism**.
 
 - Resolve markets
 - Manage disputes
-- Maintain integrity of outcomes
+- **Stake-Weighted Voting**: Final outcome is decided by aggregate weight of oracle votes if disputed.
+- **Economic Model (90/10)**: 
+  - **Winners** receive 90% of the loser's stake/bond. 
+  - **Platform** collects 10% in the contract's public balance (admin-managed).
+- **Penalties**:
+  - **Proposers**: Slashed 30 Credits (minimum oracle stake) for incorrect proposals. 
+  - **Disputers**: Lose their entire bond if they lose a challenge. 
 
 ---
 

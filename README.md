@@ -41,8 +41,9 @@ VeilMarkets lets users create markets, place private bets, and claim payouts wit
 3. Core updates pool/participant accounting and maps position to escrow.
 4. Oracles propose outcome after `resolution_time`.
 5. Challenge window allows disputes; if disputed, weighted oracle votes decide.
-6. Finalization resolves on core.
-7. User claims:
+6. **Economic Incentives**: Resolution winners receive 90% of the loser's stake/bond; 10% is collected as platform fees. Incorrect proposals result in a stake slash of at least 30 Credits.
+7. Finalization resolves on core.
+8. User claims:
    - `claim_winnings` on core (computes/records payout claim)
    - `claim_payout` on matching token adapter (transfers payout)
 
