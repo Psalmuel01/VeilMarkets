@@ -37,6 +37,7 @@ program veilmarkets_oracle_v8.aleo {
     const MIN_ORACLE_STAKE: u64 = 30000000u64; // 30 Credits (for testing)
     const DISPUTE_WINDOW: u64 = 300u64; // 5 minutes in seconds
     const CORE_CONTRACT_TYPE: u8 = 3u8;
+    const PLATFORM_ADDR: address = aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
 
     // Initialize
     @admin(address = "aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n")
@@ -211,6 +212,44 @@ program veilmarkets_oracle_v8.aleo {
             let winning_outcome: u8 =
                 (best_23_votes > best_01_votes) ? best_23_outcome : best_01_outcome;
             assert_eq(outcome, winning_outcome);
+
+            // Reward distribution logic (90/10 split)
+            let dispute: Dispute = Mapping::get(disputes, market_id);
+            
+            if (winning_outcome != proposal.proposed_outcome) {
+                // Case 1: Disputer (Challenger) Wins
+                // Slash proposer's stake (capped at MIN_ORACLE_STAKE)
+                let proposer_stake: u64 = Mapping::get(active_oracles, proposal.proposer);
+                let slashed: u64 = MIN_ORACLE_STAKE;
+                Mapping::set(active_oracles, proposal.proposer, proposer_stake - slashed);
+                
+                let plat_fee: u64 = slashed / 10u64;
+                let win_reward: u64 = slashed - plat_fee;
+                
+                // Disputer gets their bond back + 90% of slashed amount
+                let current_disp_bal: u64 = Mapping::get_or_use(active_oracles, dispute.challenger, 0u64);
+                Mapping::set(active_oracles, dispute.challenger, current_disp_bal + dispute.stake + win_reward);
+                
+                // Platform gets 10%
+                let current_plat_bal: u64 = Mapping::get_or_use(active_oracles, PLATFORM_ADDR, 0u64);
+                Mapping::set(active_oracles, PLATFORM_ADDR, current_plat_bal + plat_fee);
+            } else {
+                // Case 2: Proposer Wins
+                let bond: u64 = dispute.stake;
+                let plat_fee: u64 = bond / 10u64;
+                let win_reward: u64 = bond - plat_fee;
+                
+                // Proposer keeps their original stake (already in active_oracles) 
+                // and gains 90% of the challenger's bond.
+                let current_prop_bal: u64 = Mapping::get(active_oracles, proposal.proposer);
+                Mapping::set(active_oracles, proposal.proposer, current_prop_bal + win_reward);
+                
+                // Platform gets 10%
+                let current_plat_bal: u64 = Mapping::get_or_use(active_oracles, PLATFORM_ADDR, 0u64);
+                Mapping::set(active_oracles, PLATFORM_ADDR, current_plat_bal + plat_fee);
+            }
+            // Note: Platform residues are credited to PLATFORM_ADDR in active_oracles.
+            // Only the admin can withdraw these funds using unstake_credits.
         } else {
             // If not disputed, check deadline and outcome
             assert(block.timestamp as u64 >= proposal.challenge_deadline);

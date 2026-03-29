@@ -2,7 +2,13 @@ import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { SupportedTokenKind } from "@/lib/constants";
 
 interface MarketFiltersProps {
@@ -53,37 +59,48 @@ export function MarketFilters({
         />
       </div>
 
-      {/* Category Filters */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {categories.map((category) => (
-          <Button
-            key={category.id}
-            variant="ghost"
-            size="sm"
-            onClick={() => onCategoryChange(category.id)}
-            className={cn(
-              "rounded-full border transition-all",
-              activeCategory === category.id
-                ? "bg-primary/10 border-primary/30 text-primary"
-                : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border"
-            )}
-          >
-            {category.label}
-          </Button>
-        ))}
+      {/* Content Area (Filters + Select) */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center w-full">
+        {/* Scrollable Category Pills */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 w-full scrollbar-none snap-x mask-fade-right pr-4">
+          {categories.map((category) => (
+            <Button
+              key={category.id}
+              variant="ghost"
+              size="sm"
+              onClick={() => onCategoryChange(category.id)}
+              className={cn(
+                "rounded-full border transition-all",
+                activeCategory === category.id
+                  ? "bg-primary/10 border-primary/30 text-primary"
+                  : "border-border/50 text-muted-foreground hover:text-foreground hover:border-border",
+              )}
+            >
+              {category.label}
+            </Button>
+          ))}
+        </div>
 
-        <Select value={activeToken} onValueChange={(value) => onTokenChange(value as "all" | SupportedTokenKind)}>
-          <SelectTrigger className="ml-auto h-9 w-full sm:w-[120px] bg-background/50 border-border/60">
-            <SelectValue placeholder="token" />
-          </SelectTrigger>
-          <SelectContent>
-            {tokens.map((token) => (
-              <SelectItem key={token.id} value={token.id}>
-                {token.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Token Select */}
+        <div className="w-full sm:w-auto shrink-0">
+          <Select
+            value={activeToken}
+            onValueChange={(value) =>
+              onTokenChange(value as "all" | SupportedTokenKind)
+            }
+          >
+            <SelectTrigger className="w-full sm:w-[120px] h-9 bg-background/50 border-border/60">
+              <SelectValue placeholder="token" />
+            </SelectTrigger>
+            <SelectContent>
+              {tokens.map((token) => (
+                <SelectItem key={token.id} value={token.id}>
+                  {token.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
     </div>
   );

@@ -9,7 +9,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Loader2,
-  AlertCircle
+  AlertCircle,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { toast } from "sonner";
@@ -68,7 +68,10 @@ export default function CreateMarketPage() {
   });
 
   const { createMarket } = useAleoPrograms();
-  const [creationResult, setCreationResult] = useState<{ transactionId: string; marketId: string } | null>(null);
+  const [creationResult, setCreationResult] = useState<{
+    transactionId: string;
+    marketId: string;
+  } | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,7 +81,10 @@ export default function CreateMarketPage() {
   const handleCreate = async () => {
     setStep("creating");
 
-    const closeTime = getTimestampFromDate(formData.closingDate, formData.closingTime);
+    const closeTime = getTimestampFromDate(
+      formData.closingDate,
+      formData.closingTime,
+    );
     if (!closeTime) {
       toast.error("Invalid closing date (must be in future)");
       setStep("form");
@@ -101,11 +107,16 @@ export default function CreateMarketPage() {
     };
 
     const marketTypeValue = formData.marketType === "binary" ? 0 : 1;
-    const outcomeCountValue = marketTypeValue === 0 ? 2 : (Number.parseInt(formData.outcomeCount, 10) || 2);
-    const outcomeLabels = (marketTypeValue === 0
-      ? ["No", "Yes"]
-      : formData.outcomeLabels.slice(0, outcomeCountValue).map((label) => label.trim())
-    );
+    const outcomeCountValue =
+      marketTypeValue === 0
+        ? 2
+        : Number.parseInt(formData.outcomeCount, 10) || 2;
+    const outcomeLabels =
+      marketTypeValue === 0
+        ? ["No", "Yes"]
+        : formData.outcomeLabels
+            .slice(0, outcomeCountValue)
+            .map((label) => label.trim());
 
     if (outcomeLabels.some((label) => label.length === 0)) {
       toast.error("Every outcome label is required.");
@@ -123,7 +134,7 @@ export default function CreateMarketPage() {
       closeTime,
       resolutionTime,
       formData.resolutionSource,
-      formData.tokenId
+      formData.tokenId,
     );
 
     if (result) {
@@ -136,10 +147,14 @@ export default function CreateMarketPage() {
   };
 
   const requestedOutcomeCount =
-    formData.marketType === "binary" ? 2 : (Number.parseInt(formData.outcomeCount, 10) || 2);
+    formData.marketType === "binary"
+      ? 2
+      : Number.parseInt(formData.outcomeCount, 10) || 2;
   const hasValidOutcomeLabels =
     formData.marketType === "binary" ||
-    formData.outcomeLabels.slice(0, requestedOutcomeCount).every((label) => label.trim().length > 0);
+    formData.outcomeLabels
+      .slice(0, requestedOutcomeCount)
+      .every((label) => label.trim().length > 0);
   const isFormValid =
     formData.title &&
     formData.description &&
@@ -156,11 +171,17 @@ export default function CreateMarketPage() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-12 text-center"
         >
-          <Badge variant="outline" className="mb-4 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] border-primary/20 text-primary bg-primary/5">
+          <Badge
+            variant="outline"
+            className="mb-4 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] border-primary/20 text-primary bg-primary/5"
+          >
             Market Creation Portal
           </Badge>
           <h1 className="text-2xl md:text-3xl lg:text-4xl font-black text-white leading-tight tracking-tight mb-2">
-            Launch Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">Prediction</span>
+            Launch Your{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent">
+              Prediction
+            </span>
           </h1>
           <p className="text-muted-foreground text- max-w-lg mx-auto leading-relaxed">
             Deploy a private, ZK-powered prediction market on Aleo in seconds.
@@ -179,7 +200,10 @@ export default function CreateMarketPage() {
             <form onSubmit={handleSubmit} className="space-y-8 relative z-10">
               {/* Question Input */}
               <div className="space-y-3">
-                <Label htmlFor="title" className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 flex items-center gap-2 ml-1">
+                <Label
+                  htmlFor="title"
+                  className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 flex items-center gap-2 ml-1"
+                >
                   <FileText className="w-3.5 h-3.5 text-primary" />
                   Primary Question
                 </Label>
@@ -187,7 +211,9 @@ export default function CreateMarketPage() {
                   id="title"
                   placeholder="e.g. Will Aleo Mainnet launch successfully?"
                   value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, title: e.target.value })
+                  }
                   className="h-14 bg-white/[0.03] border-white/10 rounded-2xl px-6 text-lg font-medium focus:border-primary/50 focus:ring-primary/20 transition-all placeholder:text-white/10"
                 />
                 <p className="text-[10px] text-muted-foreground/40 font-medium ml-1">
@@ -197,14 +223,19 @@ export default function CreateMarketPage() {
 
               {/* Description Textarea */}
               <div className="space-y-3">
-                <Label htmlFor="description" className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 flex items-center gap-2 ml-1">
+                <Label
+                  htmlFor="description"
+                  className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 flex items-center gap-2 ml-1"
+                >
                   Details & Resolution
                 </Label>
                 <Textarea
                   id="description"
                   placeholder="Provide explicit criteria for the outcome resolution..."
                   value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
                   className="bg-white/[0.03] border-white/10 rounded-2xl p-6 min-h-[160px] text-base leading-relaxed focus:border-primary/50 transition-all placeholder:text-white/10"
                 />
               </div>
@@ -218,14 +249,20 @@ export default function CreateMarketPage() {
                   </Label>
                   <Select
                     value={formData.category}
-                    onValueChange={(value) => setFormData({ ...formData, category: value })}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, category: value })
+                    }
                   >
                     <SelectTrigger className="h-14 bg-white/[0.03] border-white/10 rounded-2xl px-6">
                       <SelectValue placeholder="Select context" />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-white/10 rounded-2xl">
                       {categories.map((cat) => (
-                        <SelectItem key={cat.value} value={cat.value} className="h-12 rounded-xl focus:bg-white/10">
+                        <SelectItem
+                          key={cat.value}
+                          value={cat.value}
+                          className="h-12 rounded-xl focus:bg-white/10"
+                        >
                           {cat.label}
                         </SelectItem>
                       ))}
@@ -245,7 +282,8 @@ export default function CreateMarketPage() {
                       setFormData((prev) => ({
                         ...prev,
                         marketType: value,
-                        outcomeCount: value === "binary" ? "2" : prev.outcomeCount,
+                        outcomeCount:
+                          value === "binary" ? "2" : prev.outcomeCount,
                         outcomeLabels:
                           value === "binary"
                             ? ["No", "Yes", ...prev.outcomeLabels.slice(2)]
@@ -257,8 +295,18 @@ export default function CreateMarketPage() {
                       <SelectValue placeholder="Select market type" />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-white/10 rounded-2xl">
-                      <SelectItem value="binary" className="h-12 rounded-xl focus:bg-white/10">Binary (Yes/No)</SelectItem>
-                      <SelectItem value="categorical" className="h-12 rounded-xl focus:bg-white/10">Categorical (2-4 options)</SelectItem>
+                      <SelectItem
+                        value="binary"
+                        className="h-12 rounded-xl focus:bg-white/10"
+                      >
+                        Binary (Yes/No)
+                      </SelectItem>
+                      <SelectItem
+                        value="categorical"
+                        className="h-12 rounded-xl focus:bg-white/10"
+                      >
+                        Categorical (2-4 options)
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -277,7 +325,8 @@ export default function CreateMarketPage() {
                         ...prev,
                         outcomeCount: value,
                         outcomeLabels: prev.outcomeLabels.map((label, index) =>
-                          index < (Number.parseInt(value, 10) || 2) && label.trim().length === 0
+                          index < (Number.parseInt(value, 10) || 2) &&
+                          label.trim().length === 0
                             ? `Option ${index + 1}`
                             : label,
                         ),
@@ -289,34 +338,62 @@ export default function CreateMarketPage() {
                       <SelectValue placeholder="Outcomes" />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-white/10 rounded-2xl">
-                      <SelectItem value="2" className="h-12 rounded-xl focus:bg-white/10">2 outcomes</SelectItem>
-                      <SelectItem value="3" className="h-12 rounded-xl focus:bg-white/10">3 outcomes</SelectItem>
-                      <SelectItem value="4" className="h-12 rounded-xl focus:bg-white/10">4 outcomes</SelectItem>
+                      <SelectItem
+                        value="2"
+                        className="h-12 rounded-xl focus:bg-white/10"
+                      >
+                        2 outcomes
+                      </SelectItem>
+                      <SelectItem
+                        value="3"
+                        className="h-12 rounded-xl focus:bg-white/10"
+                      >
+                        3 outcomes
+                      </SelectItem>
+                      <SelectItem
+                        value="4"
+                        className="h-12 rounded-xl focus:bg-white/10"
+                      >
+                        4 outcomes
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 {/* Closing Date */}
                 <div className="space-y-3">
-                  <Label htmlFor="closingDate" className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 flex items-center gap-2 ml-1">
+                  <Label
+                    htmlFor="closingDate"
+                    className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 flex items-center gap-2 ml-1"
+                  >
                     <Calendar className="w-3.5 h-3.5 text-primary" />
                     Bidding Concludes
                   </Label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <Input
                       id="closingDate"
                       type="date"
                       value={formData.closingDate}
-                      onChange={(e) => setFormData({ ...formData, closingDate: e.target.value })}
-                      className="h-14 bg-white/[0.03] border-white/10 rounded-2xl px-4 focus:border-primary/50 transition-all"
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          closingDate: e.target.value,
+                        })
+                      }
+                      className="h-14 bg-white/[0.03] border-white/10 rounded-2xl px-4 focus:border-primary/50 transition-all w-full"
                     />
                     <Input
                       id="closingTime"
                       type="time"
                       step="1"
                       value={formData.closingTime}
-                      onChange={(e) => setFormData({ ...formData, closingTime: e.target.value })}
-                      className="h-14 bg-white/[0.03] border-white/10 rounded-2xl px-4 w-[130px] focus:border-primary/50 transition-all"
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          closingTime: e.target.value,
+                        })
+                      }
+                      className="h-14 bg-white/[0.03] border-white/10 rounded-2xl px-4 w-full sm:w-[130px] focus:border-primary/50 transition-all"
                     />
                   </div>
                 </div>
@@ -328,24 +405,28 @@ export default function CreateMarketPage() {
                     Outcome Labels
                   </Label>
                   <div className="grid md:grid-cols-2 gap-4">
-                    {Array.from({ length: requestedOutcomeCount }, (_, index) => (
-                      <Input
-                        key={`outcome-label-${index}`}
-                        value={formData.outcomeLabels[index] ?? ""}
-                        onChange={(e) =>
-                          setFormData((prev) => {
-                            const nextLabels = [...prev.outcomeLabels];
-                            nextLabels[index] = e.target.value;
-                            return { ...prev, outcomeLabels: nextLabels };
-                          })
-                        }
-                        placeholder={`Outcome ${index + 1}`}
-                        className="h-12 bg-white/[0.03] border-white/10 rounded-2xl px-4 focus:border-primary/50 transition-all"
-                      />
-                    ))}
+                    {Array.from(
+                      { length: requestedOutcomeCount },
+                      (_, index) => (
+                        <Input
+                          key={`outcome-label-${index}`}
+                          value={formData.outcomeLabels[index] ?? ""}
+                          onChange={(e) =>
+                            setFormData((prev) => {
+                              const nextLabels = [...prev.outcomeLabels];
+                              nextLabels[index] = e.target.value;
+                              return { ...prev, outcomeLabels: nextLabels };
+                            })
+                          }
+                          placeholder={`Outcome ${index + 1}`}
+                          className="h-12 bg-white/[0.03] border-white/10 rounded-2xl px-4 focus:border-primary/50 transition-all"
+                        />
+                      ),
+                    )}
                   </div>
                   <p className="text-[10px] text-muted-foreground/40 font-medium ml-1">
-                    These labels will be saved in metadata and used across market details and resolution.
+                    These labels will be saved in metadata and used across
+                    market details and resolution.
                   </p>
                 </div>
               )}
@@ -353,14 +434,22 @@ export default function CreateMarketPage() {
               {/* Resolution Source & Currency */}
               <div className="grid md:grid-cols-2 gap-8">
                 <div className="space-y-3">
-                  <Label htmlFor="resolutionSource" className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 ml-1">
+                  <Label
+                    htmlFor="resolutionSource"
+                    className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 ml-1"
+                  >
                     Authority Source
                   </Label>
                   <Input
                     id="resolutionSource"
                     placeholder="e.g. CoinMarketCap"
                     value={formData.resolutionSource}
-                    onChange={(e) => setFormData({ ...formData, resolutionSource: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        resolutionSource: e.target.value,
+                      })
+                    }
                     className="h-14 bg-white/[0.03] border-white/10 rounded-2xl px-6 focus:border-primary/50 transition-all"
                   />
                 </div>
@@ -371,28 +460,45 @@ export default function CreateMarketPage() {
                   </Label>
                   <Select
                     value={formData.tokenId}
-                    onValueChange={(value) => setFormData({ ...formData, tokenId: value })}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, tokenId: value })
+                    }
                   >
                     <SelectTrigger className="h-14 bg-white/[0.03] border-white/10 rounded-2xl px-6">
                       <SelectValue placeholder="Token" />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-white/10 rounded-2xl">
-                      <SelectItem value={CREDITS_TOKEN_PROGRAM_ADDRESS} className="h-12 rounded-xl focus:bg-white/10">
+                      <SelectItem
+                        value={CREDITS_TOKEN_PROGRAM_ADDRESS}
+                        className="h-12 rounded-xl focus:bg-white/10"
+                      >
                         <div className="flex items-center gap-2">
                           <span>Aleo Credits</span>
-                          <span className="text-[8px] px-1.5 py-0.5 rounded-full border border-primary/30 text-primary uppercase font-black">Native</span>
+                          <span className="text-[8px] px-1.5 py-0.5 rounded-full border border-primary/30 text-primary uppercase font-black">
+                            Native
+                          </span>
                         </div>
                       </SelectItem>
-                      <SelectItem value={USDCX_CREDITS_TOKEN_PROGRAM_ADDRESS} className="h-12 rounded-xl focus:bg-white/10">
+                      <SelectItem
+                        value={USDCX_CREDITS_TOKEN_PROGRAM_ADDRESS}
+                        className="h-12 rounded-xl focus:bg-white/10"
+                      >
                         <div className="flex items-center gap-2">
                           <span>USDCx</span>
-                          <span className="text-[8px] px-1.5 py-0.5 rounded-full border border-emerald-500/30 text-emerald-400 uppercase font-black">ARC20</span>
+                          <span className="text-[8px] px-1.5 py-0.5 rounded-full border border-emerald-500/30 text-emerald-400 uppercase font-black">
+                            ARC20
+                          </span>
                         </div>
                       </SelectItem>
-                      <SelectItem value={USAD_CREDITS_TOKEN_PROGRAM_ADDRESS} className="h-12 rounded-xl focus:bg-white/10">
+                      <SelectItem
+                        value={USAD_CREDITS_TOKEN_PROGRAM_ADDRESS}
+                        className="h-12 rounded-xl focus:bg-white/10"
+                      >
                         <div className="flex items-center gap-2">
                           <span>USAD</span>
-                          <span className="text-[8px] px-1.5 py-0.5 rounded-full border border-emerald-500/30 text-emerald-400 uppercase font-black">ARC20</span>
+                          <span className="text-[8px] px-1.5 py-0.5 rounded-full border border-emerald-500/30 text-emerald-400 uppercase font-black">
+                            ARC20
+                          </span>
                         </div>
                       </SelectItem>
                     </SelectContent>
@@ -406,7 +512,9 @@ export default function CreateMarketPage() {
                   disabled={!isFormValid}
                   className="w-full h-16 rounded-[2rem] btn- text-sm font-black group"
                 >
-                  <span className="tracking-widest uppercase">Validate Market</span>
+                  <span className="tracking-widest uppercase">
+                    Validate Market
+                  </span>
                   <ArrowRight className="ml-3 w-5 h-5 group-hover:translate-x-1.5 transition-transform" />
                 </Button>
               </div>
@@ -427,18 +535,26 @@ export default function CreateMarketPage() {
               </div>
 
               <div className="flex items-center justify-between mb-8 relative z-10">
-                <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60">Configuration Review</h2>
+                <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60">
+                  Configuration Review
+                </h2>
                 <ZKBadge variant="proof" size="sm" />
               </div>
 
               <div className="grid gap-8 relative z-10">
                 <div className="space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Market Question</p>
-                  <p className="text-2xl font-black text-white leading-tight">{formData.title}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+                    Market Question
+                  </p>
+                  <p className="text-2xl font-black text-white leading-tight">
+                    {formData.title}
+                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Detailed Criteria</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+                    Detailed Criteria
+                  </p>
                   <p className="text-sm text-white/70 leading-relaxed bg-white/5 p-5 rounded-2xl border border-white/10">
                     {formData.description}
                   </p>
@@ -446,31 +562,53 @@ export default function CreateMarketPage() {
 
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                   <div className="space-y-1">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Category</p>
-                    <p className="text-sm font-bold text-white capitalize">{formData.category}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Type</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+                      Category
+                    </p>
                     <p className="text-sm font-bold text-white capitalize">
-                      {formData.marketType} ({formData.marketType === "binary" ? "2" : formData.outcomeCount} outcomes)
+                      {formData.category}
                     </p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Asset</p>
-                    <p className="text-sm font-bold text-primary font-mono">{resolveTokenTicker(formData.tokenId)}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+                      Type
+                    </p>
+                    <p className="text-sm font-bold text-white capitalize">
+                      {formData.marketType} (
+                      {formData.marketType === "binary"
+                        ? "2"
+                        : formData.outcomeCount}{" "}
+                      outcomes)
+                    </p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Deadline</p>
-                    <p className="text-sm font-bold text-white">{formData.closingDate}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+                      Asset
+                    </p>
+                    <p className="text-sm font-bold text-primary font-mono">
+                      {resolveTokenTicker(formData.tokenId)}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+                      Deadline
+                    </p>
+                    <p className="text-sm font-bold text-white">
+                      {formData.closingDate}
+                    </p>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Outcomes</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+                    Outcomes
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {(formData.marketType === "binary"
                       ? ["No", "Yes"]
-                      : formData.outcomeLabels.slice(0, requestedOutcomeCount).map((label) => label.trim())
+                      : formData.outcomeLabels
+                          .slice(0, requestedOutcomeCount)
+                          .map((label) => label.trim())
                     ).map((label, index) => (
                       <span
                         key={`review-outcome-${index}-${label}`}
@@ -484,8 +622,12 @@ export default function CreateMarketPage() {
 
                 {formData.resolutionSource && (
                   <div className="pt-6 border-t border-white/5">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-1">Source of Truth</p>
-                    <p className="text-sm font-bold text-white/80">{formData.resolutionSource}</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 mb-1">
+                      Source of Truth
+                    </p>
+                    <p className="text-sm font-bold text-white/80">
+                      {formData.resolutionSource}
+                    </p>
                   </div>
                 )}
               </div>
@@ -495,17 +637,21 @@ export default function CreateMarketPage() {
             <div className="glass-card p-8 rounded-[2.5rem] border border-white/5 bg-primary/5">
               <div className="flex items-center gap-3 mb-6">
                 <Shield className="w-5 h-5 text-primary" />
-                <h3 className="text-xs font-black uppercase tracking-widest text-white/80">ZK Privacy Protocol</h3>
+                <h3 className="text-xs font-black uppercase tracking-widest text-white/80">
+                  ZK Privacy Protocol
+                </h3>
               </div>
               <div className="grid md:grid-cols-3 gap-6">
                 {[
                   "Creator Anonymity",
                   "Encrypted Wagers",
-                  "On-chain Proofs"
+                  "On-chain Proofs",
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-success" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">{item}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                      {item}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -542,9 +688,12 @@ export default function CreateMarketPage() {
               </div>
             </div>
             <div className="max-w-xs mx-auto space-y-3">
-              <h3 className="text-2xl font-black text-white tracking-tight">Deploying Market</h3>
+              <h3 className="text-2xl font-black text-white tracking-tight">
+                Deploying Market
+              </h3>
               <p className="text-muted-foreground text-sm font-medium leading-relaxed">
-                Generating unique ZK-SNARK proofs and broadcasting transaction to Aleo Network...
+                Generating unique ZK-SNARK proofs and broadcasting transaction
+                to Aleo Network...
               </p>
             </div>
             <div className="flex justify-center gap-3">
@@ -553,7 +702,12 @@ export default function CreateMarketPage() {
                   key={delay}
                   initial={{ opacity: 0.3 }}
                   animate={{ opacity: 1 }}
-                  transition={{ repeat: Infinity, duration: 0.6, delay: delay / 1000, repeatType: "reverse" }}
+                  transition={{
+                    repeat: Infinity,
+                    duration: 0.6,
+                    delay: delay / 1000,
+                    repeatType: "reverse",
+                  }}
                   className="w-2 h-2 rounded-full bg-primary shadow-[0_0_10px_theme(colors.primary.DEFAULT)]"
                 />
               ))}
@@ -572,16 +726,24 @@ export default function CreateMarketPage() {
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
-              transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.2 }}
+              transition={{
+                type: "spring",
+                stiffness: 200,
+                damping: 15,
+                delay: 0.2,
+              }}
               className="mx-auto w-24 h-24 rounded-full bg-success/10 border border-success/30 flex items-center justify-center shadow-[0_0_40px_hsla(160,84%,45%,0.2)]"
             >
               <CheckCircle2 className="w-12 h-12 text-success" />
             </motion.div>
 
             <div className="space-y-3">
-              <h3 className="text-3xl font-black text-white tracking-tight">Deployment Successful</h3>
+              <h3 className="text-3xl font-black text-white tracking-tight">
+                Deployment Successful
+              </h3>
               <p className="text-muted-foreground font-medium max-w-sm mx-auto">
-                Your prediction market is now active and accessible across the network.
+                Your prediction market is now active and accessible across the
+                network.
               </p>
               <div className="flex justify-center pt-2">
                 <ZKBadge variant="verified" size="lg" animated />
@@ -590,7 +752,9 @@ export default function CreateMarketPage() {
 
             <div className="max-w-md mx-auto p-6 rounded-[2rem] bg-white/[0.03] border border-white/5 space-y-3">
               <div className="flex flex-col gap-1 items-center">
-                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40">Transaction Signature</span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/40">
+                  Transaction Signature
+                </span>
                 <code className="text-xs font-mono text-primary/80 break-all bg-primary/5 px-4 py-2 rounded-lg border border-primary/10">
                   {creationResult?.transactionId || "aleo1tx..."}
                 </code>
@@ -630,9 +794,12 @@ export default function CreateMarketPage() {
             </div>
 
             <div className="space-y-3">
-              <h3 className="text-2xl font-black text-white tracking-tight">Deployment Error</h3>
+              <h3 className="text-2xl font-black text-white tracking-tight">
+                Deployment Error
+              </h3>
               <p className="text-muted-foreground font-medium max-w-xs mx-auto">
-                The network failed to process your request. Ensure your wallet has sufficient credits and try again.
+                The network failed to process your request. Ensure your wallet
+                has sufficient credits and try again.
               </p>
             </div>
 
