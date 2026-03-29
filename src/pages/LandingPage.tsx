@@ -441,6 +441,7 @@ export default function LandingPage() {
         .vm-zk-svg { width: 100%; }
 
         /* ── Privacy grid ── */
+        .vm-privacy-container { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; }
         .vm-privacy-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 1000px; margin: 0 auto; }
         .vm-privacy-section { display: flex; flex-direction: column; gap: 24px; }
         .vm-privacy-card {
@@ -484,6 +485,8 @@ export default function LandingPage() {
 
         /* ── Responsive ── */
         @media (max-width: 768px) {
+          .vm-hide-mobile { display: none; }
+          .vm-privacy-container { grid-template-columns: 1fr; gap: 40px; }
           .vm-nav { padding: 0 20px; }
           .vm-hero { padding: 100px 20px 60px; }
           .vm-steps { grid-template-columns: 1fr; }
@@ -508,8 +511,8 @@ export default function LandingPage() {
             <span className="vm-logo-text">VeilMarkets</span>
           </Link>
           <div className="vm-nav-links">
-            <Link to="/docs" className="vm-nav-link">Docs</Link>
-            <Link to="/markets" className="vm-nav-link">Markets</Link>
+            <Link to="/docs" className="vm-nav-link vm-hide-mobile">Docs</Link>
+            <Link to="/markets" className="vm-nav-link vm-hide-mobile">Markets</Link>
             <ConnectWalletButton />
           </div>
         </nav>
@@ -599,7 +602,7 @@ export default function LandingPage() {
 
         {/* ZK Privacy */}
         <section className="vm-section" style={{ background: "var(--vm-surface)", borderTop: "1px solid var(--vm-border)", borderBottom: "1px solid var(--vm-border)" }}>
-          <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64, alignItems: "center" }}>
+          <div className="vm-privacy-container">
             <motion.div initial={{ opacity: 0, x: -24 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>
               <span className="vm-section-label">Zero-knowledge privacy</span>
               <h2 className="vm-h2">Your bet is yours alone</h2>

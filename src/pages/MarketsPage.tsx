@@ -5,8 +5,16 @@ import { MarketFilters } from "@/components/markets/MarketFilters";
 import { motion } from "framer-motion";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { formatDateFriendly, formatVolume } from "@/lib/utils";
-import { resolveTokenKind, resolveTokenTicker, type SupportedTokenKind } from "@/lib/constants";
-import { getOutcomeLabel, isCancelledOutcome, normalizeOutcomeCount } from "@/lib/outcomes";
+import {
+  resolveTokenKind,
+  resolveTokenTicker,
+  type SupportedTokenKind,
+} from "@/lib/constants";
+import {
+  getOutcomeLabel,
+  isCancelledOutcome,
+  normalizeOutcomeCount,
+} from "@/lib/outcomes";
 import { useQueries } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { useMarketsQuery } from "@/hooks/useVeilQuery";
@@ -34,10 +42,13 @@ const mapCategory = (value: number): Market["category"] => {
 
 export default function MarketsPage() {
   const [activeCategory, setActiveCategory] = useState("all");
-  const [activeToken, setActiveToken] = useState<"all" | SupportedTokenKind>("all");
+  const [activeToken, setActiveToken] = useState<"all" | SupportedTokenKind>(
+    "all",
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const { fetchPoolStats } = useAleoPrograms();
-  const { data: chainMarkets = [], isLoading: isMarketsLoading } = useMarketsQuery();
+  const { data: chainMarkets = [], isLoading: isMarketsLoading } =
+    useMarketsQuery();
 
   const poolQueries = useQueries({
     queries: chainMarkets.map((market) => ({
@@ -50,7 +61,10 @@ export default function MarketsPage() {
   });
 
   const poolsByMarketId = useMemo(() => {
-    const map = new Map<string, { participant_count: number; escrowed_amount: number }>();
+    const map = new Map<
+      string,
+      { participant_count: number; escrowed_amount: number }
+    >();
     chainMarkets.forEach((market, index) => {
       const query = poolQueries[index];
       const pool = query?.data;
@@ -67,7 +81,11 @@ export default function MarketsPage() {
     return chainMarkets.map((market) => {
       const isSettled = market.is_resolved;
       const isClosed = !isSettled && nowTs >= market.close_time;
-      const status: Market["status"] = isSettled ? "Settled" : isClosed ? "Closed" : "Open";
+      const status: Market["status"] = isSettled
+        ? "Settled"
+        : isClosed
+          ? "Closed"
+          : "Open";
       const pool = poolsByMarketId.get(market.id);
 
       return {
@@ -82,9 +100,14 @@ export default function MarketsPage() {
         outcomeCount: normalizeOutcomeCount(market.outcome_count),
         winningOutcome: market.winning_outcome,
         outcome: market.is_resolved
-          ? (isCancelledOutcome(market.winning_outcome)
+          ? isCancelledOutcome(market.winning_outcome)
             ? "Cancelled"
-            : getOutcomeLabel(market.market_type, market.outcome_count, market.winning_outcome, market.outcome_labels))
+            : getOutcomeLabel(
+                market.market_type,
+                market.outcome_count,
+                market.winning_outcome,
+                market.outcome_labels,
+              )
           : undefined,
         tokenId: market.token_id,
         tokenTicker: resolveTokenTicker(market.token_id),
@@ -104,9 +127,12 @@ export default function MarketsPage() {
   const loading = isMarketsLoading && markets.length === 0;
 
   const filteredMarkets = markets.filter((market) => {
-    const matchesCategory = activeCategory === "all" || market.category === activeCategory;
-    const matchesToken = activeToken === "all" || market.tokenKind === activeToken;
-    const matchesSearch = market.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    const matchesCategory =
+      activeCategory === "all" || market.category === activeCategory;
+    const matchesToken =
+      activeToken === "all" || market.tokenKind === activeToken;
+    const matchesSearch =
+      market.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       market.description.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesToken && matchesSearch;
   });
@@ -124,24 +150,35 @@ export default function MarketsPage() {
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary/80">Live Prediction Ecosystem</span>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary/80">
+                  Live Prediction Ecosystem
+                </span>
               </div>
               <h1 className="text-4xl font-semibold tracking-tight text-white mb-2">
                 Explore <span className="text-gradient">Markets</span>
               </h1>
               <p className="text-md text-muted-foreground max-w-2xl leading-relaxed">
-                Discover and participate in decentralized, privacy-preserving prediction markets powered by zero-knowledge proofs on Aleo.
+                Discover and participate in decentralized, privacy-preserving
+                prediction markets powered by zero-knowledge proofs on Aleo.
               </p>
             </div>
-            
+
             <div className="flex items-center gap-3 bg-white/[0.03] border border-white/5 p-2 rounded-2xl backdrop-blur-sm">
               <div className="px-4 py-2 text-center border-r border-white/5">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Active</div>
-                <div className="text-xl font-semibold font-mono text-white">{markets.length}</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                  Active
+                </div>
+                <div className="text-xl font-semibold font-mono text-white">
+                  {markets.length}
+                </div>
               </div>
               <div className="px-4 py-2 text-center">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Volume</div>
-                <div className="text-xl font-semibold font-mono text-success">{formatVolume(totalVolume)}</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                  Volume
+                </div>
+                <div className="text-xl font-semibold font-mono text-success">
+                  {formatVolume(totalVolume)}
+                </div>
               </div>
             </div>
           </motion.div>
@@ -163,11 +200,13 @@ export default function MarketsPage() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
-            <p className="text-muted-foreground text-lg">Fetching markets from the ZK network...</p>
+            <p className="text-muted-foreground text-lg">
+              Fetching markets from the ZK network...
+            </p>
           </div>
         ) : (
           <>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {filteredMarkets.map((market, index) => (
                 <motion.div
                   key={market.id}
@@ -182,7 +221,9 @@ export default function MarketsPage() {
 
             {filteredMarkets.length === 0 && !loading && (
               <div className="text-center py-16">
-                <p className="text-muted-foreground">No markets found matching your criteria</p>
+                <p className="text-muted-foreground">
+                  No markets found matching your criteria
+                </p>
               </div>
             )}
           </>

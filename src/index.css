@@ -154,6 +154,7 @@
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -162,4 +163,18 @@
 
 ::-webkit-scrollbar-thumb {
   @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+}
+
+/* Hide scrollbar for category pills on mobile */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Edge fade for scrollable containers */
+.mask-fade-right {
+  mask-image: linear-gradient(to right, black 90%, transparent 100%);
 }
