@@ -1,8 +1,8 @@
 # VeilMarkets
 
-Privacy-first prediction markets on Aleo.
+Privacy-aware prediction markets on Aleo.
 
-VeilMarkets lets users create markets, place private bets, and claim payouts with zero-knowledge guarantees. The app supports binary and categorical markets (2-4 outcomes) with multi-token settlement rails.
+VeilMarkets lets users create markets, place bets, and claim payouts with zero-knowledge-backed verification. The app supports binary and categorical markets (2-4 outcomes) with multi-token settlement rails.
 
 ## Current Scope
 
@@ -12,7 +12,7 @@ VeilMarkets lets users create markets, place private bets, and claim payouts wit
   - Aleo Credits
   - USDCx (ARC-20)
   - USAD (ARC-20)
-- Private betting flow with private records and ZK verification
+- Public bet placement with private wallet records/claims and ZK verification
 - Oracle-driven optimistic resolution with challenge window
 
 ## Highlights (So Far)
@@ -110,6 +110,7 @@ npm run dev
 
 ## Notes
 
+- Current privacy model: bet placement arguments are public on-chain today; private protection currently applies strongest to wallet records/claims. Full private-to-private placement is a planned upgrade.
 - Stablecoin private spend paths rely on valid private records and proof inputs.
 - If currency filtering behaves differently in production, verify all `VITE_*_TOKEN_PROGRAM_ADDRESS` values were set correctly before build/deploy.
 - Outcome labels for categorical markets currently use generic option names (`Option 1..4`).
