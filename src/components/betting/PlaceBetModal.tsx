@@ -126,7 +126,7 @@ export const PlaceBetModal = ({
                     <Shield className="w-5 h-5 text-white" />
                   </div>
                   <DialogTitle className="text-2xl font-bold tracking-tight text-white">
-                    Place Private <span className="text-gradient">Bet</span>
+                    Buy Private <span className="text-gradient">Shares</span>
                   </DialogTitle>
                 </div>
                 <p className="text-sm text-muted-foreground font-medium pl-10">
@@ -158,7 +158,7 @@ export const PlaceBetModal = ({
                 <div>
                   <h3 className="text-xl font-bold text-white mb-2">Connect Your Wallet</h3>
                   <p className="text-sm text-muted-foreground max-w-xs mx-auto mb-8">
-                    To place a privacy-preserving bet on Aleo, you'll need to link your wallet.
+                    To trade private shares on Aleo, you'll need to link your wallet.
                   </p>
                 </div>
                 <ConnectWalletButton className="w-full max-w-sm mx-auto" />
@@ -175,9 +175,9 @@ export const PlaceBetModal = ({
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 px-1">
                     <div className="w-1 h-4 rounded-full bg-primary" />
-                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                      Select Your Prediction
-                    </label>
+                      <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                        Select Outcome
+                      </label>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <OutcomeCard
@@ -207,7 +207,7 @@ export const PlaceBetModal = ({
                     <div className="flex items-center gap-2">
                       <div className="w-1 h-4 rounded-full bg-accent" />
                       <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                        Wager Amount
+                        Collateral Amount
                       </label>
                     </div>
                     <span className="text-xs font-mono text-muted-foreground">Max: 10 {tokenTicker}</span>
@@ -246,7 +246,7 @@ export const PlaceBetModal = ({
                   disabled={selectedOutcome === null || hasLowBalance || quoteUnavailable}
                   className="w-full btn-premium h-16 rounded-[1.5rem] group"
                 >
-                  <span className="text-base font-bold">Continue to Review</span>
+                  <span className="text-base font-bold">Review Trade</span>
                   <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
 
@@ -284,7 +284,7 @@ export const PlaceBetModal = ({
                     </div>
                   </div>
                   <div className="p-6 rounded-3xl bg-white/[0.03] border border-white/5 space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Wager</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Collateral</span>
                     <div className="text-2xl font-bold text-white font-mono">
                       {wagerAmount} <span className="text-xs text-muted-foreground">{tokenTicker}</span>
                     </div>
@@ -331,7 +331,7 @@ export const PlaceBetModal = ({
                     onClick={handleSubmit}
                     className="flex-[2] btn-premium h-14 rounded-2xl font-bold"
                   >
-                    Confirm Private Bet
+                    Confirm Buy
                   </Button>
                 </div>
               </motion.div>
@@ -352,7 +352,7 @@ export const PlaceBetModal = ({
                   </div>
                 </div>
                 <div className="space-y-3">
-                  <h3 className="text-2xl font-bold text-white tracking-tight">Generating ZK Proof</h3>
+                  <h3 className="text-2xl font-bold text-white tracking-tight">Preparing Private Trade</h3>
                   <p className="text-sm text-muted-foreground max-w-[280px] mx-auto leading-relaxed">
                     Encrypting your transaction and generating a cryptographic proof to ensure your privacy.
                   </p>
@@ -389,9 +389,9 @@ export const PlaceBetModal = ({
                 </motion.div>
 
                 <div className="space-y-3">
-                  <h3 className="text-3xl font-black text-white tracking-tight">Bet Confirmed</h3>
+                  <h3 className="text-3xl font-black text-white tracking-tight">Trade Confirmed</h3>
                   <p className="text-muted-foreground font-medium max-w-sm mx-auto">
-                    Your private bet is now recorded on-chain and secured by ZK proofs.
+                    Your private share purchase is now recorded on-chain and secured by ZK proofs.
                   </p>
                   <div className="flex justify-center pt-2">
                     <ZKBadge variant="verified" size="lg" animated />
@@ -445,7 +445,7 @@ export const PlaceBetModal = ({
                 <div className="space-y-2">
                   <h3 className="text-2xl font-bold text-white tracking-tight">Transaction Failed</h3>
                   <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
-                    We encountered an error while generating your private bet. Please check your wallet and try again.
+                    We encountered an error while submitting your private trade. Please check your wallet and try again.
                   </p>
                 </div>
 

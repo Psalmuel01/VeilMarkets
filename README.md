@@ -12,13 +12,15 @@ VeilMarkets lets users create markets, place bets, and claim payouts with zero-k
   - Aleo Credits
   - USDCx (ARC-20)
   - USAD (ARC-20)
-- Public bet placement with private wallet records/claims and ZK verification
+- Share-trading execution with private wallet records/claims and ZK verification
 - Quorum-aware optimistic resolution with challenge + dispute flow
 
 ## Highlights (So Far)
 
 - v9 contract suite integrated end-to-end
 - Multi-token market creation and betting UX
+- Buy/sell shares flow in market detail (with sell quote + slippage guard)
+- Pool funding flow in market detail
 - Currency filter on markets page (All, ALEO, USDCx, USAD)
 - Token ticker shown on market cards
 - Improved place-bet success state animation and flow
@@ -42,11 +44,12 @@ VeilMarkets lets users create markets, place bets, and claim payouts with zero-k
 1. User places a bet through the token adapter for that market.
 2. Adapter escrows funds and calls core.
 3. Core updates share/pool accounting and links position commitments.
-4. Oracles propose outcome after `resolution_time`.
-5. Challenge window allows disputes; if disputed, quorum-weighted voting resolves final outcome.
-6. **Economic Incentives**: incorrect side is slashed; challenger/proposer rewards and platform cut are enforced in oracle finalize.
-7. Finalization resolves on core.
-8. User claims:
+4. Frontend can compute deterministic buy/sell quotes from on-chain config/state.
+5. Oracles propose outcome after `resolution_time`.
+6. Challenge window allows disputes; if disputed, quorum-weighted voting resolves final outcome.
+7. **Economic Incentives**: incorrect side is slashed; challenger/proposer rewards and platform cut are enforced in oracle finalize.
+8. Finalization resolves on core.
+9. User claims:
    - `claim_winnings` on core (computes/records payout claim)
    - `claim_payout` on matching token adapter (transfers payout)
 
@@ -122,6 +125,7 @@ npm run dev
 
 - Runtime data and contract routing are v9-only.
 - Current payout flow remains claim-based via core `claim_winnings` + adapter `claim_payout`.
+- Core exposes quote transitions (`quote_buy`, `quote_sell`) plus canonical quote math used by execution paths.
 - Stablecoin private spend paths rely on valid private records and proof inputs.
 - If currency filtering behaves differently in production, verify all `VITE_*_TOKEN_PROGRAM_ADDRESS` values were set correctly before build/deploy.
 - Outcome labels for categorical markets are metadata-driven and support up to 32 outcomes in v9 schema.

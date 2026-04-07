@@ -24,6 +24,8 @@ import { Badge } from "@/components/ui/badge";
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { OutcomeCard } from "@/components/betting/OutcomeCard";
 import { PlaceBetModal } from "@/components/betting/PlaceBetModal";
+import { SellSharesModal } from "@/components/betting/SellSharesModal";
+import { FundPoolModal } from "@/components/betting/FundPoolModal";
 import { ResolutionModal } from "@/components/resolution/ResolutionModal";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import {
@@ -71,6 +73,8 @@ const categoryRevMap: Record<number, string> = {
 export default function MarketDetailPage() {
   const { id } = useParams();
   const [showBetModal, setShowBetModal] = useState(false);
+  const [showSellModal, setShowSellModal] = useState(false);
+  const [showFundModal, setShowFundModal] = useState(false);
   const [showResolutionModal, setShowResolutionModal] = useState(false);
   const [showFinalizeModal, setShowFinalizeModal] = useState(false);
   const [finalizeStep, setFinalizeStep] = useState<"confirm" | "processing" | "success" | "failed">("confirm");
@@ -558,6 +562,14 @@ export default function MarketDetailPage() {
                       </span>
                     </div>
                   )}
+                  {marketStatus === "Open" && Number.isFinite(numericUserOutcome) && (
+                    <Button
+                      onClick={() => setShowSellModal(true)}
+                      className="w-full h-12 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white"
+                    >
+                      Sell Shares
+                    </Button>
+                  )}
                   <ZKBadge variant="proof" className="w-full justify-center py-4 rounded-2xl bg-primary/10 text-primary border border-primary/20" />
                 </div>
               ) : !publicKey ? (
@@ -587,6 +599,15 @@ export default function MarketDetailPage() {
                     <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
                   </Button>
                 </div>
+              )}
+
+              {publicKey && marketStatus === "Open" && (
+                <Button
+                  onClick={() => setShowFundModal(true)}
+                  className="w-full mt-4 h-12 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white"
+                >
+                  Provide Liquidity
+                </Button>
               )}
             </div>
 
@@ -717,6 +738,28 @@ export default function MarketDetailPage() {
         marketType={market.market_type}
         outcomeCount={market.outcome_count}
         outcomeLabels={market.outcome_labels}
+      />
+
+      {Number.isFinite(numericUserOutcome) && (
+        <SellSharesModal
+          open={showSellModal}
+          onClose={() => setShowSellModal(false)}
+          marketTitle={market.title}
+          marketId={market.id}
+          tokenId={market.token_id}
+          outcome={numericUserOutcome as number}
+          marketType={market.market_type}
+          outcomeCount={market.outcome_count}
+          outcomeLabels={market.outcome_labels}
+        />
+      )}
+
+      <FundPoolModal
+        open={showFundModal}
+        onClose={() => setShowFundModal(false)}
+        marketTitle={market.title}
+        marketId={market.id}
+        tokenId={market.token_id}
       />
 
       <ResolutionModal

@@ -9,6 +9,8 @@ export const queryKeys = {
     ["market", "outcomes", normalizeMarketIdKey(marketId), outcomeCount] as const,
   buyQuote: (marketId: string, outcome: number, amountMicro: number, slippageBps: number) =>
     ["market", "quote", normalizeMarketIdKey(marketId), outcome, amountMicro, slippageBps] as const,
+  sellQuote: (marketId: string, outcome: number, sharesToSell: number, slippageBps: number) =>
+    ["market", "sell-quote", normalizeMarketIdKey(marketId), outcome, sharesToSell, slippageBps] as const,
   marketProposal: (marketId: string) => ["market", "proposal", normalizeMarketIdKey(marketId)] as const,
   userBets: (address?: string | null) => ["user", "bets", address ?? "guest"] as const,
   balancesCredits: (address?: string | null) => ["balances", "credits", address ?? "guest"] as const,

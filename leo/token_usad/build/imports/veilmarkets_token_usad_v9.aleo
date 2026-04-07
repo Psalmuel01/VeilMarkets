@@ -15,7 +15,7 @@ record EscrowedBet:
     nonce as group.private;
 
 struct EscrowInfo:
-    holder as address;
+    holder_commitment as field;
     market_id as field;
     amount as u64;
     outcome as u8;
@@ -54,7 +54,7 @@ function place_bet:
     assert.eq r8 true;
     gte r5 1000000u64 into r9;
     assert.eq r9 true;
-    lte r4 7u8 into r10;
+    lte r4 31u8 into r10;
     assert.eq r10 true;
     cast r1.siblings r1.leaf_index into r11 as test_usad_stablecoin.aleo/MerkleProof;
     cast r2.siblings r2.leaf_index into r12 as test_usad_stablecoin.aleo/MerkleProof;
@@ -68,21 +68,24 @@ function place_bet:
     add r20 r21 into r22;
     add r22 r6 into r23;
     hash.bhp256 r23 into r24 as field;
-    call veilmarkets_v9.aleo/place_bet r3 r4 r5 r24 self.caller into r25;
-    hash.bhp256 r24 into r26 as group;
-    cast self.signer r3 r5 r4 r24 r26 into r27 as EscrowedBet.record;
-    async place_bet r3 r4 r5 r24 self.caller r16 r25 into r28;
+    cast self.caller into r25 as field;
+    add r25 r24 into r26;
+    hash.bhp256 r26 into r27 as field;
+    call veilmarkets_v9.aleo/place_bet r3 r4 r5 r24 r27 into r28;
+    hash.bhp256 r24 into r29 as group;
+    cast self.signer r3 r5 r4 r24 r29 into r30 as EscrowedBet.record;
+    async place_bet r3 r4 r5 r24 r27 r16 r28 into r31;
     output r14 as test_usad_stablecoin.aleo/ComplianceRecord.record;
     output r15 as test_usad_stablecoin.aleo/Token.record;
-    output r27 as EscrowedBet.record;
-    output r28 as veilmarkets_token_usad_v9.aleo/place_bet.future;
+    output r30 as EscrowedBet.record;
+    output r31 as veilmarkets_token_usad_v9.aleo/place_bet.future;
 
 finalize place_bet:
     input r0 as field.public;
     input r1 as u8.public;
     input r2 as u64.public;
     input r3 as field.public;
-    input r4 as address.public;
+    input r4 as field.public;
     input r5 as test_usad_stablecoin.aleo/transfer_private_to_public.future;
     input r6 as veilmarkets_v9.aleo/place_bet.future;
     await r5;
@@ -95,6 +98,109 @@ finalize place_bet:
     get.or_use market_escrow[r0] 0u64 into r10;
     add r10 r2 into r11;
     set r11 into market_escrow[r0];
+
+function buy_shares:
+    input r0 as test_usad_stablecoin.aleo/Token.record;
+    input r1 as TokenMerkleProof.private;
+    input r2 as TokenMerkleProof.private;
+    input r3 as field.private;
+    input r4 as u8.private;
+    input r5 as u64.private;
+    input r6 as u64.private;
+    input r7 as field.private;
+    cast r5 into r8 as u128;
+    gte r0.amount r8 into r9;
+    assert.eq r9 true;
+    gte r5 1000000u64 into r10;
+    assert.eq r10 true;
+    gt r6 0u64 into r11;
+    assert.eq r11 true;
+    lte r4 31u8 into r12;
+    assert.eq r12 true;
+    cast r1.siblings r1.leaf_index into r13 as test_usad_stablecoin.aleo/MerkleProof;
+    cast r2.siblings r2.leaf_index into r14 as test_usad_stablecoin.aleo/MerkleProof;
+    cast r13 r14 into r15 as [test_usad_stablecoin.aleo/MerkleProof; 2u32];
+    call test_usad_stablecoin.aleo/transfer_private_to_public veilmarkets_token_usad_v9.aleo r8 r0 r15 into r16 r17 r18;
+    cast self.caller into r19 as field;
+    add r19 r3 into r20;
+    cast r4 into r21 as field;
+    add r20 r21 into r22;
+    cast r5 into r23 as field;
+    add r22 r23 into r24;
+    add r24 r7 into r25;
+    hash.bhp256 r25 into r26 as field;
+    cast self.caller into r27 as field;
+    add r27 r26 into r28;
+    hash.bhp256 r28 into r29 as field;
+    call veilmarkets_v9.aleo/buy_shares r3 r4 r5 r6 r26 r29 into r30;
+    hash.bhp256 r26 into r31 as group;
+    cast self.signer r3 r5 r4 r26 r31 into r32 as EscrowedBet.record;
+    async buy_shares r3 r4 r5 r26 r29 r18 r30 into r33;
+    output r16 as test_usad_stablecoin.aleo/ComplianceRecord.record;
+    output r17 as test_usad_stablecoin.aleo/Token.record;
+    output r32 as EscrowedBet.record;
+    output r33 as veilmarkets_token_usad_v9.aleo/buy_shares.future;
+
+finalize buy_shares:
+    input r0 as field.public;
+    input r1 as u8.public;
+    input r2 as u64.public;
+    input r3 as field.public;
+    input r4 as field.public;
+    input r5 as test_usad_stablecoin.aleo/transfer_private_to_public.future;
+    input r6 as veilmarkets_v9.aleo/buy_shares.future;
+    await r5;
+    await r6;
+    contains escrow_details[r3] into r7;
+    not r7 into r8;
+    assert.eq r8 true;
+    cast r4 r0 r2 r1 r3 into r9 as EscrowInfo;
+    set r9 into escrow_details[r3];
+    get.or_use market_escrow[r0] 0u64 into r10;
+    add r10 r2 into r11;
+    set r11 into market_escrow[r0];
+
+function fund_pool:
+    input r0 as test_usad_stablecoin.aleo/Token.record;
+    input r1 as TokenMerkleProof.private;
+    input r2 as TokenMerkleProof.private;
+    input r3 as field.private;
+    input r4 as u64.private;
+    input r5 as field.private;
+    cast r4 into r6 as u128;
+    gte r0.amount r6 into r7;
+    assert.eq r7 true;
+    gte r4 1000000u64 into r8;
+    assert.eq r8 true;
+    cast r1.siblings r1.leaf_index into r9 as test_usad_stablecoin.aleo/MerkleProof;
+    cast r2.siblings r2.leaf_index into r10 as test_usad_stablecoin.aleo/MerkleProof;
+    cast r9 r10 into r11 as [test_usad_stablecoin.aleo/MerkleProof; 2u32];
+    call test_usad_stablecoin.aleo/transfer_private_to_public veilmarkets_token_usad_v9.aleo r6 r0 r11 into r12 r13 r14;
+    cast self.caller into r15 as field;
+    add r15 r3 into r16;
+    cast r4 into r17 as field;
+    add r16 r17 into r18;
+    add r18 r5 into r19;
+    hash.bhp256 r19 into r20 as field;
+    cast self.caller into r21 as field;
+    add r21 r20 into r22;
+    hash.bhp256 r22 into r23 as field;
+    call veilmarkets_v9.aleo/fund_pool r3 r4 r20 r23 into r24;
+    async fund_pool r3 r4 r14 r24 into r25;
+    output r12 as test_usad_stablecoin.aleo/ComplianceRecord.record;
+    output r13 as test_usad_stablecoin.aleo/Token.record;
+    output r25 as veilmarkets_token_usad_v9.aleo/fund_pool.future;
+
+finalize fund_pool:
+    input r0 as field.public;
+    input r1 as u64.public;
+    input r2 as test_usad_stablecoin.aleo/transfer_private_to_public.future;
+    input r3 as veilmarkets_v9.aleo/fund_pool.future;
+    await r2;
+    await r3;
+    get.or_use market_escrow[r0] 0u64 into r4;
+    add r4 r1 into r5;
+    set r5 into market_escrow[r0];
 
 function claim_payout:
     input r0 as u64.public;
@@ -135,17 +241,20 @@ finalize refund_bet:
     input r3 as test_usad_stablecoin.aleo/transfer_public_to_private.future;
     await r3;
     get escrow_details[r0] into r4;
-    assert.eq r4.holder r2;
+    cast r2 into r5 as field;
+    add r5 r0 into r6;
+    hash.bhp256 r6 into r7 as field;
+    assert.eq r4.holder_commitment r7;
     assert.eq r4.amount r1;
-    get.or_use spent_escrow[r0] false into r5;
-    not r5 into r6;
-    assert.eq r6 true;
+    get.or_use spent_escrow[r0] false into r8;
+    not r8 into r9;
+    assert.eq r9 true;
     set true into spent_escrow[r0];
-    get.or_use market_escrow[r4.market_id] 0u64 into r7;
-    gte r7 r1 into r8;
-    assert.eq r8 true;
-    sub r7 r1 into r9;
-    set r9 into market_escrow[r4.market_id];
+    get.or_use market_escrow[r4.market_id] 0u64 into r10;
+    gte r10 r1 into r11;
+    assert.eq r11 true;
+    sub r10 r1 into r12;
+    set r12 into market_escrow[r4.market_id];
 
 constructor:
     assert.eq program_owner aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;

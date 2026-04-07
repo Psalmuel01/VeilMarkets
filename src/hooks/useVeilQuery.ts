@@ -21,6 +21,18 @@ interface PlaceBetVariables {
   slippageBps?: number;
 }
 
+interface SellSharesVariables {
+  marketId: string;
+  sharesToSell: number;
+  slippageBps?: number;
+}
+
+interface FundPoolVariables {
+  marketId: string;
+  amountCredits: number;
+  tokenId: string;
+}
+
 interface PlaceBetMutationContext {
   previousPool?: PoolInfo | null;
   previousBalances?: TokenBalanceSummary | null;
@@ -33,9 +45,13 @@ const invalidateCoreQueries = async (
 ) => {
   await invalidate({ queryKey: queryKeys.markets });
   if (marketId) {
+    const normalizedMarketId = (marketId || "").replace(/field$/i, "").trim();
     await invalidate({ queryKey: queryKeys.market(marketId) });
     await invalidate({ queryKey: queryKeys.marketPool(marketId) });
     await invalidate({ queryKey: queryKeys.marketProposal(marketId) });
+    await invalidate({ queryKey: ["market", "outcomes", normalizedMarketId] });
+    await invalidate({ queryKey: ["market", "quote", normalizedMarketId] });
+    await invalidate({ queryKey: ["market", "sell-quote", normalizedMarketId] });
   }
   if (address) {
     await invalidate({ queryKey: queryKeys.userBets(address) });
@@ -123,6 +139,26 @@ export const useBuyQuoteQuery = (
   return useQuery({
     queryKey: queryKeys.buyQuote(marketId ?? "", outcome ?? -1, amountMicro, slippageBps),
     queryFn: () => quoteBuyShares(marketId ?? "", outcome ?? 0, amountMicro, slippageBps),
+    enabled: Boolean(marketId) && outcome !== null && enabled,
+    staleTime: 2_000,
+    refetchInterval: 5_000,
+    refetchOnWindowFocus: true,
+  });
+};
+
+export const useSellQuoteQuery = (
+  marketId: string | undefined,
+  outcome: number | null,
+  sharesToSell: number,
+  slippageBps = 200,
+  enabled = true,
+) => {
+  const { quoteSellShares } = useAleoPrograms();
+  const normalizedShares = Math.max(1, Math.floor(sharesToSell));
+
+  return useQuery({
+    queryKey: queryKeys.sellQuote(marketId ?? "", outcome ?? -1, normalizedShares, slippageBps),
+    queryFn: () => quoteSellShares(marketId ?? "", outcome ?? 0, normalizedShares, slippageBps),
     enabled: Boolean(marketId) && outcome !== null && enabled,
     staleTime: 2_000,
     refetchInterval: 5_000,
@@ -339,6 +375,46 @@ export const useClaimWinningsMutation = () => {
       await invalidateCoreQueries(
         ({ queryKey }) => queryClient.invalidateQueries({ queryKey }),
         marketId,
+        publicKey,
+      );
+    },
+  });
+};
+
+export const useSellSharesMutation = () => {
+  const queryClient = useQueryClient();
+  const { sellShares, publicKey } = useAleoPrograms();
+
+  return useMutation({
+    mutationFn: async ({ marketId, sharesToSell, slippageBps }: SellSharesVariables) => {
+      const result = await sellShares(marketId, sharesToSell, { slippageBps });
+      if (!result) throw new Error("Sell shares transaction failed");
+      return result;
+    },
+    onSettled: async (_data, _error, variables) => {
+      await invalidateCoreQueries(
+        ({ queryKey }) => queryClient.invalidateQueries({ queryKey }),
+        variables.marketId,
+        publicKey,
+      );
+    },
+  });
+};
+
+export const useFundPoolMutation = () => {
+  const queryClient = useQueryClient();
+  const { fundPool, publicKey } = useAleoPrograms();
+
+  return useMutation({
+    mutationFn: async ({ marketId, amountCredits, tokenId }: FundPoolVariables) => {
+      const txId = await fundPool(marketId, amountCredits, tokenId);
+      if (!txId) throw new Error("Fund pool transaction failed");
+      return txId;
+    },
+    onSettled: async (_data, _error, variables) => {
+      await invalidateCoreQueries(
+        ({ queryKey }) => queryClient.invalidateQueries({ queryKey }),
+        variables.marketId,
         publicKey,
       );
     },

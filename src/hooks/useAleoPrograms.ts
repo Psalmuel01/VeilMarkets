@@ -107,6 +107,17 @@ interface BuyQuote {
   slippageBps: number;
 }
 
+interface SellQuote {
+  marketId: string;
+  outcome: number;
+  sharesToSell: number;
+  grossPayoutMicro: number;
+  feeMicro: number;
+  netPayoutMicro: number;
+  minPayoutMicro: number;
+  slippageBps: number;
+}
+
 const toObject = (value: unknown): Record<string, unknown> | null =>
   typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 
@@ -942,6 +953,60 @@ export const useAleoPrograms = () => {
     [fetchCoreProtocolConfig, fetchOutcomeExposure],
   );
 
+  const quoteSellShares = useCallback(
+    async (
+      marketId: string,
+      outcome: number,
+      sharesToSell: number,
+      slippageBps = 200,
+    ): Promise<SellQuote | null> => {
+      const cleanMarketId = normalizeFieldId(marketId);
+      if (!Number.isFinite(sharesToSell) || sharesToSell <= 0) return null;
+
+      const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
+      if (!marketRaw) return null;
+      const market = parseMarketInfo(marketRaw as string | object, cleanMarketId);
+      if (outcome < 0 || outcome >= market.outcome_count) return null;
+
+      const poolRaw = await fetchMappingValue(PROGRAM_ID, "pools", cleanMarketId);
+      const pool = poolRaw ? parsePoolInfo(poolRaw as any) : null;
+      if (!pool) return null;
+
+      const protocol = await fetchCoreProtocolConfig();
+      const outcomeExposure = await fetchOutcomeExposure(cleanMarketId, outcome);
+      const outcomeCount = Math.max(2, market.outcome_count);
+      const totalLiquidity = pool.total_collateral + protocol.virtualLiquidity * outcomeCount;
+      const outcomeLiquidity =
+        Math.floor(pool.total_collateral / outcomeCount) +
+        protocol.virtualLiquidity +
+        outcomeExposure;
+
+      if (totalLiquidity <= 0 || outcomeLiquidity <= 0) return null;
+
+      const shares = Math.max(1, Math.floor(sharesToSell));
+      const grossPayoutMicro = Math.floor((shares * outcomeLiquidity) / totalLiquidity);
+      const feeMicro = Math.floor((grossPayoutMicro * protocol.feeBps) / 10_000);
+      const netPayoutMicro = Math.max(0, grossPayoutMicro - feeMicro);
+      const boundedSlippage = Math.min(5_000, Math.max(0, slippageBps));
+      const minPayoutMicro = Math.max(
+        0,
+        Math.floor((netPayoutMicro * (10_000 - boundedSlippage)) / 10_000),
+      );
+
+      return {
+        marketId: cleanMarketId,
+        outcome,
+        sharesToSell: shares,
+        grossPayoutMicro,
+        feeMicro,
+        netPayoutMicro,
+        minPayoutMicro,
+        slippageBps: boundedSlippage,
+      };
+    },
+    [fetchCoreProtocolConfig, fetchOutcomeExposure],
+  );
+
   const fetchUserBets = useCallback(async (): Promise<ParsedBetRecord[]> => {
     if (!address) return [];
     setLoading(true);
@@ -1350,6 +1415,44 @@ export const useAleoPrograms = () => {
     return 0;
   };
 
+  const fetchPendingPositionSnapshot = useCallback(
+    async (
+      positionId: string,
+    ): Promise<{
+      positionId: string;
+      marketId: string;
+      outcome: number;
+      collateralIn: number;
+      shares: number;
+    } | null> => {
+      const cleanPositionId = formatField(positionId.replace(/field$/i, "").trim());
+
+      const [marketRaw, outcomeRaw, collateralRaw, sharesRaw] = await Promise.all([
+        fetchMappingValue(PROGRAM_ID, "pending_position_market", cleanPositionId),
+        fetchMappingValue(PROGRAM_ID, "pending_position_outcome", cleanPositionId),
+        fetchMappingValue(PROGRAM_ID, "pending_position_collateral", cleanPositionId),
+        fetchMappingValue(PROGRAM_ID, "pending_position_shares", cleanPositionId),
+      ]);
+
+      const marketId = parseMappingString(marketRaw);
+      if (!marketId) return null;
+
+      const outcome = parseMappingU64(outcomeRaw);
+      const collateralIn = parseMappingU64(collateralRaw);
+      const shares = parseMappingU64(sharesRaw);
+      if (collateralIn <= 0 || shares <= 0) return null;
+
+      return {
+        positionId: cleanPositionId,
+        marketId: formatField(marketId.replace(/field$/i, "").trim()),
+        outcome: Math.max(0, Math.floor(outcome)),
+        collateralIn: Math.max(0, Math.floor(collateralIn)),
+        shares: Math.max(0, Math.floor(shares)),
+      };
+    },
+    [],
+  );
+
   const placeBet = async (
     marketId: string,
     outcome: number,
@@ -1608,6 +1711,132 @@ export const useAleoPrograms = () => {
     }
   };
 
+  const sellShares = async (
+    marketId: string,
+    sharesToSell: number,
+    options?: { slippageBps?: number },
+  ): Promise<{ transactionId: string; payoutAmount: number; payoutTicker: string } | null> => {
+    if (!address) {
+      toast.error("Please connect your wallet first");
+      return null;
+    }
+
+    setLoading(true);
+    try {
+      const cleanMarketId = normalizeFieldId(marketId);
+      const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
+      if (!marketRaw) {
+        toast.error("Market not found on v9.");
+        return null;
+      }
+      const marketInfo = parseMarketInfo(marketRaw as string | object, cleanMarketId);
+      const payoutTokenProgram = resolveTokenAdapterProgram(marketInfo.token_id ?? "");
+      const payoutTicker = resolveTokenTicker(marketInfo.token_id ?? "");
+      if (!payoutTokenProgram) {
+        toast.error("Unsupported market token for sell payout.");
+        return null;
+      }
+
+      const positionRecord = await findClaimablePositionRecord(cleanMarketId);
+      if (!positionRecord) {
+        toast.error("No active position record found for this market.");
+        return null;
+      }
+
+      const outcomeRaw = Number.parseInt(parseRecordField(positionRecord, "outcome"), 10);
+      const sharesRaw = Number.parseInt(parseRecordField(positionRecord, "shares"), 10);
+      if (!Number.isFinite(outcomeRaw) || !Number.isFinite(sharesRaw) || sharesRaw <= 0) {
+        toast.error("Unable to read position share balance.");
+        return null;
+      }
+
+      const shares = Math.max(1, Math.floor(sharesToSell));
+      if (shares > sharesRaw) {
+        toast.error("Sell amount exceeds your available shares.");
+        return null;
+      }
+
+      const quote = await quoteSellShares(
+        cleanMarketId,
+        outcomeRaw,
+        shares,
+        options?.slippageBps ?? 200,
+      );
+      if (!quote) {
+        toast.error("Unable to compute sell quote right now.");
+        return null;
+      }
+
+      const sellNonce = generateRandomField();
+      toast.info("Selling shares...");
+      const sellResult = await executeAndPoll({
+        program: PROGRAM_ID,
+        function: "sell_shares",
+        inputs: [
+          positionRecord,
+          formatU64(shares),
+          formatU64(quote.minPayoutMicro),
+          sellNonce,
+        ],
+        fee: 1_000_000,
+        privateFee: false,
+      }, PROGRAM_ID, "sell_shares");
+
+      if (!sellResult?.transactionId) {
+        toast.error("Sell transaction failed.");
+        return null;
+      }
+
+      const claimRecord = await waitForWinningsClaimRecord(marketId);
+      if (!claimRecord) {
+        toast.error("Sell payout claim record not available yet. Please retry shortly.");
+        triggerRefresh();
+        return { transactionId: sellResult.transactionId, payoutAmount: 0, payoutTicker };
+      }
+
+      const nullifierRaw = parseRecordField(claimRecord, "nullifier");
+      if (!nullifierRaw) {
+        toast.error("Unable to read sell claim nullifier.");
+        return { transactionId: sellResult.transactionId, payoutAmount: 0, payoutTicker };
+      }
+
+      const nullifierField = formatField(nullifierRaw);
+      const payoutAmount = await waitForPendingPayout(nullifierField);
+      if (!payoutAmount || payoutAmount <= 0) {
+        toast.error("Sell payout is not available yet. Please retry.");
+        return { transactionId: sellResult.transactionId, payoutAmount: 0, payoutTicker };
+      }
+
+      const payoutResult = await executeAndPoll({
+        program: payoutTokenProgram,
+        function: "claim_payout",
+        inputs: [formatU64(payoutAmount), nullifierField],
+        fee: 500_000,
+        privateFee: false,
+      }, payoutTokenProgram, "claim_payout");
+
+      if (!payoutResult?.transactionId) {
+        toast.error("Sell payout transfer failed.");
+        return null;
+      }
+
+      const payoutAmountDisplay = payoutAmount / 1_000_000;
+      toast.success(`Sold shares for ${payoutAmountDisplay.toFixed(4)} ${payoutTicker}`);
+      triggerRefresh();
+      return {
+        transactionId: payoutResult.transactionId,
+        payoutAmount: payoutAmountDisplay,
+        payoutTicker,
+      };
+    } catch (error) {
+      console.error("Sell shares failed:", error);
+      toast.error(`Sell error: ${getErrorMessage(error)}`);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const proposeResolution = async (marketId: string, outcome: number) => {
     if (!address) return;
     const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
@@ -1809,29 +2038,33 @@ export const useAleoPrograms = () => {
           return;
         }
 
-        const marketIdRaw = parseRecordField(escrowedBet, "market_id");
-        const outcomeRaw = parseRecordField(escrowedBet, "outcome");
-        const amountRaw = parseRecordField(escrowedBet, "amount");
         const escrowIdRaw = parseRecordField(escrowedBet, "escrow_id");
 
-        if (!marketIdRaw || !outcomeRaw || !amountRaw || !escrowIdRaw) {
+        if (!escrowIdRaw) {
           toast.error("Unable to read escrowed bet details to mint position.");
+          return;
+        }
+
+        const pendingSnapshot = await fetchPendingPositionSnapshot(escrowIdRaw);
+        if (!pendingSnapshot) {
+          toast.error("Pending share state not found yet. Please wait a few seconds and retry claim.");
           return;
         }
 
         toast.info("Preparing claim record...");
         await executeAndPoll({
           program: PROGRAM_ID,
-          function: "mint_position_record",
+          function: "mint_share_record",
           inputs: [
-            formatField(marketIdRaw),
-            formatU8(Number(outcomeRaw)),
-            formatU64(Number(amountRaw)),
-            formatField(escrowIdRaw),
+            pendingSnapshot.positionId,
+            pendingSnapshot.marketId,
+            formatU8(pendingSnapshot.outcome),
+            formatU64(pendingSnapshot.collateralIn),
+            formatU64(pendingSnapshot.shares),
           ],
           fee: 500_000,
           privateFee: false,
-        }, PROGRAM_ID, "mint_position_record");
+        }, PROGRAM_ID, "mint_share_record");
 
         positionRecord = await waitForPositionRecord(marketId);
         if (!positionRecord) {
@@ -1925,6 +2158,7 @@ export const useAleoPrograms = () => {
   return {
     createMarket,
     placeBet,
+    sellShares,
     fundPool,
     resolveMarket: resolveMarketOnCore,
     proposeResolution,
@@ -1945,6 +2179,7 @@ export const useAleoPrograms = () => {
     fetchUSADBalance,
     fetchCoreProtocolConfig,
     quoteBuyShares,
+    quoteSellShares,
     fetchPoolStats,
     fetchOutcomeTotals,
     isOracleRegistered,
