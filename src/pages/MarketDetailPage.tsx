@@ -156,16 +156,8 @@ export default function MarketDetailPage() {
   const outcomeLabels = getOutcomeLabels(market?.market_type ?? 0, normalizedOutcomeCount, market?.outcome_labels);
 
   // Calculate stats
-  const outcomeTotals = outcomeTotalsData ?? [
-    pool?.total_outcome_0 ?? pool?.total_no ?? 0,
-    pool?.total_outcome_1 ?? pool?.total_yes ?? 0,
-    pool?.total_outcome_2 ?? 0,
-    pool?.total_outcome_3 ?? 0,
-    pool?.total_outcome_4 ?? 0,
-    pool?.total_outcome_5 ?? 0,
-    pool?.total_outcome_6 ?? 0,
-    pool?.total_outcome_7 ?? 0,
-  ];
+  const outcomeTotals =
+    outcomeTotalsData ?? Array.from({ length: normalizedOutcomeCount }, () => 0);
   const activeOutcomeTotals = outcomeTotals.slice(0, normalizedOutcomeCount);
   const totalPoolMicro = activeOutcomeTotals.reduce((acc, value) => acc + value, 0);
   const totalVolume = totalPoolMicro / 1_000_000;

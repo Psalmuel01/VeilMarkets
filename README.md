@@ -25,7 +25,7 @@ VeilMarkets lets users create markets, place bets, and claim payouts with zero-k
 - Oracle registration + unstake flow in UI
 - Oracle status now reflects effective stake threshold (loses status when unstaked below minimum)
 - Governance contract executes param updates directly on core/oracle
-- v8 markets remain visible as legacy read-only
+- Clean v9-only runtime (no v8 fallback paths in app/data flow)
 
 ## Contracts (v9)
 
@@ -120,7 +120,7 @@ npm run dev
 
 ## Notes
 
-- v9 is the primary write path. v8 markets are preserved for legacy read-only display in the UI.
+- Runtime data and contract routing are v9-only.
 - Current payout flow remains claim-based via core `claim_winnings` + adapter `claim_payout`.
 - Stablecoin private spend paths rely on valid private records and proof inputs.
 - If currency filtering behaves differently in production, verify all `VITE_*_TOKEN_PROGRAM_ADDRESS` values were set correctly before build/deploy.

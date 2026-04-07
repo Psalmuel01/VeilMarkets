@@ -1,4 +1,4 @@
-// VeilMarkets Token — Credits Adapter (v8)
+// VeilMarkets Token — Credits Adapter (v9)
 // Handles betting and pro-rata payouts using native credits.aleo
 import credits.aleo;
 import veilmarkets_v9.aleo;

@@ -45,7 +45,6 @@ import {
   CREDITS_TOKEN_PROGRAM_ID,
   USDCX_TOKEN_PROGRAM_ID,
   USAD_TOKEN_PROGRAM_ID,
-  LEGACY_PROGRAM_ID,
   resolveTokenAdapterProgram,
   resolveTokenBaseProgram,
   resolveTokenTicker,
@@ -824,10 +823,7 @@ export const useAleoPrograms = () => {
   const fetchPoolStats = useCallback(async (marketId: string): Promise<PoolInfo | null> => {
     try {
       const cleanedId = marketId.replace("field", "").trim() + "field";
-      let raw = await fetchMappingValue(PROGRAM_ID, "pools", cleanedId);
-      if (!raw) {
-        raw = await fetchMappingValue(LEGACY_PROGRAM_ID, "pools", cleanedId);
-      }
+      const raw = await fetchMappingValue(PROGRAM_ID, "pools", cleanedId);
       if (!raw) return null;
       return parsePoolInfo(raw as any);
     } catch (error) {
@@ -840,53 +836,19 @@ export const useAleoPrograms = () => {
     async (
       marketId: string,
       outcomeCount: number,
-      preferredProgramId?: string,
+      _preferredProgramId?: string,
     ): Promise<number[]> => {
       const cleanMarketId = normalizeFieldId(marketId);
-      let sourceProgram = preferredProgramId ?? PROGRAM_ID;
-
-      if (!preferredProgramId) {
-        const v9Exists = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
-        if (!v9Exists) sourceProgram = LEGACY_PROGRAM_ID;
-      }
-
-      const poolRaw = await fetchMappingValue(sourceProgram, "pools", cleanMarketId);
-      if (!poolRaw) return Array.from({ length: Math.max(2, outcomeCount) }, () => 0);
-
-      const pool = parsePoolInfo(poolRaw as any);
       const normalizedCount = Math.max(2, outcomeCount);
-      const totals = Array.from({ length: normalizedCount }, (_, index) => {
-        if (index === 0) return pool.total_outcome_0 ?? pool.total_no ?? 0;
-        if (index === 1) return pool.total_outcome_1 ?? pool.total_yes ?? 0;
-        if (index === 2) return pool.total_outcome_2 ?? 0;
-        if (index === 3) return pool.total_outcome_3 ?? 0;
-        if (index === 4) return pool.total_outcome_4 ?? 0;
-        if (index === 5) return pool.total_outcome_5 ?? 0;
-        if (index === 6) return pool.total_outcome_6 ?? 0;
-        if (index === 7) return pool.total_outcome_7 ?? 0;
-        return 0;
-      });
-
-      if (sourceProgram !== PROGRAM_ID || normalizedCount <= 8) {
-        return totals;
-      }
-
-      const dynamicIndices = Array.from(
-        { length: normalizedCount - 8 },
-        (_, index) => index + 8,
-      );
-      const dynamicValues = await Promise.all(
-        dynamicIndices.map(async (index) => {
+      const indices = Array.from({ length: normalizedCount }, (_, index) => index);
+      const totals = await Promise.all(
+        indices.map(async (index) => {
           const exposureKey = deriveOutcomeExposureKey(cleanMarketId, index);
           if (!exposureKey) return 0;
           const raw = await fetchMappingValue(PROGRAM_ID, "outcome_exposure", exposureKey);
           return parseMappingU64(raw);
         }),
       );
-
-      dynamicValues.forEach((value, idx) => {
-        totals[idx + 8] = value;
-      });
       return totals;
     },
     [],
@@ -912,16 +874,7 @@ export const useAleoPrograms = () => {
   }, []);
 
   const fetchOutcomeExposure = useCallback(
-    async (marketIdField: string, outcome: number, pool: PoolInfo | null): Promise<number> => {
-      if (outcome <= 0) return pool?.total_outcome_0 ?? pool?.total_no ?? 0;
-      if (outcome === 1) return pool?.total_outcome_1 ?? pool?.total_yes ?? 0;
-      if (outcome === 2) return pool?.total_outcome_2 ?? 0;
-      if (outcome === 3) return pool?.total_outcome_3 ?? 0;
-      if (outcome === 4) return pool?.total_outcome_4 ?? 0;
-      if (outcome === 5) return pool?.total_outcome_5 ?? 0;
-      if (outcome === 6) return pool?.total_outcome_6 ?? 0;
-      if (outcome === 7) return pool?.total_outcome_7 ?? 0;
-
+    async (marketIdField: string, outcome: number): Promise<number> => {
       const exposureKey = deriveOutcomeExposureKey(marketIdField, outcome);
       if (!exposureKey) return 0;
       const exposureRaw = await fetchMappingValue(PROGRAM_ID, "outcome_exposure", exposureKey);
@@ -955,7 +908,7 @@ export const useAleoPrograms = () => {
       const netCollateralMicro = Math.max(0, amountMicro - feeMicro);
       if (netCollateralMicro <= 0) return null;
 
-      const outcomeExposure = await fetchOutcomeExposure(cleanMarketId, outcome, pool);
+      const outcomeExposure = await fetchOutcomeExposure(cleanMarketId, outcome);
       const outcomeCount = Math.max(2, market.outcome_count);
       const totalLiquidity =
         pool.total_collateral + protocol.virtualLiquidity * outcomeCount;
@@ -1417,12 +1370,7 @@ export const useAleoPrograms = () => {
     try {
       const v9Market = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
       if (!v9Market) {
-        const legacyMarket = await fetchMappingValue(LEGACY_PROGRAM_ID, "markets", cleanMarketId);
-        if (legacyMarket) {
-          toast.error("This market is legacy v8 and is now read-only. Please create/trade on v9 markets.");
-        } else {
-          toast.error("Market not found on v9.");
-        }
+        toast.error("Market not found on v9.");
         return;
       }
 
@@ -1839,12 +1787,7 @@ export const useAleoPrograms = () => {
       const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
       const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
       if (!marketRaw) {
-        const legacyMarket = await fetchMappingValue(LEGACY_PROGRAM_ID, "markets", cleanMarketId);
-        if (legacyMarket) {
-          toast.error("v8 markets are legacy read-only in this app. Claim from the v8 flow if needed.");
-        } else {
-          toast.error("Market not found on v9.");
-        }
+        toast.error("Market not found on v9.");
         return null;
       }
       const marketInfo = marketRaw ? parseMarketInfo(marketRaw as string | object, cleanMarketId) : null;

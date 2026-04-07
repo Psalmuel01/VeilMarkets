@@ -21,14 +21,6 @@ export function MarketRealtimeProvider({ children }: MarketRealtimeProviderProps
           queryClient.invalidateQueries({ queryKey: ["market"] });
         },
       )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "markets_v8" },
-        () => {
-          queryClient.invalidateQueries({ queryKey: queryKeys.markets });
-          queryClient.invalidateQueries({ queryKey: ["market"] });
-        },
-      )
       .subscribe();
 
     return () => {

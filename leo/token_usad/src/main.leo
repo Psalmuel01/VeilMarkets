@@ -1,4 +1,4 @@
-// VeilMarkets Token — USAD Adapter (v8)
+// VeilMarkets Token — USAD Adapter (v9)
 // Handles betting and pro-rata payouts using an ARC-20 token (test_usad_stablecoin.aleo).
 // Structurally identical to the credits adapter; only the payment rail differs.
 import test_usad_stablecoin.aleo;

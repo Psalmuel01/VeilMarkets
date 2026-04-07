@@ -5,10 +5,6 @@ export const USAD_TOKEN_PROGRAM_ID = "veilmarkets_token_usad_v9.aleo";
 export const ORACLE_PROGRAM_ID = "veilmarkets_oracle_v9.aleo";
 export const FACTORY_PROGRAM_ID = "veilmarkets_factory_v9.aleo";
 export const GOVERNANCE_PROGRAM_ID = "veilmarkets_governance_v9.aleo";
-
-// Legacy read-only contracts
-export const LEGACY_PROGRAM_ID = "veilmarkets_v8.aleo";
-export const LEGACY_ORACLE_PROGRAM_ID = "veilmarkets_oracle_v8.aleo";
 export const ADMIN_ADDRESS = "aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n";
 
 // Canonical on-chain addresses for token adapter programs.

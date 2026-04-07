@@ -38,7 +38,9 @@ program veilmarkets_v9.aleo {
         token_id: address,
     }
 
-    // Legacy-shaped pool view kept for UI compatibility while dynamic outcomes live in mappings.
+    // Compatibility cache for fast reads in existing UI paths.
+    // This does NOT cap markets to 8 outcomes; authoritative per-outcome state is in
+    // `outcome_exposure` / `outcome_share_supply` mappings for all 0..31 indices.
     struct PoolState {
         total_outcome_0: u64,
         total_outcome_1: u64,
@@ -506,6 +508,8 @@ program veilmarkets_v9.aleo {
         amount: u64,
         escrow_id: field,
     ) -> (BetPosition, Future) {
+        // `amount` is kept for compatibility with existing wallet/frontend flows.
+        // Canonical share + collateral values are enforced from pending mappings in finalize.
         let position: BetPosition = BetPosition {
             owner: self.signer,
             position_id: escrow_id,
@@ -523,7 +527,6 @@ program veilmarkets_v9.aleo {
             market_id,
             outcome,
             amount,
-            amount,
             self.caller,
         );
         return (position, f);
@@ -535,6 +538,8 @@ program veilmarkets_v9.aleo {
         public outcome: u8,
         public collateral_in: u64,
     ) -> (BetPosition, Future) {
+        // Compatibility payload: finalize reads authoritative pending position state
+        // (`pending_position_collateral` / `pending_position_shares`) before minting.
         let position: BetPosition = BetPosition {
             owner: self.signer,
             position_id: share_commitment,
@@ -552,7 +557,6 @@ program veilmarkets_v9.aleo {
             market_id,
             outcome,
             collateral_in,
-            collateral_in,
             self.caller,
         );
         return (position, f);
@@ -563,7 +567,6 @@ program veilmarkets_v9.aleo {
         market_id: field,
         outcome: u8,
         collateral_in: u64,
-        shares: u64,
         caller: address,
     ) {
         let stored_escrow: field = Mapping::get(position_to_escrow, position_id);
