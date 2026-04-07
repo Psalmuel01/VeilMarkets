@@ -3,7 +3,7 @@ import veilmarkets_token_usad_v9.aleo;
 program test_veilmarkets_token.aleo {
     const MIN_BET: u64 = 1000000u64; // 1 USAD (6 decimals)
 
-    function compute_escrow_id(
+    fn compute_escrow_id(
         bettor: address,
         market_id: field,
         outcome: u8,
@@ -16,7 +16,7 @@ program test_veilmarkets_token.aleo {
     }
 
     @test
-    transition usad_min_bet_decimal() {
+    fn usad_min_bet_decimal() {
         let one_usad_micro: u64 = 1000000u64;
         let bet_amount_u128: u128 = one_usad_micro as u128;
 
@@ -25,7 +25,7 @@ program test_veilmarkets_token.aleo {
     }
 
     @test
-    transition usad_escrow_id_changes() {
+    fn usad_escrow_id_changes() {
         let bettor_a: address = aleo1w0e5f0frezk9v8x92avcvn084wx0kcxykltuw2xtnehd98paxsrq4x7r9x;
         let bettor_b: address = aleo13wreywph6vpjfcn9z3unaulyv7mgepsu5pzwnzd32786j5gzzvqqrw8565;
         let market_id: field = 89field;
@@ -42,7 +42,7 @@ program test_veilmarkets_token.aleo {
     }
 
     @test
-    transition usad_u128_cast_roundtrip() {
+    fn usad_u128_cast_roundtrip() {
         let payout_u64: u64 = 987654321u64;
         let payout_u128: u128 = payout_u64 as u128;
         let payout_back_u64: u64 = payout_u128 as u64;
@@ -51,5 +51,5 @@ program test_veilmarkets_token.aleo {
     }
 
     @noupgrade
-    async constructor() {}
+    constructor() {}
 }

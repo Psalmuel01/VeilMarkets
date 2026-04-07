@@ -5,7 +5,7 @@ program test_veilmarkets_oracle.aleo {
     const DISPUTE_WINDOW: u64 = 10800u64;
     const MIN_VOTERS: u8 = 3u8;
 
-    function compute_disputed_winner(
+    fn compute_disputed_winner(
         vote_0: u64,
         vote_1: u64,
         vote_2: u64,
@@ -33,7 +33,7 @@ program test_veilmarkets_oracle.aleo {
     }
 
     @test
-    transition disputed_vote_max_weight() {
+    fn disputed_vote_max_weight() {
         let winner_a: u8 = compute_disputed_winner(10u64, 20u64, 40u64, 25u64, 9u64, 8u64, 7u64, 6u64);
         let winner_b: u8 = compute_disputed_winner(90u64, 20u64, 10u64, 15u64, 16u64, 17u64, 18u64, 19u64);
         let winner_c: u8 = compute_disputed_winner(1u64, 2u64, 3u64, 4u64, 5u64, 6u64, 7u64, 100u64);
@@ -44,7 +44,7 @@ program test_veilmarkets_oracle.aleo {
     }
 
     @test
-    transition split_disputer_wins() {
+    fn split_disputer_wins() {
         let slashed: u64 = MIN_ORACLE_STAKE;
         let platform_fee: u64 = slashed / 10u64;
         let winner_reward: u64 = slashed - platform_fee;
@@ -55,7 +55,7 @@ program test_veilmarkets_oracle.aleo {
     }
 
     @test
-    transition split_proposer_wins() {
+    fn split_proposer_wins() {
         let dispute_bond: u64 = 45000000u64;
         let platform_fee: u64 = dispute_bond / 10u64;
         let proposer_reward: u64 = dispute_bond - platform_fee;
@@ -66,7 +66,7 @@ program test_veilmarkets_oracle.aleo {
     }
 
     @test
-    transition deadline_adds_window() {
+    fn deadline_adds_window() {
         let now_ts: u64 = 100000u64;
         let challenge_deadline: u64 = now_ts + DISPUTE_WINDOW;
 
@@ -74,7 +74,7 @@ program test_veilmarkets_oracle.aleo {
     }
 
     @test
-    transition quorum_requires_unique_voters() {
+    fn quorum_requires_unique_voters() {
         let voter_count_low: u64 = 2u64;
         let voter_count_ok: u64 = 3u64;
         let min_voters_u64: u64 = MIN_VOTERS as u64;
@@ -83,7 +83,7 @@ program test_veilmarkets_oracle.aleo {
     }
 
     @test
-    transition quorum_requires_weight_floor() {
+    fn quorum_requires_weight_floor() {
         let min_total_weight: u64 = MIN_ORACLE_STAKE * MIN_VOTERS as u64;
         let insufficient: u64 = min_total_weight - 1u64;
         let sufficient: u64 = min_total_weight;
@@ -92,5 +92,5 @@ program test_veilmarkets_oracle.aleo {
     }
 
     @noupgrade
-    async constructor() {}
+    constructor() {}
 }

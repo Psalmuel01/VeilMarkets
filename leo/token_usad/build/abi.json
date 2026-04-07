@@ -146,7 +146,7 @@
           "path": [
             "EscrowInfo"
           ],
-          "program": "veilmarkets_token_usad_v9"
+          "program": "veilmarkets_token_usad_v9.aleo"
         }
       }
     },
@@ -174,10 +174,10 @@
     }
   ],
   "storage_variables": [],
-  "transitions": [
+  "functions": [
     {
       "name": "place_bet",
-      "is_async": true,
+      "is_final": true,
       "inputs": [
         {
           "name": "input_token",
@@ -186,7 +186,7 @@
               "path": [
                 "Token"
               ],
-              "program": "test_usad_stablecoin"
+              "program": "test_usad_stablecoin.aleo"
             }
           },
           "mode": "None"
@@ -199,7 +199,7 @@
                 "path": [
                   "TokenMerkleProof"
                 ],
-                "program": "veilmarkets_token_usad_v9"
+                "program": "veilmarkets_token_usad_v9.aleo"
               }
             }
           },
@@ -213,7 +213,7 @@
                 "path": [
                   "TokenMerkleProof"
                 ],
-                "program": "veilmarkets_token_usad_v9"
+                "program": "veilmarkets_token_usad_v9.aleo"
               }
             }
           },
@@ -267,7 +267,7 @@
               "path": [
                 "ComplianceRecord"
               ],
-              "program": "test_usad_stablecoin"
+              "program": "test_usad_stablecoin.aleo"
             }
           },
           "mode": "None"
@@ -278,7 +278,7 @@
               "path": [
                 "Token"
               ],
-              "program": "test_usad_stablecoin"
+              "program": "test_usad_stablecoin.aleo"
             }
           },
           "mode": "None"
@@ -289,20 +289,20 @@
               "path": [
                 "EscrowedBet"
               ],
-              "program": "veilmarkets_token_usad_v9"
+              "program": "veilmarkets_token_usad_v9.aleo"
             }
           },
           "mode": "None"
         },
         {
-          "ty": "Future",
+          "ty": "Final",
           "mode": "None"
         }
       ]
     },
     {
       "name": "buy_shares",
-      "is_async": true,
+      "is_final": true,
       "inputs": [
         {
           "name": "input_token",
@@ -311,7 +311,7 @@
               "path": [
                 "Token"
               ],
-              "program": "test_usad_stablecoin"
+              "program": "test_usad_stablecoin.aleo"
             }
           },
           "mode": "None"
@@ -324,7 +324,7 @@
                 "path": [
                   "TokenMerkleProof"
                 ],
-                "program": "veilmarkets_token_usad_v9"
+                "program": "veilmarkets_token_usad_v9.aleo"
               }
             }
           },
@@ -338,7 +338,7 @@
                 "path": [
                   "TokenMerkleProof"
                 ],
-                "program": "veilmarkets_token_usad_v9"
+                "program": "veilmarkets_token_usad_v9.aleo"
               }
             }
           },
@@ -403,7 +403,7 @@
               "path": [
                 "ComplianceRecord"
               ],
-              "program": "test_usad_stablecoin"
+              "program": "test_usad_stablecoin.aleo"
             }
           },
           "mode": "None"
@@ -414,7 +414,7 @@
               "path": [
                 "Token"
               ],
-              "program": "test_usad_stablecoin"
+              "program": "test_usad_stablecoin.aleo"
             }
           },
           "mode": "None"
@@ -425,20 +425,20 @@
               "path": [
                 "EscrowedBet"
               ],
-              "program": "veilmarkets_token_usad_v9"
+              "program": "veilmarkets_token_usad_v9.aleo"
             }
           },
           "mode": "None"
         },
         {
-          "ty": "Future",
+          "ty": "Final",
           "mode": "None"
         }
       ]
     },
     {
       "name": "fund_pool",
-      "is_async": true,
+      "is_final": true,
       "inputs": [
         {
           "name": "input_token",
@@ -447,7 +447,7 @@
               "path": [
                 "Token"
               ],
-              "program": "test_usad_stablecoin"
+              "program": "test_usad_stablecoin.aleo"
             }
           },
           "mode": "None"
@@ -460,7 +460,7 @@
                 "path": [
                   "TokenMerkleProof"
                 ],
-                "program": "veilmarkets_token_usad_v9"
+                "program": "veilmarkets_token_usad_v9.aleo"
               }
             }
           },
@@ -474,7 +474,7 @@
                 "path": [
                   "TokenMerkleProof"
                 ],
-                "program": "veilmarkets_token_usad_v9"
+                "program": "veilmarkets_token_usad_v9.aleo"
               }
             }
           },
@@ -517,7 +517,7 @@
               "path": [
                 "ComplianceRecord"
               ],
-              "program": "test_usad_stablecoin"
+              "program": "test_usad_stablecoin.aleo"
             }
           },
           "mode": "None"
@@ -528,20 +528,20 @@
               "path": [
                 "Token"
               ],
-              "program": "test_usad_stablecoin"
+              "program": "test_usad_stablecoin.aleo"
             }
           },
           "mode": "None"
         },
         {
-          "ty": "Future",
+          "ty": "Final",
           "mode": "None"
         }
       ]
     },
     {
       "name": "claim_payout",
-      "is_async": true,
+      "is_final": true,
       "inputs": [
         {
           "name": "payout_amount",
@@ -571,7 +571,7 @@
               "path": [
                 "ComplianceRecord"
               ],
-              "program": "test_usad_stablecoin"
+              "program": "test_usad_stablecoin.aleo"
             }
           },
           "mode": "None"
@@ -582,20 +582,20 @@
               "path": [
                 "Token"
               ],
-              "program": "test_usad_stablecoin"
+              "program": "test_usad_stablecoin.aleo"
             }
           },
           "mode": "None"
         },
         {
-          "ty": "Future",
+          "ty": "Final",
           "mode": "None"
         }
       ]
     },
     {
       "name": "refund_bet",
-      "is_async": true,
+      "is_final": true,
       "inputs": [
         {
           "name": "escrow_id",
@@ -625,7 +625,7 @@
               "path": [
                 "ComplianceRecord"
               ],
-              "program": "test_usad_stablecoin"
+              "program": "test_usad_stablecoin.aleo"
             }
           },
           "mode": "None"
@@ -636,13 +636,13 @@
               "path": [
                 "Token"
               ],
-              "program": "test_usad_stablecoin"
+              "program": "test_usad_stablecoin.aleo"
             }
           },
           "mode": "None"
         },
         {
-          "ty": "Future",
+          "ty": "Final",
           "mode": "None"
         }
       ]

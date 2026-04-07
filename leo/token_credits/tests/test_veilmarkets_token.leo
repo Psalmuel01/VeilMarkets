@@ -3,7 +3,7 @@ import veilmarkets_token_credits_v9.aleo;
 program test_veilmarkets_token.aleo {
     const MIN_BET: u64 = 1000000u64;
 
-    function compute_escrow_id(
+    fn compute_escrow_id(
         bettor: address,
         market_id: field,
         outcome: u8,
@@ -16,7 +16,7 @@ program test_veilmarkets_token.aleo {
     }
 
     @test
-    transition enforces_minimum_bet_threshold() {
+    fn enforces_minimum_bet_threshold() {
         let too_small: u64 = 999999u64;
         let valid_min: u64 = MIN_BET;
 
@@ -25,7 +25,7 @@ program test_veilmarkets_token.aleo {
     }
 
     @test
-    transition escrow_id_depends_on_inputs() {
+    fn escrow_id_depends_on_inputs() {
         let bettor_a: address = aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
         let bettor_b: address = aleo13wreywph6vpjfcn9z3unaulyv7mgepsu5pzwnzd32786j5gzzvqqrw8565;
         let market_id: field = 77field;
@@ -42,7 +42,7 @@ program test_veilmarkets_token.aleo {
     }
 
     @test
-    transition escrow_reduces_on_refund() {
+    fn escrow_reduces_on_refund() {
         let current_total: u64 = 9000000u64;
         let refund_amount: u64 = 2500000u64;
         let remaining: u64 = current_total - refund_amount;
@@ -52,5 +52,5 @@ program test_veilmarkets_token.aleo {
     }
 
     @noupgrade
-    async constructor() {}
+    constructor() {}
 }

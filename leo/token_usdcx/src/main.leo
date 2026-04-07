@@ -2,7 +2,7 @@
 // Handles betting and pro-rata payouts using an ARC-20 token (test_usdcx_stablecoin.aleo).
 // Structurally identical to the credits adapter; only the payment rail differs.
 import test_usdcx_stablecoin.aleo;
-import veilmarkets_v9.aleo;
+import veilmarkets_core_v9.aleo;
 import veilmarkets_factory_v9.aleo;
 
 program veilmarkets_token_usdcx_v9.aleo {
@@ -17,7 +17,7 @@ program veilmarkets_token_usdcx_v9.aleo {
         escrow_id: field,
     }
 
-    // Mirror of test_usdcx_stablecoin.aleo/MerkleProof, kept local to avoid
+    // Mirror of test_usdcx_stablecoin.aleo::MerkleProof, kept local to avoid
     // parser edge-cases with private arrays of imported structs.
     struct TokenMerkleProof {
         siblings: [field; 16u32],
@@ -52,15 +52,15 @@ program veilmarkets_token_usdcx_v9.aleo {
     // ── Constructor ────────────────────────────────────────────────────────────
 
     @admin(address = "aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n")
-    async constructor() {}
+    constructor() {}
 
     // ── Place bet ──────────────────────────────────────────────────────────────
     // Atomically escrows USDCx tokens and registers the bet in core.
     // The input_token is an ARC-20 private Token record from test_usdcx_stablecoin.aleo.
     // This token requires a Merkle proof for private spends.
 
-    async transition place_bet(
-        input_token: test_usdcx_stablecoin.aleo/Token,
+    fn place_bet(
+        input_token: test_usdcx_stablecoin.aleo::Token,
         token_proof_0: TokenMerkleProof,
         token_proof_1: TokenMerkleProof,
         market_id: field,
@@ -68,10 +68,10 @@ program veilmarkets_token_usdcx_v9.aleo {
         bet_amount: u64,
         bet_nonce: field,
     ) -> (
-        test_usdcx_stablecoin.aleo/ComplianceRecord,
-        test_usdcx_stablecoin.aleo/Token,
+        test_usdcx_stablecoin.aleo::ComplianceRecord,
+        test_usdcx_stablecoin.aleo::Token,
         EscrowedBet,
-        Future,
+        Final,
     ) {
         let bet_amount_u128: u128 = bet_amount as u128;
         assert(input_token.amount >= bet_amount_u128);
@@ -79,27 +79,27 @@ program veilmarkets_token_usdcx_v9.aleo {
         assert(outcome <= 31u8);
 
         // Transfer bet_amount to this contract's public USDCx balance
-        let external_proof_0: test_usdcx_stablecoin.aleo/MerkleProof =
-            test_usdcx_stablecoin.aleo/MerkleProof {
+        let external_proof_0: test_usdcx_stablecoin.aleo::MerkleProof =
+            test_usdcx_stablecoin.aleo::MerkleProof {
                 siblings: token_proof_0.siblings,
                 leaf_index: token_proof_0.leaf_index,
             };
 
-        let external_proof_1: test_usdcx_stablecoin.aleo/MerkleProof =
-            test_usdcx_stablecoin.aleo/MerkleProof {
+        let external_proof_1: test_usdcx_stablecoin.aleo::MerkleProof =
+            test_usdcx_stablecoin.aleo::MerkleProof {
                 siblings: token_proof_1.siblings,
                 leaf_index: token_proof_1.leaf_index,
             };
 
-        let token_proof: [test_usdcx_stablecoin.aleo/MerkleProof; 2u32] =
+        let token_proof: [test_usdcx_stablecoin.aleo::MerkleProof; 2u32] =
             [external_proof_0, external_proof_1];
 
         let (compliance_record, change, transfer_future): (
-            test_usdcx_stablecoin.aleo/ComplianceRecord,
-            test_usdcx_stablecoin.aleo/Token,
-            Future,
+            test_usdcx_stablecoin.aleo::ComplianceRecord,
+            test_usdcx_stablecoin.aleo::Token,
+            Final,
         ) =
-            test_usdcx_stablecoin.aleo/transfer_private_to_public(
+            test_usdcx_stablecoin.aleo::transfer_private_to_public(
                 self.address,
                 bet_amount_u128,
                 input_token,
@@ -112,7 +112,7 @@ program veilmarkets_token_usdcx_v9.aleo {
         );
         let owner_commitment: field = BHP256::hash_to_field(self.caller as field + escrow_id);
 
-        let core_future: Future = veilmarkets_v9.aleo/place_bet(
+        let core_future: Final = veilmarkets_core_v9.aleo::place_bet(
             market_id,
             outcome,
             bet_amount,
@@ -129,21 +129,23 @@ program veilmarkets_token_usdcx_v9.aleo {
             nonce: BHP256::hash_to_group(escrow_id),
         };
 
-        let f: Future = finalize_place_bet(
-            market_id,
-            outcome,
-            bet_amount,
-            escrow_id,
-            owner_commitment,
-            transfer_future,
-            core_future,
-        );
+        let f: Final = final {
+            finalize_place_bet(
+                market_id,
+                outcome,
+                bet_amount,
+                escrow_id,
+                owner_commitment,
+                transfer_future,
+                core_future,
+            );
+        };
 
         return (compliance_record, change, bet_record, f);
     }
 
-    async transition buy_shares(
-        input_token: test_usdcx_stablecoin.aleo/Token,
+    fn buy_shares(
+        input_token: test_usdcx_stablecoin.aleo::Token,
         token_proof_0: TokenMerkleProof,
         token_proof_1: TokenMerkleProof,
         market_id: field,
@@ -152,10 +154,10 @@ program veilmarkets_token_usdcx_v9.aleo {
         min_shares_out: u64,
         bet_nonce: field,
     ) -> (
-        test_usdcx_stablecoin.aleo/ComplianceRecord,
-        test_usdcx_stablecoin.aleo/Token,
+        test_usdcx_stablecoin.aleo::ComplianceRecord,
+        test_usdcx_stablecoin.aleo::Token,
         EscrowedBet,
-        Future,
+        Final,
     ) {
         let bet_amount_u128: u128 = bet_amount as u128;
         assert(input_token.amount >= bet_amount_u128);
@@ -163,26 +165,26 @@ program veilmarkets_token_usdcx_v9.aleo {
         assert(min_shares_out > 0u64);
         assert(outcome <= 31u8);
 
-        let external_proof_0: test_usdcx_stablecoin.aleo/MerkleProof =
-            test_usdcx_stablecoin.aleo/MerkleProof {
+        let external_proof_0: test_usdcx_stablecoin.aleo::MerkleProof =
+            test_usdcx_stablecoin.aleo::MerkleProof {
                 siblings: token_proof_0.siblings,
                 leaf_index: token_proof_0.leaf_index,
             };
-        let external_proof_1: test_usdcx_stablecoin.aleo/MerkleProof =
-            test_usdcx_stablecoin.aleo/MerkleProof {
+        let external_proof_1: test_usdcx_stablecoin.aleo::MerkleProof =
+            test_usdcx_stablecoin.aleo::MerkleProof {
                 siblings: token_proof_1.siblings,
                 leaf_index: token_proof_1.leaf_index,
             };
 
-        let token_proof: [test_usdcx_stablecoin.aleo/MerkleProof; 2u32] =
+        let token_proof: [test_usdcx_stablecoin.aleo::MerkleProof; 2u32] =
             [external_proof_0, external_proof_1];
 
         let (compliance_record, change, transfer_future): (
-            test_usdcx_stablecoin.aleo/ComplianceRecord,
-            test_usdcx_stablecoin.aleo/Token,
-            Future,
+            test_usdcx_stablecoin.aleo::ComplianceRecord,
+            test_usdcx_stablecoin.aleo::Token,
+            Final,
         ) =
-            test_usdcx_stablecoin.aleo/transfer_private_to_public(
+            test_usdcx_stablecoin.aleo::transfer_private_to_public(
                 self.address,
                 bet_amount_u128,
                 input_token,
@@ -195,7 +197,7 @@ program veilmarkets_token_usdcx_v9.aleo {
         );
         let owner_commitment: field = BHP256::hash_to_field(self.caller as field + escrow_id);
 
-        let core_future: Future = veilmarkets_v9.aleo/buy_shares(
+        let core_future: Final = veilmarkets_core_v9.aleo::buy_shares(
             market_id,
             outcome,
             bet_amount,
@@ -213,86 +215,60 @@ program veilmarkets_token_usdcx_v9.aleo {
             nonce: BHP256::hash_to_group(escrow_id),
         };
 
-        let f: Future = finalize_place_bet(
-            market_id,
-            outcome,
-            bet_amount,
-            escrow_id,
-            owner_commitment,
-            transfer_future,
-            core_future,
-        );
+        let f: Final = final {
+            finalize_place_bet(
+                market_id,
+                outcome,
+                bet_amount,
+                escrow_id,
+                owner_commitment,
+                transfer_future,
+                core_future,
+            );
+        };
 
         return (compliance_record, change, bet_record, f);
     }
 
-    async function finalize_place_bet(
-        market_id: field,
-        outcome: u8,
-        amount: u64,
-        escrow_id: field,
-        owner_commitment: field,
-        transfer_future: Future,
-        core_future: Future,
-    ) {
-        transfer_future.await();
-        core_future.await();
-
-        // Anti-replay: escrow_id must be unused
-        let exists: bool = Mapping::contains(escrow_details, escrow_id);
-        assert(!exists);
-
-        let details: EscrowInfo = EscrowInfo {
-            holder_commitment: owner_commitment,
-            market_id: market_id,
-            amount: amount,
-            outcome: outcome,
-            escrow_id: escrow_id,
-        };
-        Mapping::set(escrow_details, escrow_id, details);
-
-        let current_total: u64 = Mapping::get_or_use(market_escrow, market_id, 0u64);
-        Mapping::set(market_escrow, market_id, current_total + amount);
-    }
 
     // ── Fund pool ───────────────────────────────────────────────────────────────
     // Adds USDCx liquidity collateral into the v9 core market pool.
 
-    async transition fund_pool(
-        input_token: test_usdcx_stablecoin.aleo/Token,
+    fn fund_pool(
+        input_token: test_usdcx_stablecoin.aleo::Token,
         token_proof_0: TokenMerkleProof,
         token_proof_1: TokenMerkleProof,
         market_id: field,
         amount: u64,
         lp_nonce: field,
     ) -> (
-        test_usdcx_stablecoin.aleo/ComplianceRecord,
-        test_usdcx_stablecoin.aleo/Token,
-        Future,
+        test_usdcx_stablecoin.aleo::ComplianceRecord,
+        test_usdcx_stablecoin.aleo::Token,
+        Final,
     ) {
         let amount_u128: u128 = amount as u128;
         assert(input_token.amount >= amount_u128);
         assert(amount >= MIN_BET);
 
-        let external_proof_0: test_usdcx_stablecoin.aleo/MerkleProof =
-            test_usdcx_stablecoin.aleo/MerkleProof {
+        let external_proof_0: test_usdcx_stablecoin.aleo::MerkleProof =
+            test_usdcx_stablecoin.aleo::MerkleProof {
                 siblings: token_proof_0.siblings,
                 leaf_index: token_proof_0.leaf_index,
             };
-        let external_proof_1: test_usdcx_stablecoin.aleo/MerkleProof =
-            test_usdcx_stablecoin.aleo/MerkleProof {
+        let external_proof_1: test_usdcx_stablecoin.aleo::MerkleProof =
+            test_usdcx_stablecoin.aleo::MerkleProof {
                 siblings: token_proof_1.siblings,
                 leaf_index: token_proof_1.leaf_index,
             };
-        let token_proof: [test_usdcx_stablecoin.aleo/MerkleProof; 2u32] =
+        let token_proof: [test_usdcx_stablecoin.aleo::MerkleProof; 2u32] =
             [external_proof_0, external_proof_1];
 
         let (compliance_record, change, transfer_future): (
-            test_usdcx_stablecoin.aleo/ComplianceRecord,
-            test_usdcx_stablecoin.aleo/Token,
-            Future,
+            test_usdcx_stablecoin.aleo::ComplianceRecord,
+            test_usdcx_stablecoin.aleo::Token,
+            Final,
         ) =
-            test_usdcx_stablecoin.aleo/transfer_private_to_public(
+            test_usdcx_stablecoin.aleo::transfer_private_to_public(
                 self.address,
                 amount_u128,
                 input_token,
@@ -305,127 +281,167 @@ program veilmarkets_token_usdcx_v9.aleo {
         let owner_commitment: field =
             BHP256::hash_to_field(self.caller as field + lp_position_id);
 
-        let core_future: Future = veilmarkets_v9.aleo/fund_pool(
+        let core_future: Final = veilmarkets_core_v9.aleo::fund_pool(
             market_id,
             amount,
             lp_position_id,
             owner_commitment,
         );
 
-        let f: Future = finalize_fund_pool(market_id, amount, transfer_future, core_future);
+        let f: Final = final {
+            finalize_fund_pool(market_id, amount, transfer_future, core_future);
+        };
         return (compliance_record, change, f);
     }
 
-    async function finalize_fund_pool(
-        market_id: field,
-        amount: u64,
-        transfer_future: Future,
-        core_future: Future,
-    ) {
-        transfer_future.await();
-        core_future.await();
-
-        let current_total: u64 = Mapping::get_or_use(market_escrow, market_id, 0u64);
-        Mapping::set(market_escrow, market_id, current_total + amount);
-    }
 
     // ── Claim payout ───────────────────────────────────────────────────────────
     // Verifies the win with core, then returns USDCx from the contract's
     // public balance to the winner's private Token record.
 
-    async transition claim_payout(
+    fn claim_payout(
         public payout_amount: u64,
         public nullifier: field,
     ) -> (
-        test_usdcx_stablecoin.aleo/ComplianceRecord,
-        test_usdcx_stablecoin.aleo/Token,
-        Future,
+        test_usdcx_stablecoin.aleo::ComplianceRecord,
+        test_usdcx_stablecoin.aleo::Token,
+        Final,
     ) {
         let payout_amount_u128: u128 = payout_amount as u128;
 
         // Core verifies the payout amount and marks the nullifier consumed
-        let core_result: Future = veilmarkets_v9.aleo/verify_claim(nullifier, payout_amount);
+        let core_result: Final = veilmarkets_core_v9.aleo::verify_claim(nullifier, payout_amount);
 
         // Transfer payout from contract's public USDCx balance to caller's private record
         let (compliance_record, payout_record, transfer_future): (
-            test_usdcx_stablecoin.aleo/ComplianceRecord,
-            test_usdcx_stablecoin.aleo/Token,
-            Future,
+            test_usdcx_stablecoin.aleo::ComplianceRecord,
+            test_usdcx_stablecoin.aleo::Token,
+            Final,
         ) =
-            test_usdcx_stablecoin.aleo/transfer_public_to_private(
+            test_usdcx_stablecoin.aleo::transfer_public_to_private(
                 self.caller,
                 payout_amount_u128,
             );
 
-        let f: Future = finalize_claim_payout(nullifier, transfer_future, core_result);
+        let f: Final = final {
+            finalize_claim_payout(nullifier, transfer_future, core_result);
+        };
         return (compliance_record, payout_record, f);
     }
 
-    async function finalize_claim_payout(
-        nullifier: field,
-        transfer_future: Future,
-        core_result: Future,
-    ) {
-        transfer_future.await();
-        core_result.await();
-
-        // Double-spend guard at the adapter level
-        let is_spent: bool = Mapping::get_or_use(spent_escrow, nullifier, false);
-        assert(!is_spent);
-        Mapping::set(spent_escrow, nullifier, true);
-    }
 
     // ── Refund bet ─────────────────────────────────────────────────────────────
     // Used when a market is cancelled (winning_outcome == 255u8).
     // Returns USDCx to the original bettor. Caller must be the holder.
 
-    async transition refund_bet(
+    fn refund_bet(
         public escrow_id: field,
         public amount: u64,
     ) -> (
-        test_usdcx_stablecoin.aleo/ComplianceRecord,
-        test_usdcx_stablecoin.aleo/Token,
-        Future,
+        test_usdcx_stablecoin.aleo::ComplianceRecord,
+        test_usdcx_stablecoin.aleo::Token,
+        Final,
     ) {
         let amount_u128: u128 = amount as u128;
 
         let (compliance_record, refund_record, transfer_future): (
-            test_usdcx_stablecoin.aleo/ComplianceRecord,
-            test_usdcx_stablecoin.aleo/Token,
-            Future,
+            test_usdcx_stablecoin.aleo::ComplianceRecord,
+            test_usdcx_stablecoin.aleo::Token,
+            Final,
         ) =
-            test_usdcx_stablecoin.aleo/transfer_public_to_private(
+            test_usdcx_stablecoin.aleo::transfer_public_to_private(
                 self.caller,
                 amount_u128,
             );
 
-        let f: Future = finalize_refund_bet(escrow_id, amount, self.caller, transfer_future);
+        let caller: address = self.caller;
+        let f: Final = final {
+            finalize_refund_bet(escrow_id, amount, caller, transfer_future);
+        };
         return (compliance_record, refund_record, f);
     }
 
-    async function finalize_refund_bet(
-        escrow_id: field,
-        amount: u64,
-        caller: address,
-        transfer_future: Future,
-    ) {
-        transfer_future.await();
-
-        // Verify caller is the original holder
-        let details: EscrowInfo = Mapping::get(escrow_details, escrow_id);
-        let expected_holder_commitment: field =
-            BHP256::hash_to_field(caller as field + escrow_id);
-        assert_eq(details.holder_commitment, expected_holder_commitment);
-        assert_eq(details.amount, amount);
-
-        // Mark as spent so it cannot be refunded twice
-        let is_spent: bool = Mapping::get_or_use(spent_escrow, escrow_id, false);
-        assert(!is_spent);
-        Mapping::set(spent_escrow, escrow_id, true);
-
-        // Reduce market escrow total
-        let current_total: u64 = Mapping::get_or_use(market_escrow, details.market_id, 0u64);
-        assert(current_total >= amount);
-        Mapping::set(market_escrow, details.market_id, current_total - amount);
-    }
 }
+
+final fn finalize_place_bet(
+    market_id: field,
+    outcome: u8,
+    amount: u64,
+    escrow_id: field,
+    owner_commitment: field,
+    transfer_future: Final,
+    core_future: Final,
+) {
+    transfer_future.run();
+    core_future.run();
+
+    // Anti-replay: escrow_id must be unused
+    let exists: bool = Mapping::contains(escrow_details, escrow_id);
+    assert(!exists);
+
+    let details: EscrowInfo = EscrowInfo {
+        holder_commitment: owner_commitment,
+        market_id: market_id,
+        amount: amount,
+        outcome: outcome,
+        escrow_id: escrow_id,
+    };
+    Mapping::set(escrow_details, escrow_id, details);
+
+    let current_total: u64 = Mapping::get_or_use(market_escrow, market_id, 0u64);
+    Mapping::set(market_escrow, market_id, current_total + amount);
+}
+
+final fn finalize_fund_pool(
+    market_id: field,
+    amount: u64,
+    transfer_future: Final,
+    core_future: Final,
+) {
+    transfer_future.run();
+    core_future.run();
+
+    let current_total: u64 = Mapping::get_or_use(market_escrow, market_id, 0u64);
+    Mapping::set(market_escrow, market_id, current_total + amount);
+}
+
+final fn finalize_claim_payout(
+    nullifier: field,
+    transfer_future: Final,
+    core_result: Final,
+) {
+    transfer_future.run();
+    core_result.run();
+
+    // Double-spend guard at the adapter level
+    let is_spent: bool = Mapping::get_or_use(spent_escrow, nullifier, false);
+    assert(!is_spent);
+    Mapping::set(spent_escrow, nullifier, true);
+}
+
+final fn finalize_refund_bet(
+    escrow_id: field,
+    amount: u64,
+    caller: address,
+    transfer_future: Final,
+) {
+    transfer_future.run();
+
+    // Verify caller is the original holder
+    let details: EscrowInfo = Mapping::get(escrow_details, escrow_id);
+    let expected_holder_commitment: field =
+        BHP256::hash_to_field(caller as field + escrow_id);
+    assert_eq(details.holder_commitment, expected_holder_commitment);
+    assert_eq(details.amount, amount);
+
+    // Mark as spent so it cannot be refunded twice
+    let is_spent: bool = Mapping::get_or_use(spent_escrow, escrow_id, false);
+    assert(!is_spent);
+    Mapping::set(spent_escrow, escrow_id, true);
+
+    // Reduce market escrow total
+    let current_total: u64 = Mapping::get_or_use(market_escrow, details.market_id, 0u64);
+    assert(current_total >= amount);
+    Mapping::set(market_escrow, details.market_id, current_total - amount);
+}
+

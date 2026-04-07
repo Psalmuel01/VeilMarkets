@@ -1,7 +1,7 @@
-import veilmarkets_v9.aleo;
+import veilmarkets_core_v9.aleo;
 
 program test_veilmarkets.aleo {
-    inline mul_div_u64(a: u64, b: u64, denom: u64) -> u64 {
+    fn mul_div_u64(a: u64, b: u64, denom: u64) -> u64 {
         assert(denom > 0u64);
         let a128: u128 = a as u128;
         let b128: u128 = b as u128;
@@ -9,7 +9,7 @@ program test_veilmarkets.aleo {
         return ((a128 * b128) / d128) as u64;
     }
 
-    inline calc_buy_shares(
+    fn calc_buy_shares(
         pool_collateral: u64,
         outcome_count: u8,
         virtual_liq: u64,
@@ -23,7 +23,7 @@ program test_veilmarkets.aleo {
         return (raw == 0u64) ? 1u64 : raw;
     }
 
-    inline calc_sell_payout(
+    fn calc_sell_payout(
         pool_collateral: u64,
         outcome_count: u8,
         virtual_liq: u64,
@@ -36,7 +36,7 @@ program test_veilmarkets.aleo {
         return mul_div_u64(shares_to_sell, outcome_liq, total_liq);
     }
 
-    function is_valid_market_shape(market_type: u8, outcome_count: u8) -> bool {
+    fn is_valid_market_shape(market_type: u8, outcome_count: u8) -> bool {
         if (market_type > 1u8) {
             return false;
         }
@@ -50,7 +50,7 @@ program test_veilmarkets.aleo {
     }
 
     @test
-    transition validates_market_shape_rules() {
+    fn validates_market_shape_rules() {
         assert_eq(is_valid_market_shape(0u8, 2u8), true);  // binary
         assert_eq(is_valid_market_shape(1u8, 2u8), true);  // categorical
         assert_eq(is_valid_market_shape(1u8, 3u8), true);  // categorical
@@ -64,7 +64,7 @@ program test_veilmarkets.aleo {
     }
 
     @test
-    transition quote_scales_outcome_counts() {
+    fn quote_scales_outcome_counts() {
         let virtual_liq: u64 = 10000000u64;
         let pool_collateral: u64 = 50000000u64;
         let net_in: u64 = 9000000u64;
@@ -84,7 +84,7 @@ program test_veilmarkets.aleo {
     }
 
     @test
-    transition claim_nullifier_changes() {
+    fn claim_nullifier_changes() {
         // Mirrors nullifier derivation in claim_winnings.
         let owner: address = aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
         let owner_hash: field = BHP256::hash_to_field(owner);
@@ -102,7 +102,7 @@ program test_veilmarkets.aleo {
     }
 
     @test
-    transition outcome_within_count() {
+    fn outcome_within_count() {
         let market_outcome_count: u8 = 3u8;
         let valid_outcome: u8 = 2u8;
         let invalid_outcome: u8 = 3u8;
@@ -112,7 +112,7 @@ program test_veilmarkets.aleo {
     }
 
     @test
-    transition winner_redemption_proportional() {
+    fn winner_redemption_proportional() {
         let pool_total_collateral: u64 = 120000000u64;
         let winning_supply: u64 = 30000000u64;
         let my_shares: u64 = 6000000u64;
@@ -124,7 +124,7 @@ program test_veilmarkets.aleo {
     }
 
     @test
-    transition buy_sell_fee_conservation() {
+    fn buy_sell_fee_conservation() {
         let pool_collateral_before: u64 = 80000000u64;
         let outcome_count: u8 = 3u8;
         let virtual_liq: u64 = 10000000u64;
@@ -163,7 +163,7 @@ program test_veilmarkets.aleo {
     }
 
     @test
-    transition sell_quote_scales_with_shares() {
+    fn sell_quote_scales_with_shares() {
         let pool_collateral: u64 = 150000000u64;
         let outcome_count: u8 = 4u8;
         let virtual_liq: u64 = 12000000u64;
@@ -177,5 +177,5 @@ program test_veilmarkets.aleo {
     }
 
     @noupgrade
-    async constructor() {}
+    constructor() {}
 }

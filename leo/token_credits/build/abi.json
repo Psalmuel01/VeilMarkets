@@ -120,7 +120,7 @@
           "path": [
             "EscrowInfo"
           ],
-          "program": "veilmarkets_token_credits_v9"
+          "program": "veilmarkets_token_credits_v9.aleo"
         }
       }
     },
@@ -148,10 +148,10 @@
     }
   ],
   "storage_variables": [],
-  "transitions": [
+  "functions": [
     {
       "name": "place_bet",
-      "is_async": true,
+      "is_final": true,
       "inputs": [
         {
           "name": "input_credits",
@@ -160,7 +160,7 @@
               "path": [
                 "credits"
               ],
-              "program": "credits"
+              "program": "credits.aleo"
             }
           },
           "mode": "None"
@@ -213,7 +213,7 @@
               "path": [
                 "credits"
               ],
-              "program": "credits"
+              "program": "credits.aleo"
             }
           },
           "mode": "None"
@@ -224,20 +224,20 @@
               "path": [
                 "EscrowedBet"
               ],
-              "program": "veilmarkets_token_credits_v9"
+              "program": "veilmarkets_token_credits_v9.aleo"
             }
           },
           "mode": "None"
         },
         {
-          "ty": "Future",
+          "ty": "Final",
           "mode": "None"
         }
       ]
     },
     {
       "name": "buy_shares",
-      "is_async": true,
+      "is_final": true,
       "inputs": [
         {
           "name": "input_credits",
@@ -246,7 +246,7 @@
               "path": [
                 "credits"
               ],
-              "program": "credits"
+              "program": "credits.aleo"
             }
           },
           "mode": "None"
@@ -310,7 +310,7 @@
               "path": [
                 "credits"
               ],
-              "program": "credits"
+              "program": "credits.aleo"
             }
           },
           "mode": "None"
@@ -321,20 +321,20 @@
               "path": [
                 "EscrowedBet"
               ],
-              "program": "veilmarkets_token_credits_v9"
+              "program": "veilmarkets_token_credits_v9.aleo"
             }
           },
           "mode": "None"
         },
         {
-          "ty": "Future",
+          "ty": "Final",
           "mode": "None"
         }
       ]
     },
     {
       "name": "fund_pool",
-      "is_async": true,
+      "is_final": true,
       "inputs": [
         {
           "name": "input_credits",
@@ -343,7 +343,7 @@
               "path": [
                 "credits"
               ],
-              "program": "credits"
+              "program": "credits.aleo"
             }
           },
           "mode": "None"
@@ -385,20 +385,20 @@
               "path": [
                 "credits"
               ],
-              "program": "credits"
+              "program": "credits.aleo"
             }
           },
           "mode": "None"
         },
         {
-          "ty": "Future",
+          "ty": "Final",
           "mode": "None"
         }
       ]
     },
     {
       "name": "claim_payout",
-      "is_async": true,
+      "is_final": true,
       "inputs": [
         {
           "name": "payout_amount",
@@ -428,20 +428,20 @@
               "path": [
                 "credits"
               ],
-              "program": "credits"
+              "program": "credits.aleo"
             }
           },
           "mode": "None"
         },
         {
-          "ty": "Future",
+          "ty": "Final",
           "mode": "None"
         }
       ]
     },
     {
       "name": "refund_bet",
-      "is_async": true,
+      "is_final": true,
       "inputs": [
         {
           "name": "escrow_id",
@@ -471,13 +471,13 @@
               "path": [
                 "credits"
               ],
-              "program": "credits"
+              "program": "credits.aleo"
             }
           },
           "mode": "None"
         },
         {
-          "ty": "Future",
+          "ty": "Final",
           "mode": "None"
         }
       ]

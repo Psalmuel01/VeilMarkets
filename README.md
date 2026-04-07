@@ -31,7 +31,7 @@ VeilMarkets lets users create markets, place bets, and claim payouts with zero-k
 
 ## Contracts (v9)
 
-- Core: `veilmarkets_v9.aleo`
+- Core: `veilmarkets_core_v9.aleo`
 - Factory: `veilmarkets_factory_v9.aleo`
 - Oracle: `veilmarkets_oracle_v9.aleo`
 - Governance: `veilmarkets_governance_v9.aleo`
@@ -88,7 +88,7 @@ VITE_USAD_TOKEN_PROGRAM_ADDRESS=aleo1...
 Suggested order:
 
 1. `veilmarkets_factory_v9`
-2. `veilmarkets_v9`
+2. `veilmarkets_core_v9`
 3. `veilmarkets_oracle_v9`
 4. `veilmarkets_governance_v9`
 5. `veilmarkets_token_credits_v9`

@@ -1,7 +1,7 @@
 {
-  "program": "veilmarkets_factory_v9.aleo",
+  "program": "credits.aleo",
   "version": "0.1.0",
-  "description": "",
+  "description": "Local credits ABI for local contract builds",
   "license": "MIT",
   "leo": "4.0.0",
   "dependencies": null,

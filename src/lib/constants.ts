@@ -1,4 +1,4 @@
-export const PROGRAM_ID = "veilmarkets_v9.aleo";
+export const PROGRAM_ID = "veilmarkets_core_v9.aleo";
 export const CREDITS_TOKEN_PROGRAM_ID = "veilmarkets_token_credits_v9.aleo";
 export const USDCX_TOKEN_PROGRAM_ID = "veilmarkets_token_usdcx_v9.aleo";
 export const USAD_TOKEN_PROGRAM_ID = "veilmarkets_token_usad_v9.aleo";

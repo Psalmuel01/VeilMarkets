@@ -1,5 +1,5 @@
 import veilmarkets_factory_v9.aleo;
-import veilmarkets_v9.aleo;
+import veilmarkets_core_v9.aleo;
 import credits.aleo;
 program veilmarkets_oracle_v9.aleo;
 
@@ -228,14 +228,14 @@ function resolve_on_core:
     input r1 as u8.public;
     lte r1 31u8 into r2;
     assert.eq r2 true;
-    call veilmarkets_v9.aleo/resolve_market r0 r1 veilmarkets_oracle_v9.aleo into r3;
+    call veilmarkets_core_v9.aleo/resolve_market r0 r1 veilmarkets_oracle_v9.aleo into r3;
     async resolve_on_core r0 r1 r3 into r4;
     output r4 as veilmarkets_oracle_v9.aleo/resolve_on_core.future;
 
 finalize resolve_on_core:
     input r0 as field.public;
     input r1 as u8.public;
-    input r2 as veilmarkets_v9.aleo/resolve_market.future;
+    input r2 as veilmarkets_core_v9.aleo/resolve_market.future;
     get proposals[r0] into r3;
     branch.eq r3.is_disputed false to end_then_0_10;
     cast r1 into r4 as field;
@@ -302,14 +302,14 @@ function execute_quorum_resolution:
     input r1 as u8.public;
     lte r1 31u8 into r2;
     assert.eq r2 true;
-    call veilmarkets_v9.aleo/resolve_market r0 r1 veilmarkets_oracle_v9.aleo into r3;
+    call veilmarkets_core_v9.aleo/resolve_market r0 r1 veilmarkets_oracle_v9.aleo into r3;
     async execute_quorum_resolution r0 r1 r3 into r4;
     output r4 as veilmarkets_oracle_v9.aleo/execute_quorum_resolution.future;
 
 finalize execute_quorum_resolution:
     input r0 as field.public;
     input r1 as u8.public;
-    input r2 as veilmarkets_v9.aleo/resolve_market.future;
+    input r2 as veilmarkets_core_v9.aleo/resolve_market.future;
     get proposals[r0] into r3;
     branch.eq r3.is_disputed false to end_then_0_16;
     cast r1 into r4 as field;

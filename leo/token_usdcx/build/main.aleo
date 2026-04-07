@@ -1,5 +1,5 @@
 import veilmarkets_factory_v9.aleo;
-import veilmarkets_v9.aleo;
+import veilmarkets_core_v9.aleo;
 import merkle_tree.aleo;
 import test_usdcx_multisig_core.aleo;
 import test_usdcx_freezelist.aleo;
@@ -71,7 +71,7 @@ function place_bet:
     cast self.caller into r25 as field;
     add r25 r24 into r26;
     hash.bhp256 r26 into r27 as field;
-    call veilmarkets_v9.aleo/place_bet r3 r4 r5 r24 r27 into r28;
+    call veilmarkets_core_v9.aleo/place_bet r3 r4 r5 r24 r27 into r28;
     hash.bhp256 r24 into r29 as group;
     cast self.signer r3 r5 r4 r24 r29 into r30 as EscrowedBet.record;
     async place_bet r3 r4 r5 r24 r27 r16 r28 into r31;
@@ -87,7 +87,7 @@ finalize place_bet:
     input r3 as field.public;
     input r4 as field.public;
     input r5 as test_usdcx_stablecoin.aleo/transfer_private_to_public.future;
-    input r6 as veilmarkets_v9.aleo/place_bet.future;
+    input r6 as veilmarkets_core_v9.aleo/place_bet.future;
     await r5;
     await r6;
     contains escrow_details[r3] into r7;
@@ -132,7 +132,7 @@ function buy_shares:
     cast self.caller into r27 as field;
     add r27 r26 into r28;
     hash.bhp256 r28 into r29 as field;
-    call veilmarkets_v9.aleo/buy_shares r3 r4 r5 r6 r26 r29 into r30;
+    call veilmarkets_core_v9.aleo/buy_shares r3 r4 r5 r6 r26 r29 into r30;
     hash.bhp256 r26 into r31 as group;
     cast self.signer r3 r5 r4 r26 r31 into r32 as EscrowedBet.record;
     async buy_shares r3 r4 r5 r26 r29 r18 r30 into r33;
@@ -148,7 +148,7 @@ finalize buy_shares:
     input r3 as field.public;
     input r4 as field.public;
     input r5 as test_usdcx_stablecoin.aleo/transfer_private_to_public.future;
-    input r6 as veilmarkets_v9.aleo/buy_shares.future;
+    input r6 as veilmarkets_core_v9.aleo/buy_shares.future;
     await r5;
     await r6;
     contains escrow_details[r3] into r7;
@@ -185,7 +185,7 @@ function fund_pool:
     cast self.caller into r21 as field;
     add r21 r20 into r22;
     hash.bhp256 r22 into r23 as field;
-    call veilmarkets_v9.aleo/fund_pool r3 r4 r20 r23 into r24;
+    call veilmarkets_core_v9.aleo/fund_pool r3 r4 r20 r23 into r24;
     async fund_pool r3 r4 r14 r24 into r25;
     output r12 as test_usdcx_stablecoin.aleo/ComplianceRecord.record;
     output r13 as test_usdcx_stablecoin.aleo/Token.record;
@@ -195,7 +195,7 @@ finalize fund_pool:
     input r0 as field.public;
     input r1 as u64.public;
     input r2 as test_usdcx_stablecoin.aleo/transfer_private_to_public.future;
-    input r3 as veilmarkets_v9.aleo/fund_pool.future;
+    input r3 as veilmarkets_core_v9.aleo/fund_pool.future;
     await r2;
     await r3;
     get.or_use market_escrow[r0] 0u64 into r4;
@@ -206,7 +206,7 @@ function claim_payout:
     input r0 as u64.public;
     input r1 as field.public;
     cast r0 into r2 as u128;
-    call veilmarkets_v9.aleo/verify_claim r1 r0 into r3;
+    call veilmarkets_core_v9.aleo/verify_claim r1 r0 into r3;
     call test_usdcx_stablecoin.aleo/transfer_public_to_private self.caller r2 into r4 r5 r6;
     async claim_payout r1 r6 r3 into r7;
     output r4 as test_usdcx_stablecoin.aleo/ComplianceRecord.record;
@@ -216,7 +216,7 @@ function claim_payout:
 finalize claim_payout:
     input r0 as field.public;
     input r1 as test_usdcx_stablecoin.aleo/transfer_public_to_private.future;
-    input r2 as veilmarkets_v9.aleo/verify_claim.future;
+    input r2 as veilmarkets_core_v9.aleo/verify_claim.future;
     await r1;
     await r2;
     get.or_use spent_escrow[r0] false into r3;

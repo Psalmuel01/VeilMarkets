@@ -87,7 +87,7 @@
           "path": [
             "Proposal"
           ],
-          "program": "veilmarkets_governance_v9"
+          "program": "veilmarkets_governance_v9.aleo"
         }
       }
     },
@@ -102,10 +102,10 @@
     }
   ],
   "storage_variables": [],
-  "transitions": [
+  "functions": [
     {
       "name": "create_proposal",
-      "is_async": true,
+      "is_final": true,
       "inputs": [
         {
           "name": "proposal_id",
@@ -172,14 +172,14 @@
       ],
       "outputs": [
         {
-          "ty": "Future",
+          "ty": "Final",
           "mode": "None"
         }
       ]
     },
     {
       "name": "cast_vote",
-      "is_async": true,
+      "is_final": true,
       "inputs": [
         {
           "name": "proposal_id",
@@ -202,14 +202,14 @@
       ],
       "outputs": [
         {
-          "ty": "Future",
+          "ty": "Final",
           "mode": "None"
         }
       ]
     },
     {
       "name": "execute_core_u64",
-      "is_async": true,
+      "is_final": true,
       "inputs": [
         {
           "name": "proposal_id",
@@ -245,14 +245,14 @@
       ],
       "outputs": [
         {
-          "ty": "Future",
+          "ty": "Final",
           "mode": "None"
         }
       ]
     },
     {
       "name": "execute_core_u8",
-      "is_async": true,
+      "is_final": true,
       "inputs": [
         {
           "name": "proposal_id",
@@ -288,93 +288,7 @@
       ],
       "outputs": [
         {
-          "ty": "Future",
-          "mode": "None"
-        }
-      ]
-    },
-    {
-      "name": "execute_oracle_u64",
-      "is_async": true,
-      "inputs": [
-        {
-          "name": "proposal_id",
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Field"
-            }
-          },
-          "mode": "Public"
-        },
-        {
-          "name": "param_key",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U8"
-              }
-            }
-          },
-          "mode": "Public"
-        },
-        {
-          "name": "value",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U64"
-              }
-            }
-          },
-          "mode": "Public"
-        }
-      ],
-      "outputs": [
-        {
-          "ty": "Future",
-          "mode": "None"
-        }
-      ]
-    },
-    {
-      "name": "execute_oracle_u8",
-      "is_async": true,
-      "inputs": [
-        {
-          "name": "proposal_id",
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Field"
-            }
-          },
-          "mode": "Public"
-        },
-        {
-          "name": "param_key",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U8"
-              }
-            }
-          },
-          "mode": "Public"
-        },
-        {
-          "name": "value",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U8"
-              }
-            }
-          },
-          "mode": "Public"
-        }
-      ],
-      "outputs": [
-        {
-          "ty": "Future",
+          "ty": "Final",
           "mode": "None"
         }
       ]

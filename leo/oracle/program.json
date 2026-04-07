@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "",
   "license": "MIT",
-  "leo": "3.5.0",
+  "leo": "4.0.0",
   "dependencies": [
     {
       "name": "veilmarkets_factory_v9.aleo",
@@ -11,7 +11,7 @@
       "path": "../factory"
     },
     {
-      "name": "veilmarkets_v9.aleo",
+      "name": "veilmarkets_core_v9.aleo",
       "location": "local",
       "path": "../core"
     },
