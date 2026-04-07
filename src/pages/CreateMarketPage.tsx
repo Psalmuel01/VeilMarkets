@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -37,6 +37,7 @@ import {
 } from "@/lib/constants";
 import { queryKeys } from "@/lib/queryKeys";
 import { MAX_OUTCOME_COUNT } from "@/lib/outcomes";
+import { useProtocolConfigQuery } from "@/hooks/useVeilQuery";
 
 const categories = [
   { value: "crypto", label: "Crypto" },
@@ -72,18 +73,37 @@ export default function CreateMarketPage() {
   });
 
   const { createMarket } = useAleoPrograms();
+  const { data: protocolConfig } = useProtocolConfigQuery();
+  const maxOutcomeCount = Math.max(
+    2,
+    Math.min(MAX_OUTCOME_COUNT, protocolConfig?.maxOutcomes ?? MAX_OUTCOME_COUNT),
+  );
   const [creationResult, setCreationResult] = useState<{
     transactionId: string;
     marketId: string;
   } | null>(null);
 
   const ensureOutcomeLabels = (labels: string[], count: number): string[] => {
-    return Array.from({ length: MAX_OUTCOME_COUNT }, (_, index) => {
+    return Array.from({ length: maxOutcomeCount }, (_, index) => {
       if (index >= count) return labels[index] ?? `Option ${index + 1}`;
       const current = (labels[index] ?? "").trim();
       return current.length > 0 ? current : `Option ${index + 1}`;
     });
   };
+
+  useEffect(() => {
+    setFormData((prev) => {
+      if (prev.marketType === "binary") return prev;
+      const currentCount = Number.parseInt(prev.outcomeCount, 10) || 2;
+      const clamped = Math.min(maxOutcomeCount, Math.max(2, currentCount));
+      if (clamped === currentCount && prev.outcomeLabels.length >= maxOutcomeCount) return prev;
+      return {
+        ...prev,
+        outcomeCount: String(clamped),
+        outcomeLabels: ensureOutcomeLabels(prev.outcomeLabels, clamped),
+      };
+    });
+  }, [maxOutcomeCount]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,7 +143,7 @@ export default function CreateMarketPage() {
     const outcomeCountValue =
       marketTypeValue === 0
         ? 2
-        : Math.min(MAX_OUTCOME_COUNT, Math.max(2, Number.isFinite(parsedOutcomeCount) ? parsedOutcomeCount : 2));
+        : Math.min(maxOutcomeCount, Math.max(2, Number.isFinite(parsedOutcomeCount) ? parsedOutcomeCount : 2));
     const outcomeLabels =
       marketTypeValue === 0
         ? ["No", "Yes"]
@@ -163,7 +183,7 @@ export default function CreateMarketPage() {
     formData.marketType === "binary"
       ? 2
       : Math.min(
-          MAX_OUTCOME_COUNT,
+          maxOutcomeCount,
           Math.max(2, Number.parseInt(formData.outcomeCount, 10) || 2),
         );
   const hasValidOutcomeLabels =
@@ -324,7 +344,7 @@ export default function CreateMarketPage() {
                         value="categorical"
                         className="h-12 rounded-xl focus:bg-white/10"
                       >
-                        Categorical (2-{MAX_OUTCOME_COUNT} options)
+                        Categorical (2-{maxOutcomeCount} options)
                       </SelectItem>
                     </SelectContent>
                   </Select>
@@ -355,7 +375,7 @@ export default function CreateMarketPage() {
                       <SelectValue placeholder="Outcomes" />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-white/10 rounded-2xl">
-                      {Array.from({ length: MAX_OUTCOME_COUNT - 1 }, (_, index) => index + 2).map((count) => (
+                      {Array.from({ length: maxOutcomeCount - 1 }, (_, index) => index + 2).map((count) => (
                         <SelectItem
                           key={`outcome-count-${count}`}
                           value={String(count)}

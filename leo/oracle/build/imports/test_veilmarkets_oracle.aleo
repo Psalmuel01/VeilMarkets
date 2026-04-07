@@ -56,5 +56,13 @@ function split_proposer_wins:
 function deadline_adds_window:
     assert.eq 110800u64 110800u64;
 
+function quorum_requires_unique_voters:
+    assert.eq false false;
+    assert.eq true true;
+
+function quorum_requires_weight_floor:
+    assert.eq false false;
+    assert.eq true true;
+
 constructor:
     assert.eq edition 0u16;

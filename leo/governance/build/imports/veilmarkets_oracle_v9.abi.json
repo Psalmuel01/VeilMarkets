@@ -162,6 +162,26 @@
       }
     },
     {
+      "name": "disputed_voter_counts",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "vote_receipts",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": "Boolean"
+      }
+    },
+    {
       "name": "disputes",
       "key": {
         "Primitive": "Field"

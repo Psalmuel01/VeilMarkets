@@ -506,23 +506,15 @@ program veilmarkets_v9.aleo {
         amount: u64,
         escrow_id: field,
     ) -> (BetPosition, Future) {
-        let pending_market_id: field = Mapping::get(pending_position_market, escrow_id);
-        let pending_outcome: u8 = Mapping::get(pending_position_outcome, escrow_id);
-        let pending_collateral: u64 = Mapping::get(pending_position_collateral, escrow_id);
-        let pending_shares: u64 = Mapping::get(pending_position_shares, escrow_id);
-        assert_eq(pending_market_id, market_id);
-        assert_eq(pending_outcome, outcome);
-        assert_eq(pending_collateral, amount);
-
         let position: BetPosition = BetPosition {
             owner: self.signer,
             position_id: escrow_id,
             market_id: market_id,
             outcome: outcome,
-            amount: pending_collateral,
+            amount: amount,
             escrow_id: escrow_id,
-            shares: pending_shares,
-            collateral_in: pending_collateral,
+            shares: amount,
+            collateral_in: amount,
             nonce: BHP256::hash_to_group(escrow_id),
         };
 
@@ -530,8 +522,8 @@ program veilmarkets_v9.aleo {
             escrow_id,
             market_id,
             outcome,
-            pending_collateral,
-            pending_shares,
+            amount,
+            amount,
             self.caller,
         );
         return (position, f);
@@ -543,23 +535,15 @@ program veilmarkets_v9.aleo {
         public outcome: u8,
         public collateral_in: u64,
     ) -> (BetPosition, Future) {
-        let pending_market_id: field = Mapping::get(pending_position_market, share_commitment);
-        let pending_outcome: u8 = Mapping::get(pending_position_outcome, share_commitment);
-        let pending_collateral: u64 = Mapping::get(pending_position_collateral, share_commitment);
-        let pending_shares: u64 = Mapping::get(pending_position_shares, share_commitment);
-        assert_eq(pending_market_id, market_id);
-        assert_eq(pending_outcome, outcome);
-        assert_eq(pending_collateral, collateral_in);
-
         let position: BetPosition = BetPosition {
             owner: self.signer,
             position_id: share_commitment,
             market_id: market_id,
             outcome: outcome,
-            amount: pending_collateral,
+            amount: collateral_in,
             escrow_id: share_commitment,
-            shares: pending_shares,
-            collateral_in: pending_collateral,
+            shares: collateral_in,
+            collateral_in: collateral_in,
             nonce: BHP256::hash_to_group(share_commitment),
         };
 
@@ -567,8 +551,8 @@ program veilmarkets_v9.aleo {
             share_commitment,
             market_id,
             outcome,
-            pending_collateral,
-            pending_shares,
+            collateral_in,
+            collateral_in,
             self.caller,
         );
         return (position, f);
@@ -596,7 +580,6 @@ program veilmarkets_v9.aleo {
         assert_eq(pending_market_id, market_id);
         assert_eq(pending_outcome, outcome);
         assert_eq(pending_collateral, collateral_in);
-        assert_eq(pending_shares, shares);
 
         let market: MarketInfo = Mapping::get(markets, market_id);
         assert(outcome < market.outcome_count || outcome == OUTCOME_CANCELLED);
@@ -609,8 +592,8 @@ program veilmarkets_v9.aleo {
             holder: caller,
             market_id: market_id,
             outcome: outcome,
-            shares: shares,
-            collateral_in: collateral_in,
+            shares: pending_shares,
+            collateral_in: pending_collateral,
             token_id: market.token_id,
             is_closed: false,
         };
@@ -624,15 +607,8 @@ program veilmarkets_v9.aleo {
         public sell_nonce: field,
     ) -> (BetPosition, WinningsClaim, Future) {
         assert(shares_to_sell > 0u64);
-        assert(position.shares >= shares_to_sell);
-
-        let sold_collateral: u64 = mul_div_u64(
-            position.collateral_in,
-            shares_to_sell,
-            position.shares,
-        );
-        let remaining_shares: u64 = position.shares - shares_to_sell;
-        let remaining_collateral: u64 = position.collateral_in - sold_collateral;
+        let remaining_shares: u64 = position.shares;
+        let remaining_collateral: u64 = position.collateral_in;
 
         let updated_position: BetPosition = BetPosition {
             owner: position.owner,
@@ -697,8 +673,7 @@ program veilmarkets_v9.aleo {
         assert_eq(state.holder, caller);
         assert_eq(state.market_id, market_id);
         assert_eq(state.outcome, outcome);
-        assert_eq(state.shares, shares_before);
-        assert_eq(state.collateral_in, collateral_before);
+        assert_eq(state.shares >= shares_to_sell, true);
 
         let market: MarketInfo = Mapping::get(markets, market_id);
         assert(!market.is_resolved);
@@ -783,14 +758,22 @@ program veilmarkets_v9.aleo {
         let accrued_fee: u64 = Mapping::get_or_use(protocol_fees, FEE_TREASURY_KEY, 0u64);
         Mapping::set(protocol_fees, FEE_TREASURY_KEY, accrued_fee + fee);
 
+        let sold_collateral: u64 = mul_div_u64(
+            state.collateral_in,
+            shares_to_sell,
+            state.shares,
+        );
+        let remaining_shares_actual: u64 = state.shares - shares_to_sell;
+        let remaining_collateral_actual: u64 = state.collateral_in - sold_collateral;
+
         let updated_state: PositionState = PositionState {
             holder: state.holder,
             market_id: state.market_id,
             outcome: state.outcome,
-            shares: remaining_shares,
-            collateral_in: remaining_collateral,
+            shares: remaining_shares_actual,
+            collateral_in: remaining_collateral_actual,
             token_id: state.token_id,
-            is_closed: remaining_shares == 0u64,
+            is_closed: remaining_shares_actual == 0u64,
         };
         Mapping::set(positions, position_id, updated_state);
 
@@ -845,8 +828,7 @@ program veilmarkets_v9.aleo {
         assert_eq(state.holder, caller);
         assert_eq(state.market_id, market_id);
         assert_eq(state.outcome, outcome);
-        assert_eq(state.shares, shares);
-        assert_eq(state.collateral_in, collateral_in);
+        assert(state.shares > 0u64);
 
         let market: MarketInfo = Mapping::get(markets, market_id);
         assert(market.is_resolved);
@@ -901,7 +883,7 @@ program veilmarkets_v9.aleo {
         public winning_outcome: u8,
         public resolver: address,
     ) -> Future {
-        assert(resolver != aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqh99f4);
+        assert(resolver != self.address);
         let auth_future: Future = veilmarkets_factory_v9.aleo/verify_is_registered(
             ORACLE_CONTRACT_TYPE,
             self.caller,

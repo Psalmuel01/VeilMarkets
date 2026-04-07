@@ -35,10 +35,99 @@ function validates_market_shape_rules:
     call is_valid_market_shape 2u8 2u8 into r8;
     assert.eq r8 false;
 
-function payout_formula_categorical:
-    assert.eq 50u64 50u64;
-    assert.eq 20u64 20u64;
-    assert.eq 10u64 10u64;
+function quote_scales_outcome_counts:
+    cast 2u8 into r0 as u64;
+    mul 10000000u64 r0 into r1;
+    add 50000000u64 r1 into r2;
+    div 50000000u64 r0 into r3;
+    add r3 10000000u64 into r4;
+    add r4 4000000u64 into r5;
+    gt r5 0u64 into r6;
+    assert.eq r6 true;
+    cast 9000000u64 into r7 as u128;
+    cast r2 into r8 as u128;
+    cast r5 into r9 as u128;
+    mul r7 r8 into r10;
+    div r10 r9 into r11;
+    cast r11 into r12 as u64;
+    is.eq r12 0u64 into r13;
+    ternary r13 1u64 r12 into r14;
+    cast 3u8 into r15 as u64;
+    mul 10000000u64 r15 into r16;
+    add 50000000u64 r16 into r17;
+    div 50000000u64 r15 into r18;
+    add r18 10000000u64 into r19;
+    add r19 4000000u64 into r20;
+    gt r20 0u64 into r21;
+    assert.eq r21 true;
+    cast 9000000u64 into r22 as u128;
+    cast r17 into r23 as u128;
+    cast r20 into r24 as u128;
+    mul r22 r23 into r25;
+    div r25 r24 into r26;
+    cast r26 into r27 as u64;
+    is.eq r27 0u64 into r28;
+    ternary r28 1u64 r27 into r29;
+    cast 8u8 into r30 as u64;
+    mul 10000000u64 r30 into r31;
+    add 50000000u64 r31 into r32;
+    div 50000000u64 r30 into r33;
+    add r33 10000000u64 into r34;
+    add r34 4000000u64 into r35;
+    gt r35 0u64 into r36;
+    assert.eq r36 true;
+    cast 9000000u64 into r37 as u128;
+    cast r32 into r38 as u128;
+    cast r35 into r39 as u128;
+    mul r37 r38 into r40;
+    div r40 r39 into r41;
+    cast r41 into r42 as u64;
+    is.eq r42 0u64 into r43;
+    ternary r43 1u64 r42 into r44;
+    cast 16u8 into r45 as u64;
+    mul 10000000u64 r45 into r46;
+    add 50000000u64 r46 into r47;
+    div 50000000u64 r45 into r48;
+    add r48 10000000u64 into r49;
+    add r49 4000000u64 into r50;
+    gt r50 0u64 into r51;
+    assert.eq r51 true;
+    cast 9000000u64 into r52 as u128;
+    cast r47 into r53 as u128;
+    cast r50 into r54 as u128;
+    mul r52 r53 into r55;
+    div r55 r54 into r56;
+    cast r56 into r57 as u64;
+    is.eq r57 0u64 into r58;
+    ternary r58 1u64 r57 into r59;
+    cast 32u8 into r60 as u64;
+    mul 10000000u64 r60 into r61;
+    add 50000000u64 r61 into r62;
+    div 50000000u64 r60 into r63;
+    add r63 10000000u64 into r64;
+    add r64 4000000u64 into r65;
+    gt r65 0u64 into r66;
+    assert.eq r66 true;
+    cast 9000000u64 into r67 as u128;
+    cast r62 into r68 as u128;
+    cast r65 into r69 as u128;
+    mul r67 r68 into r70;
+    div r70 r69 into r71;
+    cast r71 into r72 as u64;
+    is.eq r72 0u64 into r73;
+    ternary r73 1u64 r72 into r74;
+    gt r14 0u64 into r75;
+    assert.eq r75 true;
+    gt r29 0u64 into r76;
+    assert.eq r76 true;
+    gt r44 0u64 into r77;
+    assert.eq r77 true;
+    gt r59 0u64 into r78;
+    assert.eq r78 true;
+    gt r74 0u64 into r79;
+    assert.eq r79 true;
+    gte r74 r14 into r80;
+    assert.eq r80 true;
 
 function nullifier_changes_with_fields:
     hash.bhp256 aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n into r0 as field;
@@ -68,6 +157,17 @@ function nullifier_changes_with_fields:
 function outcome_within_count:
     assert.eq true true;
     assert.eq false false;
+
+function winner_redemption_proportional:
+    assert.eq true true;
+    cast 6000000u64 into r0 as u128;
+    cast 120000000u64 into r1 as u128;
+    cast 30000000u64 into r2 as u128;
+    mul r0 r1 into r3;
+    div r3 r2 into r4;
+    cast r4 into r5 as u64;
+    assert.eq r5 24000000u64;
+    assert.eq 0u64 0u64;
 
 constructor:
     assert.eq edition 0u16;

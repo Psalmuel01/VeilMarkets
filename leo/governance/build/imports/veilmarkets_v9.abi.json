@@ -457,12 +457,12 @@
       }
     },
     {
-      "name": "position_owners",
+      "name": "position_owner_commitments",
       "key": {
         "Primitive": "Field"
       },
       "value": {
-        "Primitive": "Address"
+        "Primitive": "Field"
       }
     },
     {
@@ -485,6 +485,48 @@
             "PositionState"
           ],
           "program": "veilmarkets_v9"
+        }
+      }
+    },
+    {
+      "name": "pending_position_market",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": "Field"
+      }
+    },
+    {
+      "name": "pending_position_outcome",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U8"
+        }
+      }
+    },
+    {
+      "name": "pending_position_collateral",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "pending_position_shares",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
         }
       }
     },
@@ -683,10 +725,10 @@
           "mode": "None"
         },
         {
-          "name": "bettor",
+          "name": "owner_commitment",
           "ty": {
             "Plaintext": {
-              "Primitive": "Address"
+              "Primitive": "Field"
             }
           },
           "mode": "None"
@@ -755,10 +797,10 @@
           "mode": "Public"
         },
         {
-          "name": "bettor",
+          "name": "owner_commitment",
           "ty": {
             "Plaintext": {
-              "Primitive": "Address"
+              "Primitive": "Field"
             }
           },
           "mode": "Public"
@@ -805,10 +847,10 @@
           "mode": "Public"
         },
         {
-          "name": "provider",
+          "name": "owner_commitment",
           "ty": {
             "Plaintext": {
-              "Primitive": "Address"
+              "Primitive": "Field"
             }
           },
           "mode": "Public"

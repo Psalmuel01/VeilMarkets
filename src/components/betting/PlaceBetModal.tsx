@@ -18,7 +18,7 @@ import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { cn } from "@/lib/utils";
 import { resolveTokenDisplayName, resolveTokenTicker } from "@/lib/constants";
 import { getOutcomeLabel, getOutcomeLabels, getOutcomeTone, normalizeOutcomeCount } from "@/lib/outcomes";
-import { useMarketPoolQuery, usePlaceBetMutation, useTokenBalanceQuery } from "@/hooks/useVeilQuery";
+import { useBuyQuoteQuery, usePlaceBetMutation, useTokenBalanceQuery } from "@/hooks/useVeilQuery";
 
 interface PlaceBetModalProps {
   open: boolean;
@@ -45,6 +45,7 @@ export const PlaceBetModal = ({
   outcomeLabels,
   onBetPlaced,
 }: PlaceBetModalProps) => {
+  const SLIPPAGE_BPS = 200;
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>("select");
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
@@ -52,39 +53,24 @@ export const PlaceBetModal = ({
   const [txId, setTxId] = useState<string | null>(null);
   const { publicKey } = useAleoPrograms();
   const placeBetMutation = usePlaceBetMutation();
-  const { data: pool } = useMarketPoolQuery(marketId, open);
+  const quoteQuery = useBuyQuoteQuery(
+    marketId,
+    selectedOutcome,
+    wagerAmount,
+    SLIPPAGE_BPS,
+    open && Boolean(publicKey),
+  );
   const balanceQuery = useTokenBalanceQuery(tokenId, open && Boolean(publicKey));
   const balances = balanceQuery.data ?? null;
+  const quote = quoteQuery.data ?? null;
   const tokenTicker = resolveTokenTicker(tokenId);
   const tokenDisplayName = resolveTokenDisplayName(tokenId);
   const normalizedOutcomeCount = normalizeOutcomeCount(outcomeCount);
   const resolvedOutcomeLabels = getOutcomeLabels(marketType, normalizedOutcomeCount, outcomeLabels);
   const availableRequiredBalance = balances ? balances.private : 0;
   const hasLowBalance = !!balances && availableRequiredBalance < wagerAmount;
-
-  const calculateReturn = () => {
-    if (!pool || selectedOutcome === null) return null;
-    const x = wagerAmount * 1_000_000;
-    const totals = [
-      pool.total_outcome_0 ?? pool.total_no ?? 0,
-      pool.total_outcome_1 ?? pool.total_yes ?? 0,
-      pool.total_outcome_2 ?? 0,
-      pool.total_outcome_3 ?? 0,
-      pool.total_outcome_4 ?? 0,
-      pool.total_outcome_5 ?? 0,
-      pool.total_outcome_6 ?? 0,
-      pool.total_outcome_7 ?? 0,
-    ];
-    const selectedPool = totals[selectedOutcome] ?? 0;
-    const totalPool = totals
-      .slice(0, normalizedOutcomeCount)
-      .reduce((acc, value) => acc + value, 0);
-    const payout = (x / (selectedPool + x)) * (totalPool + x);
-
-    return payout / 1_000_000;
-  };
-
-  const potentialReturn = calculateReturn();
+  const quoteUnavailable =
+    selectedOutcome !== null && !quote && !quoteQuery.isFetching;
 
   const resetForm = () => {
     setStep("select");
@@ -104,6 +90,7 @@ export const PlaceBetModal = ({
         outcome: selectedOutcome,
         amountCredits: wagerAmount,
         tokenId,
+        slippageBps: SLIPPAGE_BPS,
       });
       setTxId(result);
       setStep("success");
@@ -256,12 +243,18 @@ export const PlaceBetModal = ({
 
                 <Button
                   onClick={() => setStep("confirm")}
-                  disabled={selectedOutcome === null || hasLowBalance}
+                  disabled={selectedOutcome === null || hasLowBalance || quoteUnavailable}
                   className="w-full btn-premium h-16 rounded-[1.5rem] group"
                 >
                   <span className="text-base font-bold">Continue to Review</span>
                   <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
+
+                {quoteUnavailable && (
+                  <div className="px-1 text-xs text-warning">
+                    Unable to load share quote for this market right now. Please retry.
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -298,12 +291,15 @@ export const PlaceBetModal = ({
                   </div>
                 </div>
 
-                {potentialReturn && (
+                {quote && (
                   <div className="p-6 rounded-3xl bg-success/5 border border-success/10 flex items-center justify-between">
                     <div className="flex flex-col gap-1">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-success/70">Estimated Max Return</span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-success/70">Estimated Shares / Min Receive</span>
                       <div className="text-2xl font-bold text-success font-mono">
-                        +{potentialReturn.toFixed(2)} <span className="text-xs">{tokenTicker}</span>
+                        {quote.sharesOut.toLocaleString()} <span className="text-xs">shares</span>
+                      </div>
+                      <div className="text-xs text-success/80 font-medium">
+                        Min receive: {quote.minSharesOut.toLocaleString()} shares • Fee: {(quote.feeMicro / 1_000_000).toFixed(4)} {tokenTicker}
                       </div>
                     </div>
                     <TrendingUp className="w-10 h-10 text-success opacity-20" />

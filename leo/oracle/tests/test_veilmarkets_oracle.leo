@@ -3,6 +3,7 @@ import veilmarkets_oracle_v9.aleo;
 program test_veilmarkets_oracle.aleo {
     const MIN_ORACLE_STAKE: u64 = 30000000u64;
     const DISPUTE_WINDOW: u64 = 10800u64;
+    const MIN_VOTERS: u8 = 3u8;
 
     function compute_disputed_winner(
         vote_0: u64,
@@ -70,6 +71,24 @@ program test_veilmarkets_oracle.aleo {
         let challenge_deadline: u64 = now_ts + DISPUTE_WINDOW;
 
         assert_eq(challenge_deadline, 110800u64);
+    }
+
+    @test
+    transition quorum_requires_unique_voters() {
+        let voter_count_low: u64 = 2u64;
+        let voter_count_ok: u64 = 3u64;
+        let min_voters_u64: u64 = MIN_VOTERS as u64;
+        assert_eq(voter_count_low >= min_voters_u64, false);
+        assert_eq(voter_count_ok >= min_voters_u64, true);
+    }
+
+    @test
+    transition quorum_requires_weight_floor() {
+        let min_total_weight: u64 = MIN_ORACLE_STAKE * MIN_VOTERS as u64;
+        let insufficient: u64 = min_total_weight - 1u64;
+        let sufficient: u64 = min_total_weight;
+        assert_eq(insufficient >= min_total_weight, false);
+        assert_eq(sufficient >= min_total_weight, true);
     }
 
     @noupgrade

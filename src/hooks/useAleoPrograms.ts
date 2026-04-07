@@ -89,6 +89,25 @@ interface TokenBalanceSummary {
   total: number;
 }
 
+interface CoreProtocolConfig {
+  maxOutcomes: number;
+  feeBps: number;
+  minTrade: number;
+  minLiquidity: number;
+  virtualLiquidity: number;
+}
+
+interface BuyQuote {
+  marketId: string;
+  outcome: number;
+  amountMicro: number;
+  feeMicro: number;
+  netCollateralMicro: number;
+  sharesOut: number;
+  minSharesOut: number;
+  slippageBps: number;
+}
+
 const toObject = (value: unknown): Record<string, unknown> | null =>
   typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 
@@ -305,6 +324,25 @@ const normalizeField = (value: unknown): string => {
     .trim()
     .replace(/\.private|\.public/g, "");
   return /field$/.test(str) ? str : `${str.replace(/field$/g, "")}field`;
+};
+
+const normalizeFieldId = (marketId: string): string =>
+  marketId.includes("field") ? marketId.replace(/\s+/g, "") : `${marketId.replace(/\s+/g, "")}field`;
+
+const parseFieldBigInt = (value: string): bigint | null => {
+  try {
+    const cleaned = value.replace(/field$/i, "").trim();
+    if (!/^\d+$/.test(cleaned)) return null;
+    return BigInt(cleaned);
+  } catch {
+    return null;
+  }
+};
+
+const deriveOutcomeExposureKey = (marketIdField: string, outcome: number): string | null => {
+  const base = parseFieldBigInt(marketIdField);
+  if (base === null) return null;
+  return `${base + BigInt(Math.max(0, outcome))}field`;
 };
 
 const formatMerkleProof = (value: unknown): string | null => {
@@ -798,6 +836,159 @@ export const useAleoPrograms = () => {
     }
   }, []);
 
+  const fetchOutcomeTotals = useCallback(
+    async (
+      marketId: string,
+      outcomeCount: number,
+      preferredProgramId?: string,
+    ): Promise<number[]> => {
+      const cleanMarketId = normalizeFieldId(marketId);
+      let sourceProgram = preferredProgramId ?? PROGRAM_ID;
+
+      if (!preferredProgramId) {
+        const v9Exists = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
+        if (!v9Exists) sourceProgram = LEGACY_PROGRAM_ID;
+      }
+
+      const poolRaw = await fetchMappingValue(sourceProgram, "pools", cleanMarketId);
+      if (!poolRaw) return Array.from({ length: Math.max(2, outcomeCount) }, () => 0);
+
+      const pool = parsePoolInfo(poolRaw as any);
+      const normalizedCount = Math.max(2, outcomeCount);
+      const totals = Array.from({ length: normalizedCount }, (_, index) => {
+        if (index === 0) return pool.total_outcome_0 ?? pool.total_no ?? 0;
+        if (index === 1) return pool.total_outcome_1 ?? pool.total_yes ?? 0;
+        if (index === 2) return pool.total_outcome_2 ?? 0;
+        if (index === 3) return pool.total_outcome_3 ?? 0;
+        if (index === 4) return pool.total_outcome_4 ?? 0;
+        if (index === 5) return pool.total_outcome_5 ?? 0;
+        if (index === 6) return pool.total_outcome_6 ?? 0;
+        if (index === 7) return pool.total_outcome_7 ?? 0;
+        return 0;
+      });
+
+      if (sourceProgram !== PROGRAM_ID || normalizedCount <= 8) {
+        return totals;
+      }
+
+      const dynamicIndices = Array.from(
+        { length: normalizedCount - 8 },
+        (_, index) => index + 8,
+      );
+      const dynamicValues = await Promise.all(
+        dynamicIndices.map(async (index) => {
+          const exposureKey = deriveOutcomeExposureKey(cleanMarketId, index);
+          if (!exposureKey) return 0;
+          const raw = await fetchMappingValue(PROGRAM_ID, "outcome_exposure", exposureKey);
+          return parseMappingU64(raw);
+        }),
+      );
+
+      dynamicValues.forEach((value, idx) => {
+        totals[idx + 8] = value;
+      });
+      return totals;
+    },
+    [],
+  );
+
+  const fetchCoreProtocolConfig = useCallback(async (): Promise<CoreProtocolConfig> => {
+    const [maxOutcomesRaw, feeBpsRaw, minTradeRaw, minLiquidityRaw, virtualLiquidityRaw] =
+      await Promise.all([
+        fetchMappingValue(PROGRAM_ID, "protocol_u8", "0u8"),
+        fetchMappingValue(PROGRAM_ID, "protocol_u64", "1u8"),
+        fetchMappingValue(PROGRAM_ID, "protocol_u64", "2u8"),
+        fetchMappingValue(PROGRAM_ID, "protocol_u64", "3u8"),
+        fetchMappingValue(PROGRAM_ID, "protocol_u64", "4u8"),
+      ]);
+
+    return {
+      maxOutcomes: Math.min(32, Math.max(2, parseMappingU64(maxOutcomesRaw) || 32)),
+      feeBps: Math.min(10_000, Math.max(0, parseMappingU64(feeBpsRaw) || 100)),
+      minTrade: Math.max(1, parseMappingU64(minTradeRaw) || 1_000_000),
+      minLiquidity: Math.max(1, parseMappingU64(minLiquidityRaw) || 1_000_000),
+      virtualLiquidity: Math.max(1, parseMappingU64(virtualLiquidityRaw) || 10_000_000),
+    };
+  }, []);
+
+  const fetchOutcomeExposure = useCallback(
+    async (marketIdField: string, outcome: number, pool: PoolInfo | null): Promise<number> => {
+      if (outcome <= 0) return pool?.total_outcome_0 ?? pool?.total_no ?? 0;
+      if (outcome === 1) return pool?.total_outcome_1 ?? pool?.total_yes ?? 0;
+      if (outcome === 2) return pool?.total_outcome_2 ?? 0;
+      if (outcome === 3) return pool?.total_outcome_3 ?? 0;
+      if (outcome === 4) return pool?.total_outcome_4 ?? 0;
+      if (outcome === 5) return pool?.total_outcome_5 ?? 0;
+      if (outcome === 6) return pool?.total_outcome_6 ?? 0;
+      if (outcome === 7) return pool?.total_outcome_7 ?? 0;
+
+      const exposureKey = deriveOutcomeExposureKey(marketIdField, outcome);
+      if (!exposureKey) return 0;
+      const exposureRaw = await fetchMappingValue(PROGRAM_ID, "outcome_exposure", exposureKey);
+      return parseMappingU64(exposureRaw);
+    },
+    [],
+  );
+
+  const quoteBuyShares = useCallback(
+    async (
+      marketId: string,
+      outcome: number,
+      amountMicro: number,
+      slippageBps = 200,
+    ): Promise<BuyQuote | null> => {
+      const cleanMarketId = normalizeFieldId(marketId);
+      const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
+      if (!marketRaw) return null;
+
+      const market = parseMarketInfo(marketRaw as string | object, cleanMarketId);
+      if (outcome < 0 || outcome >= market.outcome_count) return null;
+
+      const poolRaw = await fetchMappingValue(PROGRAM_ID, "pools", cleanMarketId);
+      const pool = poolRaw ? parsePoolInfo(poolRaw as any) : null;
+      if (!pool) return null;
+
+      const protocol = await fetchCoreProtocolConfig();
+      if (amountMicro < protocol.minTrade) return null;
+
+      const feeMicro = Math.floor((amountMicro * protocol.feeBps) / 10_000);
+      const netCollateralMicro = Math.max(0, amountMicro - feeMicro);
+      if (netCollateralMicro <= 0) return null;
+
+      const outcomeExposure = await fetchOutcomeExposure(cleanMarketId, outcome, pool);
+      const outcomeCount = Math.max(2, market.outcome_count);
+      const totalLiquidity =
+        pool.total_collateral + protocol.virtualLiquidity * outcomeCount;
+      const outcomeLiquidity =
+        Math.floor(pool.total_collateral / outcomeCount) +
+        protocol.virtualLiquidity +
+        outcomeExposure;
+
+      const rawShares =
+        totalLiquidity > 0 && outcomeLiquidity > 0
+          ? Math.floor((netCollateralMicro * totalLiquidity) / outcomeLiquidity)
+          : 0;
+      const sharesOut = Math.max(1, rawShares);
+      const boundedSlippage = Math.min(5_000, Math.max(0, slippageBps));
+      const minSharesOut = Math.max(
+        1,
+        Math.floor((sharesOut * (10_000 - boundedSlippage)) / 10_000),
+      );
+
+      return {
+        marketId: cleanMarketId,
+        outcome,
+        amountMicro,
+        feeMicro,
+        netCollateralMicro,
+        sharesOut,
+        minSharesOut,
+        slippageBps: boundedSlippage,
+      };
+    },
+    [fetchCoreProtocolConfig, fetchOutcomeExposure],
+  );
+
   const fetchUserBets = useCallback(async (): Promise<ParsedBetRecord[]> => {
     if (!address) return [];
     setLoading(true);
@@ -1206,7 +1397,13 @@ export const useAleoPrograms = () => {
     return 0;
   };
 
-  const placeBet = async (marketId: string, outcome: number, amountCredits: number, tokenId: string) => {
+  const placeBet = async (
+    marketId: string,
+    outcome: number,
+    amountCredits: number,
+    tokenId: string,
+    options?: { slippageBps?: number },
+  ) => {
     if (!address) {
       toast.error("Please connect your wallet first");
       return;
@@ -1226,6 +1423,17 @@ export const useAleoPrograms = () => {
         } else {
           toast.error("Market not found on v9.");
         }
+        return;
+      }
+
+      const quote = await quoteBuyShares(
+        cleanMarketId,
+        outcome,
+        amountMicro,
+        options?.slippageBps ?? 200,
+      );
+      if (!quote) {
+        toast.error("Unable to compute share quote for this market. Please retry.");
         return;
       }
 
@@ -1286,7 +1494,7 @@ export const useAleoPrograms = () => {
         for (const [proof0, proof1] of proofCandidates) {
           betResult = await executeAndPoll({
             program: tokenProgram,
-            function: "place_bet",
+            function: "buy_shares",
             inputs: [
               tokenInput,
               proof0,
@@ -1294,11 +1502,12 @@ export const useAleoPrograms = () => {
               cleanMarketId,
               formatU8(outcome),
               formatU64(amountMicro),
+              formatU64(quote.minSharesOut),
               betNonce,
             ],
             fee: 1_500_000,
             privateFee: false,
-          }, tokenProgram, "place_bet");
+          }, tokenProgram, "buy_shares");
           if (betResult) break;
         }
       } else {
@@ -1324,17 +1533,18 @@ export const useAleoPrograms = () => {
 
         betResult = await executeAndPoll({
           program: tokenProgram,
-          function: "place_bet",
+          function: "buy_shares",
           inputs: [
             tokenInput,
             cleanMarketId,
             formatU8(outcome),
             formatU64(amountMicro),
+            formatU64(quote.minSharesOut),
             betNonce,
           ],
           fee: 1_500_000,
           privateFee: false,
-        }, tokenProgram, "place_bet");
+        }, tokenProgram, "buy_shares");
       }
 
       if (betResult) triggerRefresh();
@@ -1790,7 +2000,10 @@ export const useAleoPrograms = () => {
     fetchUSDCxBalance,
     fetchUSADBalances,
     fetchUSADBalance,
+    fetchCoreProtocolConfig,
+    quoteBuyShares,
     fetchPoolStats,
+    fetchOutcomeTotals,
     isOracleRegistered,
     requestCredits,
     requestUSDCx,

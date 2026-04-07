@@ -1,6 +1,28 @@
 import veilmarkets_v9.aleo;
 
 program test_veilmarkets.aleo {
+    inline mul_div_u64(a: u64, b: u64, denom: u64) -> u64 {
+        assert(denom > 0u64);
+        let a128: u128 = a as u128;
+        let b128: u128 = b as u128;
+        let d128: u128 = denom as u128;
+        return ((a128 * b128) / d128) as u64;
+    }
+
+    inline calc_buy_shares(
+        pool_collateral: u64,
+        outcome_count: u8,
+        virtual_liq: u64,
+        outcome_exposure: u64,
+        net_collateral_in: u64,
+    ) -> u64 {
+        let oc: u64 = outcome_count as u64;
+        let total_liq: u64 = pool_collateral + (virtual_liq * oc);
+        let outcome_liq: u64 = (pool_collateral / oc) + virtual_liq + outcome_exposure;
+        let raw: u64 = mul_div_u64(net_collateral_in, total_liq, outcome_liq);
+        return (raw == 0u64) ? 1u64 : raw;
+    }
+
     function is_valid_market_shape(market_type: u8, outcome_count: u8) -> bool {
         if (market_type > 1u8) {
             return false;
@@ -29,24 +51,23 @@ program test_veilmarkets.aleo {
     }
 
     @test
-    transition payout_formula_categorical() {
-        // Mirrors finalize_claim_winnings payout math:
-        // payout = (bet_amount * total_pool) / winning_pool
-        let total_outcome_0: u64 = 5u64;
-        let total_outcome_1: u64 = 15u64;
-        let total_outcome_2: u64 = 20u64;
-        let total_outcome_3: u64 = 10u64;
+    transition quote_scales_outcome_counts() {
+        let virtual_liq: u64 = 10000000u64;
+        let pool_collateral: u64 = 50000000u64;
+        let net_in: u64 = 9000000u64;
 
-        let winning_pool: u64 = total_outcome_2;
-        let total_pool: u64 =
-            total_outcome_0 + total_outcome_1 + total_outcome_2 + total_outcome_3;
-        let bet_amount: u64 = 4u64;
+        let shares_2: u64 = calc_buy_shares(pool_collateral, 2u8, virtual_liq, 4000000u64, net_in);
+        let shares_3: u64 = calc_buy_shares(pool_collateral, 3u8, virtual_liq, 4000000u64, net_in);
+        let shares_8: u64 = calc_buy_shares(pool_collateral, 8u8, virtual_liq, 4000000u64, net_in);
+        let shares_16: u64 = calc_buy_shares(pool_collateral, 16u8, virtual_liq, 4000000u64, net_in);
+        let shares_32: u64 = calc_buy_shares(pool_collateral, 32u8, virtual_liq, 4000000u64, net_in);
 
-        let payout: u64 = (bet_amount * total_pool) / winning_pool;
-
-        assert_eq(total_pool, 50u64);
-        assert_eq(winning_pool, 20u64);
-        assert_eq(payout, 10u64);
+        assert(shares_2 > 0u64);
+        assert(shares_3 > 0u64);
+        assert(shares_8 > 0u64);
+        assert(shares_16 > 0u64);
+        assert(shares_32 > 0u64);
+        assert(shares_32 >= shares_2);
     }
 
     @test
@@ -81,6 +102,18 @@ program test_veilmarkets.aleo {
 
         assert(valid_outcome < market_outcome_count);
         assert_eq(invalid_outcome < market_outcome_count, false);
+    }
+
+    @test
+    transition winner_redemption_proportional() {
+        let pool_total_collateral: u64 = 120000000u64;
+        let winning_supply: u64 = 30000000u64;
+        let my_shares: u64 = 6000000u64;
+        let payout: u64 = mul_div_u64(my_shares, pool_total_collateral, winning_supply);
+        assert_eq(payout, 24000000u64);
+
+        let losing_payout: u64 = 0u64;
+        assert_eq(losing_payout, 0u64);
     }
 
     @noupgrade

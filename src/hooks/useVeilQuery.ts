@@ -18,6 +18,7 @@ interface PlaceBetVariables {
   outcome: number;
   amountCredits: number;
   tokenId: string;
+  slippageBps?: number;
 }
 
 interface PlaceBetMutationContext {
@@ -67,6 +68,18 @@ export const useCurrentHeightQuery = () =>
     refetchOnWindowFocus: true,
   });
 
+export const useProtocolConfigQuery = () => {
+  const { fetchCoreProtocolConfig } = useAleoPrograms();
+
+  return useQuery({
+    queryKey: queryKeys.protocolConfig,
+    queryFn: fetchCoreProtocolConfig,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
+};
+
 export const useMarketPoolQuery = (marketId?: string, enabled = true) => {
   const { fetchPoolStats } = useAleoPrograms();
 
@@ -76,6 +89,44 @@ export const useMarketPoolQuery = (marketId?: string, enabled = true) => {
     enabled: Boolean(marketId) && enabled,
     staleTime: DEFAULT_STALE_MS,
     refetchInterval: POLL_INTERVAL_MS,
+  });
+};
+
+export const useOutcomeTotalsQuery = (
+  marketId: string | undefined,
+  outcomeCount: number,
+  programId?: string,
+  enabled = true,
+) => {
+  const { fetchOutcomeTotals } = useAleoPrograms();
+
+  return useQuery({
+    queryKey: queryKeys.marketOutcomeTotals(marketId ?? "", outcomeCount),
+    queryFn: () => fetchOutcomeTotals(marketId ?? "", outcomeCount, programId),
+    enabled: Boolean(marketId) && enabled,
+    staleTime: DEFAULT_STALE_MS,
+    refetchInterval: POLL_INTERVAL_MS,
+    refetchOnWindowFocus: true,
+  });
+};
+
+export const useBuyQuoteQuery = (
+  marketId: string | undefined,
+  outcome: number | null,
+  amountCredits: number,
+  slippageBps = 200,
+  enabled = true,
+) => {
+  const { quoteBuyShares } = useAleoPrograms();
+  const amountMicro = Math.max(1_000_000, Math.floor(amountCredits * 1_000_000));
+
+  return useQuery({
+    queryKey: queryKeys.buyQuote(marketId ?? "", outcome ?? -1, amountMicro, slippageBps),
+    queryFn: () => quoteBuyShares(marketId ?? "", outcome ?? 0, amountMicro, slippageBps),
+    enabled: Boolean(marketId) && outcome !== null && enabled,
+    staleTime: 2_000,
+    refetchInterval: 5_000,
+    refetchOnWindowFocus: true,
   });
 };
 
@@ -179,8 +230,8 @@ export const usePlaceBetMutation = () => {
   const { placeBet, publicKey } = useAleoPrograms();
 
   return useMutation({
-    mutationFn: async ({ marketId, outcome, amountCredits, tokenId }: PlaceBetVariables) => {
-      const txId = await placeBet(marketId, outcome, amountCredits, tokenId);
+    mutationFn: async ({ marketId, outcome, amountCredits, tokenId, slippageBps }: PlaceBetVariables) => {
+      const txId = await placeBet(marketId, outcome, amountCredits, tokenId, { slippageBps });
       if (!txId) {
         throw new Error("Bet transaction failed");
       }

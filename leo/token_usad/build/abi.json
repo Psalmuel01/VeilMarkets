@@ -7,9 +7,9 @@
       ],
       "fields": [
         {
-          "name": "holder",
+          "name": "holder_commitment",
           "ty": {
-            "Primitive": "Address"
+            "Primitive": "Field"
           }
         },
         {
@@ -241,6 +241,142 @@
         },
         {
           "name": "bet_amount",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "bet_nonce",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "None"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "ComplianceRecord"
+              ],
+              "program": "test_usad_stablecoin"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "Token"
+              ],
+              "program": "test_usad_stablecoin"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "EscrowedBet"
+              ],
+              "program": "veilmarkets_token_usad_v9"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Future",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "buy_shares",
+      "is_async": true,
+      "inputs": [
+        {
+          "name": "input_token",
+          "ty": {
+            "Record": {
+              "path": [
+                "Token"
+              ],
+              "program": "test_usad_stablecoin"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "token_proof_0",
+          "ty": {
+            "Plaintext": {
+              "Struct": {
+                "path": [
+                  "TokenMerkleProof"
+                ],
+                "program": "veilmarkets_token_usad_v9"
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "token_proof_1",
+          "ty": {
+            "Plaintext": {
+              "Struct": {
+                "path": [
+                  "TokenMerkleProof"
+                ],
+                "program": "veilmarkets_token_usad_v9"
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "market_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "outcome",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U8"
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "bet_amount",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "min_shares_out",
           "ty": {
             "Plaintext": {
               "Primitive": {

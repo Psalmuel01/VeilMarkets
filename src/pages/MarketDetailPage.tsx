@@ -39,6 +39,7 @@ import { getOutcomeLabel, getOutcomeLabels, getOutcomeTone, isCancelledOutcome, 
 import {
   useMarketPoolQuery,
   useMarketsQuery,
+  useOutcomeTotalsQuery,
   useOracleStatusQuery,
   useResolutionProposalQuery,
   useResolveMarketMutation,
@@ -86,6 +87,13 @@ export default function MarketDetailPage() {
   const foundMarket = useMemo(
     () => allMarkets.find((market) => normalizeMarketIdKey(market.id) === normalizedRouteId),
     [allMarkets, normalizedRouteId],
+  );
+  const normalizedOutcomeCount = normalizeOutcomeCount(foundMarket?.outcome_count ?? 2);
+  const { data: outcomeTotalsData } = useOutcomeTotalsQuery(
+    id,
+    normalizedOutcomeCount,
+    foundMarket?.program_id,
+    Boolean(foundMarket),
   );
 
   const market = useMemo(() => {
@@ -145,11 +153,10 @@ export default function MarketDetailPage() {
   const isSettled = !!market?.is_resolved;
   const isClosed = !isSettled && market?.close_time && nowTs >= market.close_time;
   const marketStatus = isSettled ? "Settled" : isClosed ? "Closed" : "Open";
-  const normalizedOutcomeCount = normalizeOutcomeCount(market?.outcome_count ?? 2);
   const outcomeLabels = getOutcomeLabels(market?.market_type ?? 0, normalizedOutcomeCount, market?.outcome_labels);
 
   // Calculate stats
-  const outcomeTotals = [
+  const outcomeTotals = outcomeTotalsData ?? [
     pool?.total_outcome_0 ?? pool?.total_no ?? 0,
     pool?.total_outcome_1 ?? pool?.total_yes ?? 0,
     pool?.total_outcome_2 ?? 0,
