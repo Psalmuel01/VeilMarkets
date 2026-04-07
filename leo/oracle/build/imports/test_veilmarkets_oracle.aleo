@@ -1,7 +1,3 @@
-import veilmarkets_factory_v9.aleo;
-import veilmarkets_v9.aleo;
-import credits.aleo;
-import veilmarkets_oracle_v9.aleo;
 program test_veilmarkets_oracle.aleo;
 
 closure compute_disputed_winner:

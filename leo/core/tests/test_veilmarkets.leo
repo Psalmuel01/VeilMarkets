@@ -1,54 +1,52 @@
-import veilmarkets_core_v9.aleo;
+fn mul_div_u64(a: u64, b: u64, denom: u64) -> u64 {
+    assert(denom > 0u64);
+    let a128: u128 = a as u128;
+    let b128: u128 = b as u128;
+    let d128: u128 = denom as u128;
+    return ((a128 * b128) / d128) as u64;
+}
+
+fn calc_buy_shares(
+    pool_collateral: u64,
+    outcome_count: u8,
+    virtual_liq: u64,
+    outcome_exposure: u64,
+    net_collateral_in: u64,
+) -> u64 {
+    let oc: u64 = outcome_count as u64;
+    let total_liq: u64 = pool_collateral + (virtual_liq * oc);
+    let outcome_liq: u64 = (pool_collateral / oc) + virtual_liq + outcome_exposure;
+    let raw: u64 = mul_div_u64(net_collateral_in, total_liq, outcome_liq);
+    return (raw == 0u64) ? 1u64 : raw;
+}
+
+fn calc_sell_payout(
+    pool_collateral: u64,
+    outcome_count: u8,
+    virtual_liq: u64,
+    outcome_exposure: u64,
+    shares_to_sell: u64,
+) -> u64 {
+    let oc: u64 = outcome_count as u64;
+    let total_liq: u64 = pool_collateral + (virtual_liq * oc);
+    let outcome_liq: u64 = (pool_collateral / oc) + virtual_liq + outcome_exposure;
+    return mul_div_u64(shares_to_sell, outcome_liq, total_liq);
+}
+
+fn is_valid_market_shape(market_type: u8, outcome_count: u8) -> bool {
+    if (market_type > 1u8) {
+        return false;
+    }
+    if (market_type == 0u8) {
+        return outcome_count == 2u8;
+    }
+    if (outcome_count < 2u8) {
+        return false;
+    }
+    return outcome_count <= 32u8;
+}
 
 program test_veilmarkets.aleo {
-    fn mul_div_u64(a: u64, b: u64, denom: u64) -> u64 {
-        assert(denom > 0u64);
-        let a128: u128 = a as u128;
-        let b128: u128 = b as u128;
-        let d128: u128 = denom as u128;
-        return ((a128 * b128) / d128) as u64;
-    }
-
-    fn calc_buy_shares(
-        pool_collateral: u64,
-        outcome_count: u8,
-        virtual_liq: u64,
-        outcome_exposure: u64,
-        net_collateral_in: u64,
-    ) -> u64 {
-        let oc: u64 = outcome_count as u64;
-        let total_liq: u64 = pool_collateral + (virtual_liq * oc);
-        let outcome_liq: u64 = (pool_collateral / oc) + virtual_liq + outcome_exposure;
-        let raw: u64 = mul_div_u64(net_collateral_in, total_liq, outcome_liq);
-        return (raw == 0u64) ? 1u64 : raw;
-    }
-
-    fn calc_sell_payout(
-        pool_collateral: u64,
-        outcome_count: u8,
-        virtual_liq: u64,
-        outcome_exposure: u64,
-        shares_to_sell: u64,
-    ) -> u64 {
-        let oc: u64 = outcome_count as u64;
-        let total_liq: u64 = pool_collateral + (virtual_liq * oc);
-        let outcome_liq: u64 = (pool_collateral / oc) + virtual_liq + outcome_exposure;
-        return mul_div_u64(shares_to_sell, outcome_liq, total_liq);
-    }
-
-    fn is_valid_market_shape(market_type: u8, outcome_count: u8) -> bool {
-        if (market_type > 1u8) {
-            return false;
-        }
-        if (market_type == 0u8) {
-            return outcome_count == 2u8;
-        }
-        if (outcome_count < 2u8) {
-            return false;
-        }
-        return outcome_count <= 32u8;
-    }
-
     @test
     fn validates_market_shape_rules() {
         assert_eq(is_valid_market_shape(0u8, 2u8), true);  // binary

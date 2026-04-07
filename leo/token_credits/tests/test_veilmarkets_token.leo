@@ -1,19 +1,17 @@
-import veilmarkets_token_credits_v9.aleo;
+fn compute_escrow_id(
+    bettor: address,
+    market_id: field,
+    outcome: u8,
+    amount: u64,
+    bet_nonce: field,
+) -> field {
+    return BHP256::hash_to_field(
+        bettor as field + market_id + outcome as field + amount as field + bet_nonce,
+    );
+}
 
 program test_veilmarkets_token.aleo {
     const MIN_BET: u64 = 1000000u64;
-
-    fn compute_escrow_id(
-        bettor: address,
-        market_id: field,
-        outcome: u8,
-        amount: u64,
-        bet_nonce: field,
-    ) -> field {
-        return BHP256::hash_to_field(
-            bettor as field + market_id + outcome as field + amount as field + bet_nonce,
-        );
-    }
 
     @test
     fn enforces_minimum_bet_threshold() {

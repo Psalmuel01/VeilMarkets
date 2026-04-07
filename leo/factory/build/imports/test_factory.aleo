@@ -1,4 +1,3 @@
-import veilmarkets_factory_v9.aleo;
 program test_factory.aleo;
 
 closure is_valid_registry_type:

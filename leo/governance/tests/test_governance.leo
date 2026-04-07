@@ -1,20 +1,18 @@
-import veilmarkets_governance_v9.aleo;
+fn proposal_target_valid(target: u8) -> bool {
+    return target <= 1u8;
+}
+
+fn can_execute(yes_votes: u64, no_votes: u64, ended: bool, already_executed: bool) -> bool {
+    if (already_executed) {
+        return false;
+    }
+    if (!ended) {
+        return false;
+    }
+    return yes_votes > no_votes;
+}
 
 program test_governance.aleo {
-    fn proposal_target_valid(target: u8) -> bool {
-        return target <= 1u8;
-    }
-
-    fn can_execute(yes_votes: u64, no_votes: u64, ended: bool, already_executed: bool) -> bool {
-        if (already_executed) {
-            return false;
-        }
-        if (!ended) {
-            return false;
-        }
-        return yes_votes > no_votes;
-    }
-
     @test
     fn target_bounds() {
         assert_eq(proposal_target_valid(0u8), true);

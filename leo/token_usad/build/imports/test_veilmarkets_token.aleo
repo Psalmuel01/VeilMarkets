@@ -1,10 +1,3 @@
-import veilmarkets_factory_v9.aleo;
-import veilmarkets_v9.aleo;
-import merkle_tree.aleo;
-import test_usad_multisig_core.aleo;
-import test_usad_freezelist.aleo;
-import test_usad_stablecoin.aleo;
-import veilmarkets_token_usad_v9.aleo;
 program test_veilmarkets_token.aleo;
 
 function usad_min_bet_decimal:

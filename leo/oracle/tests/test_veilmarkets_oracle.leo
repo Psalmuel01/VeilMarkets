@@ -1,36 +1,34 @@
-import veilmarkets_oracle_v9.aleo;
+fn compute_disputed_winner(
+    vote_0: u64,
+    vote_1: u64,
+    vote_2: u64,
+    vote_3: u64,
+    vote_4: u64,
+    vote_5: u64,
+    vote_6: u64,
+    vote_7: u64,
+) -> u8 {
+    let best_01_outcome: u8 = (vote_1 > vote_0) ? 1u8 : 0u8;
+    let best_01_votes: u64 = (vote_1 > vote_0) ? vote_1 : vote_0;
+    let best_23_outcome: u8 = (vote_3 > vote_2) ? 3u8 : 2u8;
+    let best_23_votes: u64 = (vote_3 > vote_2) ? vote_3 : vote_2;
+    let best_45_outcome: u8 = (vote_5 > vote_4) ? 5u8 : 4u8;
+    let best_45_votes: u64 = (vote_5 > vote_4) ? vote_5 : vote_4;
+    let best_67_outcome: u8 = (vote_7 > vote_6) ? 7u8 : 6u8;
+    let best_67_votes: u64 = (vote_7 > vote_6) ? vote_7 : vote_6;
+
+    let best_0123_outcome: u8 = (best_23_votes > best_01_votes) ? best_23_outcome : best_01_outcome;
+    let best_0123_votes: u64 = (best_23_votes > best_01_votes) ? best_23_votes : best_01_votes;
+    let best_4567_outcome: u8 = (best_67_votes > best_45_votes) ? best_67_outcome : best_45_outcome;
+    let best_4567_votes: u64 = (best_67_votes > best_45_votes) ? best_67_votes : best_45_votes;
+
+    return (best_4567_votes > best_0123_votes) ? best_4567_outcome : best_0123_outcome;
+}
 
 program test_veilmarkets_oracle.aleo {
     const MIN_ORACLE_STAKE: u64 = 30000000u64;
     const DISPUTE_WINDOW: u64 = 10800u64;
     const MIN_VOTERS: u8 = 3u8;
-
-    fn compute_disputed_winner(
-        vote_0: u64,
-        vote_1: u64,
-        vote_2: u64,
-        vote_3: u64,
-        vote_4: u64,
-        vote_5: u64,
-        vote_6: u64,
-        vote_7: u64,
-    ) -> u8 {
-        let best_01_outcome: u8 = (vote_1 > vote_0) ? 1u8 : 0u8;
-        let best_01_votes: u64 = (vote_1 > vote_0) ? vote_1 : vote_0;
-        let best_23_outcome: u8 = (vote_3 > vote_2) ? 3u8 : 2u8;
-        let best_23_votes: u64 = (vote_3 > vote_2) ? vote_3 : vote_2;
-        let best_45_outcome: u8 = (vote_5 > vote_4) ? 5u8 : 4u8;
-        let best_45_votes: u64 = (vote_5 > vote_4) ? vote_5 : vote_4;
-        let best_67_outcome: u8 = (vote_7 > vote_6) ? 7u8 : 6u8;
-        let best_67_votes: u64 = (vote_7 > vote_6) ? vote_7 : vote_6;
-
-        let best_0123_outcome: u8 = (best_23_votes > best_01_votes) ? best_23_outcome : best_01_outcome;
-        let best_0123_votes: u64 = (best_23_votes > best_01_votes) ? best_23_votes : best_01_votes;
-        let best_4567_outcome: u8 = (best_67_votes > best_45_votes) ? best_67_outcome : best_45_outcome;
-        let best_4567_votes: u64 = (best_67_votes > best_45_votes) ? best_67_votes : best_45_votes;
-
-        return (best_4567_votes > best_0123_votes) ? best_4567_outcome : best_0123_outcome;
-    }
 
     @test
     fn disputed_vote_max_weight() {

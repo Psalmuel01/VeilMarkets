@@ -1,13 +1,11 @@
-import veilmarkets_factory_v9.aleo;
+fn is_valid_registry_type(contract_type: u8) -> bool {
+    if (contract_type < 1u8) {
+        return false;
+    }
+    return contract_type <= 4u8;
+}
 
 program test_factory.aleo {
-    fn is_valid_registry_type(contract_type: u8) -> bool {
-        if (contract_type < 1u8) {
-            return false;
-        }
-        return contract_type <= 4u8;
-    }
-
     @test
     fn registry_type_tags_are_stable() {
         let token_type: u8 = 1u8;

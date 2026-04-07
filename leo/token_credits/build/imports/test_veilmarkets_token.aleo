@@ -1,7 +1,3 @@
-import veilmarkets_factory_v9.aleo;
-import veilmarkets_v9.aleo;
-import credits.aleo;
-import veilmarkets_token_credits_v9.aleo;
 program test_veilmarkets_token.aleo;
 
 function enforces_minimum_bet_threshold:

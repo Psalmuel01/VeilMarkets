@@ -583,7 +583,7 @@ export default function MarketDetailPage() {
                   <ConnectWalletButton className="w-full justify-center" />
                 </div>
               ) : (
-                <div className="text-center py-10 space-y-6 relative z-10">
+                <div className="text-center mb-5 space-y-6 relative z-10">
                   <div className="w-16 h-16 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto">
                     <Lock className="w-8 h-8 text-muted-foreground/40" />
                   </div>
@@ -604,7 +604,7 @@ export default function MarketDetailPage() {
               {publicKey && marketStatus === "Open" && (
                 <Button
                   onClick={() => setShowFundModal(true)}
-                  className="w-full mt-4 h-12 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white"
+                  className="w-full mt- h-14 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-white"
                 >
                   Provide Liquidity
                 </Button>
