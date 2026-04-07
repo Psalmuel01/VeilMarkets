@@ -7,14 +7,14 @@
   "dependencies": [
     {
       "name": "veilmarkets_v8.aleo",
-      "location": "network",
-      "path": null,
+      "location": "local",
+      "path": "../core",
       "edition": null
     },
     {
       "name": "veilmarkets_factory_v8.aleo",
-      "location": "network",
-      "path": null,
+      "location": "local",
+      "path": "../factory",
       "edition": null
     },
     {

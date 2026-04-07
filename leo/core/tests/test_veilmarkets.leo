@@ -11,7 +11,7 @@ program test_veilmarkets.aleo {
         if (outcome_count < 2u8) {
             return false;
         }
-        return outcome_count <= 4u8;
+        return outcome_count <= 8u8;
     }
 
     @test
@@ -20,10 +20,11 @@ program test_veilmarkets.aleo {
         assert_eq(is_valid_market_shape(1u8, 2u8), true);  // categorical
         assert_eq(is_valid_market_shape(1u8, 3u8), true);  // categorical
         assert_eq(is_valid_market_shape(1u8, 4u8), true);  // categorical
+        assert_eq(is_valid_market_shape(1u8, 8u8), true);  // categorical max
 
         assert_eq(is_valid_market_shape(0u8, 3u8), false); // binary must be 2 outcomes
         assert_eq(is_valid_market_shape(1u8, 1u8), false); // min is 2 outcomes
-        assert_eq(is_valid_market_shape(1u8, 5u8), false); // max is 4 outcomes
+        assert_eq(is_valid_market_shape(1u8, 9u8), false); // max is 8 outcomes
         assert_eq(is_valid_market_shape(2u8, 2u8), false); // unknown market type
     }
 

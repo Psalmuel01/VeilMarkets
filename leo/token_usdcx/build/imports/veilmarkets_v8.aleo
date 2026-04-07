@@ -1,5 +1,4 @@
 import veilmarkets_factory_v8.aleo;
-
 program veilmarkets_v8.aleo;
 
 record BetPosition:
@@ -35,6 +34,10 @@ struct PoolState:
     total_outcome_1 as u64;
     total_outcome_2 as u64;
     total_outcome_3 as u64;
+    total_outcome_4 as u64;
+    total_outcome_5 as u64;
+    total_outcome_6 as u64;
+    total_outcome_7 as u64;
     participant_count as u64;
     locked as boolean;
     escrowed_amount as u64;
@@ -105,7 +108,7 @@ finalize create_market:
     position end_then_0_0;
     gte r5 2u8 into r16;
     assert.eq r16 true;
-    lte r5 4u8 into r17;
+    lte r5 8u8 into r17;
     assert.eq r17 true;
     position end_otherwise_0_1;
     cast r1 r2 r3 r4 r5 r6 r7 false 254u8 false r8 into r18 as MarketInfo;
@@ -114,26 +117,30 @@ finalize create_market:
     assert.eq r20 true;
     gt r7 r6 into r21;
     assert.eq r21 true;
-    cast 0u64 0u64 0u64 0u64 0u64 false 0u64 into r22 as PoolState;
+    cast 0u64 0u64 0u64 0u64 0u64 0u64 0u64 0u64 0u64 false 0u64 into r22 as PoolState;
     set r18 into markets[r0];
     set r22 into pools[r0];
 
 function place_bet:
-    input r0 as field.public;
-    input r1 as u8.public;
-    input r2 as u64.public;
-    input r3 as field.public;
-    input r4 as address.public;
-    lte r1 3u8 into r5;
+    input r0 as field.private;
+    input r1 as u8.private;
+    input r2 as u64.private;
+    input r3 as field.private;
+    input r4 as address.private;
+    lte r1 7u8 into r5;
     assert.eq r5 true;
     gt r2 0u64 into r6;
     assert.eq r6 true;
     hash.bhp256 r4 into r7 as field;
     add r7 r0 into r8;
-    add r8 r3 into r9;
-    hash.bhp256 r9 into r10 as field;
-    async place_bet r0 r1 r2 r3 r10 self.caller into r11;
-    output r11 as veilmarkets_v8.aleo/place_bet.future;
+    cast r1 into r9 as field;
+    add r8 r9 into r10;
+    cast r2 into r11 as field;
+    add r10 r11 into r12;
+    add r12 r3 into r13;
+    hash.bhp256 r13 into r14 as field;
+    async place_bet r0 r1 r2 r3 r14 self.caller into r15;
+    output r15 as veilmarkets_v8.aleo/place_bet.future;
 
 finalize place_bet:
     input r0 as field.public;
@@ -166,17 +173,29 @@ finalize place_bet:
     is.eq r1 3u8 into r22;
     add r11.total_outcome_3 r2 into r23;
     ternary r22 r23 r11.total_outcome_3 into r24;
-    add r11.participant_count 1u64 into r25;
-    add r11.escrowed_amount r2 into r26;
-    cast r15 r18 r21 r24 r25 r11.locked r26 into r27 as PoolState;
-    set r27 into pools[r0];
+    is.eq r1 4u8 into r25;
+    add r11.total_outcome_4 r2 into r26;
+    ternary r25 r26 r11.total_outcome_4 into r27;
+    is.eq r1 5u8 into r28;
+    add r11.total_outcome_5 r2 into r29;
+    ternary r28 r29 r11.total_outcome_5 into r30;
+    is.eq r1 6u8 into r31;
+    add r11.total_outcome_6 r2 into r32;
+    ternary r31 r32 r11.total_outcome_6 into r33;
+    is.eq r1 7u8 into r34;
+    add r11.total_outcome_7 r2 into r35;
+    ternary r34 r35 r11.total_outcome_7 into r36;
+    add r11.participant_count 1u64 into r37;
+    add r11.escrowed_amount r2 into r38;
+    cast r15 r18 r21 r24 r27 r30 r33 r36 r37 r11.locked r38 into r39 as PoolState;
+    set r39 into pools[r0];
     set r3 into position_to_escrow[r4];
 
 function mint_position_record:
-    input r0 as field.public;
-    input r1 as u8.public;
-    input r2 as u64.public;
-    input r3 as field.public;
+    input r0 as field.private;
+    input r1 as u8.private;
+    input r2 as u64.private;
+    input r3 as field.private;
     hash.bhp256 self.signer into r4 as field;
     add r4 r3 into r5;
     hash.bhp256 r5 into r6 as field;
@@ -208,27 +227,31 @@ finalize resolve_market:
     cast r3.creator r3.title_hash r3.category r3.market_type r3.outcome_count r3.close_time r3.resolution_time true r1 true r3.token_id into r8 as MarketInfo;
     set r8 into markets[r0];
     get pools[r0] into r9;
-    cast r9.total_outcome_0 r9.total_outcome_1 r9.total_outcome_2 r9.total_outcome_3 r9.participant_count true r9.escrowed_amount into r10 as PoolState;
+    cast r9.total_outcome_0 r9.total_outcome_1 r9.total_outcome_2 r9.total_outcome_3 r9.total_outcome_4 r9.total_outcome_5 r9.total_outcome_6 r9.total_outcome_7 r9.participant_count true r9.escrowed_amount into r10 as PoolState;
     set r10 into pools[r0];
 
 function claim_winnings:
     input r0 as BetPosition.record;
     hash.bhp256 r0.owner into r1 as field;
     add r1 r0.market_id into r2;
-    add r2 r0.escrow_id into r3;
-    hash.bhp256 r3 into r4 as field;
+    cast r0.outcome into r3 as field;
+    add r2 r3 into r4;
     cast r0.amount into r5 as field;
-    add r1 r0.market_id into r6;
-    add r6 r5 into r7;
-    cast r0.outcome into r8 as field;
-    add r7 r8 into r9;
-    add r9 r0.escrow_id into r10;
-    hash.bhp256 r10 into r11 as field;
-    async claim_winnings r0.market_id r0.outcome r0.amount r0.escrow_id r11 r4 into r12;
-    hash.bhp256 r11 into r13 as group;
-    cast r0.owner r0.market_id 0u64 r11 r13 into r14 as WinningsClaim.record;
-    output r14 as WinningsClaim.record;
-    output r12 as veilmarkets_v8.aleo/claim_winnings.future;
+    add r4 r5 into r6;
+    add r6 r0.escrow_id into r7;
+    hash.bhp256 r7 into r8 as field;
+    cast r0.amount into r9 as field;
+    add r1 r0.market_id into r10;
+    add r10 r9 into r11;
+    cast r0.outcome into r12 as field;
+    add r11 r12 into r13;
+    add r13 r0.escrow_id into r14;
+    hash.bhp256 r14 into r15 as field;
+    async claim_winnings r0.market_id r0.outcome r0.amount r0.escrow_id r15 r8 into r16;
+    hash.bhp256 r15 into r17 as group;
+    cast r0.owner r0.market_id 0u64 r15 r17 into r18 as WinningsClaim.record;
+    output r18 as WinningsClaim.record;
+    output r16 as veilmarkets_v8.aleo/claim_winnings.future;
 
 finalize claim_winnings:
     input r0 as field.public;
@@ -252,20 +275,32 @@ finalize claim_winnings:
     is.eq r9.winning_outcome 0u8 into r12;
     is.eq r9.winning_outcome 1u8 into r13;
     is.eq r9.winning_outcome 2u8 into r14;
-    ternary r14 r11.total_outcome_2 r11.total_outcome_3 into r15;
-    ternary r13 r11.total_outcome_1 r15 into r16;
-    ternary r12 r11.total_outcome_0 r16 into r17;
-    add r11.total_outcome_0 r11.total_outcome_1 into r18;
-    add r18 r11.total_outcome_2 into r19;
-    add r19 r11.total_outcome_3 into r20;
-    gt r17 0u64 into r21;
-    assert.eq r21 true;
-    mul r2 r20 into r22;
-    div r22 r17 into r23;
-    gt r23 0u64 into r24;
-    assert.eq r24 true;
-    cast r23 r9.token_id into r25 as PayoutClaim;
-    set r25 into pending_payouts[r4];
+    is.eq r9.winning_outcome 3u8 into r15;
+    is.eq r9.winning_outcome 4u8 into r16;
+    is.eq r9.winning_outcome 5u8 into r17;
+    is.eq r9.winning_outcome 6u8 into r18;
+    ternary r18 r11.total_outcome_6 r11.total_outcome_7 into r19;
+    ternary r17 r11.total_outcome_5 r19 into r20;
+    ternary r16 r11.total_outcome_4 r20 into r21;
+    ternary r15 r11.total_outcome_3 r21 into r22;
+    ternary r14 r11.total_outcome_2 r22 into r23;
+    ternary r13 r11.total_outcome_1 r23 into r24;
+    ternary r12 r11.total_outcome_0 r24 into r25;
+    add r11.total_outcome_0 r11.total_outcome_1 into r26;
+    add r26 r11.total_outcome_2 into r27;
+    add r27 r11.total_outcome_3 into r28;
+    add r28 r11.total_outcome_4 into r29;
+    add r29 r11.total_outcome_5 into r30;
+    add r30 r11.total_outcome_6 into r31;
+    add r31 r11.total_outcome_7 into r32;
+    gt r25 0u64 into r33;
+    assert.eq r33 true;
+    mul r2 r32 into r34;
+    div r34 r25 into r35;
+    gt r35 0u64 into r36;
+    assert.eq r36 true;
+    cast r35 r9.token_id into r37 as PayoutClaim;
+    set r37 into pending_payouts[r4];
 
 function verify_claim:
     input r0 as field.public;
@@ -301,7 +336,7 @@ finalize cancel_market:
     cast r2.creator r2.title_hash r2.category r2.market_type r2.outcome_count r2.close_time r2.resolution_time true 255u8 r2.resolved_by_oracle r2.token_id into r6 as MarketInfo;
     set r6 into markets[r0];
     get pools[r0] into r7;
-    cast r7.total_outcome_0 r7.total_outcome_1 r7.total_outcome_2 r7.total_outcome_3 r7.participant_count true r7.escrowed_amount into r8 as PoolState;
+    cast r7.total_outcome_0 r7.total_outcome_1 r7.total_outcome_2 r7.total_outcome_3 r7.total_outcome_4 r7.total_outcome_5 r7.total_outcome_6 r7.total_outcome_7 r7.participant_count true r7.escrowed_amount into r8 as PoolState;
     set r8 into pools[r0];
 
 constructor:

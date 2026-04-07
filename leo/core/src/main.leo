@@ -12,7 +12,7 @@ program veilmarkets_v8.aleo {
         title_hash: field,
         category: u8,
         market_type: u8, // 0 = binary, 1 = categorical
-        outcome_count: u8, // 2..4
+        outcome_count: u8, // 2..8
         close_time: u64,
         resolution_time: u64,
         is_resolved: bool,
@@ -43,6 +43,10 @@ program veilmarkets_v8.aleo {
         total_outcome_1: u64,
         total_outcome_2: u64,
         total_outcome_3: u64,
+        total_outcome_4: u64,
+        total_outcome_5: u64,
+        total_outcome_6: u64,
+        total_outcome_7: u64,
         participant_count: u64,
         locked: bool,
         escrowed_amount: u64, // Total in escrow (must match token contract)
@@ -123,7 +127,7 @@ program veilmarkets_v8.aleo {
             assert(outcome_count == 2u8);
         } else {
             assert(outcome_count >= 2u8);
-            assert(outcome_count <= 4u8);
+            assert(outcome_count <= 8u8);
         }
         let market: MarketInfo = MarketInfo {
             creator: creator,
@@ -146,6 +150,10 @@ program veilmarkets_v8.aleo {
             total_outcome_1: 0u64,
             total_outcome_2: 0u64,
             total_outcome_3: 0u64,
+            total_outcome_4: 0u64,
+            total_outcome_5: 0u64,
+            total_outcome_6: 0u64,
+            total_outcome_7: 0u64,
             participant_count: 0u64,
             locked: false,
             escrowed_amount: 0u64,
@@ -162,12 +170,14 @@ program veilmarkets_v8.aleo {
         outcome: u8,
         amount: u64,
         escrow_id: field, // From token contract
+        bettor: address, // User address forwarded by token adapter
     ) -> Future {
-        assert(outcome <= 3u8);
+        assert(outcome <= 7u8);
         assert(amount > 0u64);
-        // Commitment key used for escrow linkage without exposing bettor identity.
+        // Commitment key used for escrow linkage with bettor-bound ownership.
+        let bettor_hash: field = BHP256::hash_to_field(bettor);
         let bet_commitment: field = BHP256::hash_to_field(
-            market_id + outcome as field + amount as field + escrow_id,
+            bettor_hash + market_id + outcome as field + amount as field + escrow_id,
         );
         let f: Future = finalize_place_bet(
             market_id,
@@ -210,11 +220,27 @@ program veilmarkets_v8.aleo {
         let new_total_3: u64 = (outcome == 3u8)
             ? pool.total_outcome_3 + amount
             : pool.total_outcome_3;
+        let new_total_4: u64 = (outcome == 4u8)
+            ? pool.total_outcome_4 + amount
+            : pool.total_outcome_4;
+        let new_total_5: u64 = (outcome == 5u8)
+            ? pool.total_outcome_5 + amount
+            : pool.total_outcome_5;
+        let new_total_6: u64 = (outcome == 6u8)
+            ? pool.total_outcome_6 + amount
+            : pool.total_outcome_6;
+        let new_total_7: u64 = (outcome == 7u8)
+            ? pool.total_outcome_7 + amount
+            : pool.total_outcome_7;
         let updated_pool: PoolState = PoolState {
             total_outcome_0: new_total_0,
             total_outcome_1: new_total_1,
             total_outcome_2: new_total_2,
             total_outcome_3: new_total_3,
+            total_outcome_4: new_total_4,
+            total_outcome_5: new_total_5,
+            total_outcome_6: new_total_6,
+            total_outcome_7: new_total_7,
             participant_count: pool.participant_count + 1u64,
             locked: pool.locked,
             escrowed_amount: pool.escrowed_amount + amount,
@@ -280,6 +306,10 @@ program veilmarkets_v8.aleo {
             total_outcome_1: pool.total_outcome_1,
             total_outcome_2: pool.total_outcome_2,
             total_outcome_3: pool.total_outcome_3,
+            total_outcome_4: pool.total_outcome_4,
+            total_outcome_5: pool.total_outcome_5,
+            total_outcome_6: pool.total_outcome_6,
+            total_outcome_7: pool.total_outcome_7,
             participant_count: pool.participant_count,
             locked: true,
             escrowed_amount: pool.escrowed_amount,
@@ -290,12 +320,12 @@ program veilmarkets_v8.aleo {
     // Claim winnings - with nullifier anti-replay
     async transition claim_winnings(private position: BetPosition) -> (WinningsClaim, Future) {
         // Commitment must match the one set at placement time.
+        let owner_hash: field = BHP256::hash_to_field(position.owner);
         let bet_commitment: field = BHP256::hash_to_field(
-            position.market_id + position.outcome as field + position.amount as field
-                + position.escrow_id,
+            owner_hash + position.market_id + position.outcome as field
+                + position.amount as field + position.escrow_id,
         );
         // Generate nullifier from position (verified in finalize)
-        let owner_hash: field = BHP256::hash_to_field(position.owner);
         let amount_field: field = position.amount as field;
         let nullifier: field = BHP256::hash_to_field(
             owner_hash + position.market_id + amount_field + position.outcome as field
@@ -346,10 +376,19 @@ program veilmarkets_v8.aleo {
                 ? pool.total_outcome_1
                 : ((market.winning_outcome == 2u8)
                     ? pool.total_outcome_2
-                    : pool.total_outcome_3));
+                    : ((market.winning_outcome == 3u8)
+                        ? pool.total_outcome_3
+                        : ((market.winning_outcome == 4u8)
+                            ? pool.total_outcome_4
+                            : ((market.winning_outcome == 5u8)
+                                ? pool.total_outcome_5
+                                : ((market.winning_outcome == 6u8)
+                                    ? pool.total_outcome_6
+                                    : pool.total_outcome_7))))));
         let total_pool: u64 =
             pool.total_outcome_0 + pool.total_outcome_1 + pool.total_outcome_2
-                + pool.total_outcome_3;
+                + pool.total_outcome_3 + pool.total_outcome_4 + pool.total_outcome_5
+                + pool.total_outcome_6 + pool.total_outcome_7;
         assert(winning_pool > 0u64);
         // Pro-rata payout validation
         let payout: u64 = (bet_amount * total_pool) / winning_pool;
@@ -399,6 +438,10 @@ program veilmarkets_v8.aleo {
             total_outcome_1: pool.total_outcome_1,
             total_outcome_2: pool.total_outcome_2,
             total_outcome_3: pool.total_outcome_3,
+            total_outcome_4: pool.total_outcome_4,
+            total_outcome_5: pool.total_outcome_5,
+            total_outcome_6: pool.total_outcome_6,
+            total_outcome_7: pool.total_outcome_7,
             participant_count: pool.participant_count,
             locked: true,
             escrowed_amount: pool.escrowed_amount,

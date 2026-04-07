@@ -13,7 +13,7 @@ create table public.markets_v8 (
   source text not null default 'Creator',
   category smallint not null check (category between 0 and 6),
   market_type smallint not null check (market_type in (0, 1)), -- 0=binary, 1=categorical
-  outcome_count smallint not null check (outcome_count between 2 and 4),
+  outcome_count smallint not null check (outcome_count between 2 and 8),
   outcome_labels text[] not null,
   token_id text not null,
   close_time bigint not null,

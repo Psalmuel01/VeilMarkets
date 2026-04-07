@@ -36,6 +36,7 @@ import {
   resolveTokenTicker,
 } from "@/lib/constants";
 import { queryKeys } from "@/lib/queryKeys";
+import { MAX_OUTCOME_COUNT } from "@/lib/outcomes";
 
 const categories = [
   { value: "crypto", label: "Crypto" },
@@ -48,7 +49,10 @@ const categories = [
 ];
 
 type Step = "form" | "review" | "creating" | "success" | "failed";
-const DEFAULT_OUTCOME_LABELS = ["No", "Yes", "Option 3", "Option 4"];
+const DEFAULT_OUTCOME_LABELS = Array.from(
+  { length: MAX_OUTCOME_COUNT },
+  (_, index) => (index === 0 ? "No" : index === 1 ? "Yes" : `Option ${index + 1}`),
+);
 
 export default function CreateMarketPage() {
   const navigate = useNavigate();
@@ -72,6 +76,14 @@ export default function CreateMarketPage() {
     transactionId: string;
     marketId: string;
   } | null>(null);
+
+  const ensureOutcomeLabels = (labels: string[], count: number): string[] => {
+    return Array.from({ length: MAX_OUTCOME_COUNT }, (_, index) => {
+      if (index >= count) return labels[index] ?? `Option ${index + 1}`;
+      const current = (labels[index] ?? "").trim();
+      return current.length > 0 ? current : `Option ${index + 1}`;
+    });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,10 +119,11 @@ export default function CreateMarketPage() {
     };
 
     const marketTypeValue = formData.marketType === "binary" ? 0 : 1;
+    const parsedOutcomeCount = Number.parseInt(formData.outcomeCount, 10);
     const outcomeCountValue =
       marketTypeValue === 0
         ? 2
-        : Number.parseInt(formData.outcomeCount, 10) || 2;
+        : Math.min(MAX_OUTCOME_COUNT, Math.max(2, Number.isFinite(parsedOutcomeCount) ? parsedOutcomeCount : 2));
     const outcomeLabels =
       marketTypeValue === 0
         ? ["No", "Yes"]
@@ -149,7 +162,10 @@ export default function CreateMarketPage() {
   const requestedOutcomeCount =
     formData.marketType === "binary"
       ? 2
-      : Number.parseInt(formData.outcomeCount, 10) || 2;
+      : Math.min(
+          MAX_OUTCOME_COUNT,
+          Math.max(2, Number.parseInt(formData.outcomeCount, 10) || 2),
+        );
   const hasValidOutcomeLabels =
     formData.marketType === "binary" ||
     formData.outcomeLabels
@@ -286,8 +302,11 @@ export default function CreateMarketPage() {
                           value === "binary" ? "2" : prev.outcomeCount,
                         outcomeLabels:
                           value === "binary"
-                            ? ["No", "Yes", ...prev.outcomeLabels.slice(2)]
-                            : prev.outcomeLabels,
+                            ? ensureOutcomeLabels(
+                                ["No", "Yes", ...prev.outcomeLabels.slice(2)],
+                                2,
+                              )
+                            : ensureOutcomeLabels(prev.outcomeLabels, Number.parseInt(prev.outcomeCount, 10) || 2),
                       }))
                     }
                   >
@@ -305,7 +324,7 @@ export default function CreateMarketPage() {
                         value="categorical"
                         className="h-12 rounded-xl focus:bg-white/10"
                       >
-                        Categorical (2-4 options)
+                        Categorical (2-{MAX_OUTCOME_COUNT} options)
                       </SelectItem>
                     </SelectContent>
                   </Select>
@@ -324,11 +343,9 @@ export default function CreateMarketPage() {
                       setFormData((prev) => ({
                         ...prev,
                         outcomeCount: value,
-                        outcomeLabels: prev.outcomeLabels.map((label, index) =>
-                          index < (Number.parseInt(value, 10) || 2) &&
-                          label.trim().length === 0
-                            ? `Option ${index + 1}`
-                            : label,
+                        outcomeLabels: ensureOutcomeLabels(
+                          prev.outcomeLabels,
+                          Number.parseInt(value, 10) || 2,
                         ),
                       }))
                     }
@@ -338,24 +355,15 @@ export default function CreateMarketPage() {
                       <SelectValue placeholder="Outcomes" />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-white/10 rounded-2xl">
-                      <SelectItem
-                        value="2"
-                        className="h-12 rounded-xl focus:bg-white/10"
-                      >
-                        2 outcomes
-                      </SelectItem>
-                      <SelectItem
-                        value="3"
-                        className="h-12 rounded-xl focus:bg-white/10"
-                      >
-                        3 outcomes
-                      </SelectItem>
-                      <SelectItem
-                        value="4"
-                        className="h-12 rounded-xl focus:bg-white/10"
-                      >
-                        4 outcomes
-                      </SelectItem>
+                      {Array.from({ length: MAX_OUTCOME_COUNT - 1 }, (_, index) => index + 2).map((count) => (
+                        <SelectItem
+                          key={`outcome-count-${count}`}
+                          value={String(count)}
+                          className="h-12 rounded-xl focus:bg-white/10"
+                        >
+                          {count} outcomes
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

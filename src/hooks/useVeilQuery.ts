@@ -204,10 +204,34 @@ export const usePlaceBetMutation = () => {
       queryClient.setQueryData<PoolInfo | null>(queryKeys.marketPool(marketId), (existing) => {
         if (!existing) return existing;
         const next = { ...existing };
-        if (outcome === 0) next.total_outcome_0 += deltaMicro;
-        if (outcome === 1) next.total_outcome_1 += deltaMicro;
-        if (outcome === 2) next.total_outcome_2 += deltaMicro;
-        if (outcome === 3) next.total_outcome_3 += deltaMicro;
+        switch (outcome) {
+          case 0:
+            next.total_outcome_0 += deltaMicro;
+            break;
+          case 1:
+            next.total_outcome_1 += deltaMicro;
+            break;
+          case 2:
+            next.total_outcome_2 += deltaMicro;
+            break;
+          case 3:
+            next.total_outcome_3 += deltaMicro;
+            break;
+          case 4:
+            next.total_outcome_4 += deltaMicro;
+            break;
+          case 5:
+            next.total_outcome_5 += deltaMicro;
+            break;
+          case 6:
+            next.total_outcome_6 += deltaMicro;
+            break;
+          case 7:
+            next.total_outcome_7 += deltaMicro;
+            break;
+          default:
+            break;
+        }
         next.total_no = next.total_outcome_0;
         next.total_yes = next.total_outcome_1;
         next.escrowed_amount += deltaMicro;

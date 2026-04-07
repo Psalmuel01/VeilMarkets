@@ -154,6 +154,10 @@ export default function MarketDetailPage() {
     pool?.total_outcome_1 ?? pool?.total_yes ?? 0,
     pool?.total_outcome_2 ?? 0,
     pool?.total_outcome_3 ?? 0,
+    pool?.total_outcome_4 ?? 0,
+    pool?.total_outcome_5 ?? 0,
+    pool?.total_outcome_6 ?? 0,
+    pool?.total_outcome_7 ?? 0,
   ];
   const activeOutcomeTotals = outcomeTotals.slice(0, normalizedOutcomeCount);
   const totalPoolMicro = activeOutcomeTotals.reduce((acc, value) => acc + value, 0);

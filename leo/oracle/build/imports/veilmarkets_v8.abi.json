@@ -124,6 +124,38 @@
           }
         },
         {
+          "name": "total_outcome_4",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "total_outcome_5",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "total_outcome_6",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "total_outcome_7",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
           "name": "participant_count",
           "ty": {
             "Primitive": {
@@ -428,7 +460,7 @@
               "Primitive": "Field"
             }
           },
-          "mode": "Public"
+          "mode": "None"
         },
         {
           "name": "outcome",
@@ -439,7 +471,7 @@
               }
             }
           },
-          "mode": "Public"
+          "mode": "None"
         },
         {
           "name": "amount",
@@ -450,7 +482,7 @@
               }
             }
           },
-          "mode": "Public"
+          "mode": "None"
         },
         {
           "name": "escrow_id",
@@ -459,7 +491,7 @@
               "Primitive": "Field"
             }
           },
-          "mode": "Public"
+          "mode": "None"
         },
         {
           "name": "bettor",
@@ -468,7 +500,7 @@
               "Primitive": "Address"
             }
           },
-          "mode": "Public"
+          "mode": "None"
         }
       ],
       "outputs": [
@@ -489,7 +521,7 @@
               "Primitive": "Field"
             }
           },
-          "mode": "Public"
+          "mode": "None"
         },
         {
           "name": "outcome",
@@ -500,7 +532,7 @@
               }
             }
           },
-          "mode": "Public"
+          "mode": "None"
         },
         {
           "name": "amount",
@@ -511,7 +543,7 @@
               }
             }
           },
-          "mode": "Public"
+          "mode": "None"
         },
         {
           "name": "escrow_id",
@@ -520,7 +552,7 @@
               "Primitive": "Field"
             }
           },
-          "mode": "Public"
+          "mode": "None"
         }
       ],
       "outputs": [

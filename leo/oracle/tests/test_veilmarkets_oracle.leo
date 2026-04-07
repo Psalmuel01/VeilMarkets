@@ -4,23 +4,42 @@ program test_veilmarkets_oracle.aleo {
     const MIN_ORACLE_STAKE: u64 = 30000000u64;
     const DISPUTE_WINDOW: u64 = 300u64;
 
-    function compute_disputed_winner(vote_0: u64, vote_1: u64, vote_2: u64, vote_3: u64) -> u8 {
+    function compute_disputed_winner(
+        vote_0: u64,
+        vote_1: u64,
+        vote_2: u64,
+        vote_3: u64,
+        vote_4: u64,
+        vote_5: u64,
+        vote_6: u64,
+        vote_7: u64,
+    ) -> u8 {
         let best_01_outcome: u8 = (vote_1 > vote_0) ? 1u8 : 0u8;
         let best_01_votes: u64 = (vote_1 > vote_0) ? vote_1 : vote_0;
         let best_23_outcome: u8 = (vote_3 > vote_2) ? 3u8 : 2u8;
         let best_23_votes: u64 = (vote_3 > vote_2) ? vote_3 : vote_2;
-        return (best_23_votes > best_01_votes) ? best_23_outcome : best_01_outcome;
+        let best_45_outcome: u8 = (vote_5 > vote_4) ? 5u8 : 4u8;
+        let best_45_votes: u64 = (vote_5 > vote_4) ? vote_5 : vote_4;
+        let best_67_outcome: u8 = (vote_7 > vote_6) ? 7u8 : 6u8;
+        let best_67_votes: u64 = (vote_7 > vote_6) ? vote_7 : vote_6;
+
+        let best_0123_outcome: u8 = (best_23_votes > best_01_votes) ? best_23_outcome : best_01_outcome;
+        let best_0123_votes: u64 = (best_23_votes > best_01_votes) ? best_23_votes : best_01_votes;
+        let best_4567_outcome: u8 = (best_67_votes > best_45_votes) ? best_67_outcome : best_45_outcome;
+        let best_4567_votes: u64 = (best_67_votes > best_45_votes) ? best_67_votes : best_45_votes;
+
+        return (best_4567_votes > best_0123_votes) ? best_4567_outcome : best_0123_outcome;
     }
 
     @test
     transition disputed_vote_max_weight() {
-        let winner_a: u8 = compute_disputed_winner(10u64, 20u64, 40u64, 25u64);
-        let winner_b: u8 = compute_disputed_winner(90u64, 20u64, 10u64, 15u64);
-        let winner_c: u8 = compute_disputed_winner(1u64, 2u64, 3u64, 100u64);
+        let winner_a: u8 = compute_disputed_winner(10u64, 20u64, 40u64, 25u64, 9u64, 8u64, 7u64, 6u64);
+        let winner_b: u8 = compute_disputed_winner(90u64, 20u64, 10u64, 15u64, 16u64, 17u64, 18u64, 19u64);
+        let winner_c: u8 = compute_disputed_winner(1u64, 2u64, 3u64, 4u64, 5u64, 6u64, 7u64, 100u64);
 
         assert_eq(winner_a, 2u8);
         assert_eq(winner_b, 0u8);
-        assert_eq(winner_c, 3u8);
+        assert_eq(winner_c, 7u8);
     }
 
     @test

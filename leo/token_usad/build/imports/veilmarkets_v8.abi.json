@@ -124,6 +124,38 @@
           }
         },
         {
+          "name": "total_outcome_4",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "total_outcome_5",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "total_outcome_6",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "total_outcome_7",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
           "name": "participant_count",
           "ty": {
             "Primitive": {
@@ -457,6 +489,15 @@
           "ty": {
             "Plaintext": {
               "Primitive": "Field"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "bettor",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Address"
             }
           },
           "mode": "None"

@@ -46,6 +46,10 @@ export interface PoolInfo {
   total_outcome_1: number;
   total_outcome_2: number;
   total_outcome_3: number;
+  total_outcome_4: number;
+  total_outcome_5: number;
+  total_outcome_6: number;
+  total_outcome_7: number;
   // Legacy aliases kept for backwards compatibility in existing UI.
   total_no: number;
   total_yes: number;
@@ -363,6 +367,10 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
     total_outcome_1: 0,
     total_outcome_2: 0,
     total_outcome_3: 0,
+    total_outcome_4: 0,
+    total_outcome_5: 0,
+    total_outcome_6: 0,
+    total_outcome_7: 0,
     total_no: 0,
     total_yes: 0,
     participant_count: 0,
@@ -378,11 +386,19 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
     const totalOutcome1 = parseAleoInt(obj.total_outcome_1 ?? obj.total_yes);
     const totalOutcome2 = parseAleoInt(obj.total_outcome_2);
     const totalOutcome3 = parseAleoInt(obj.total_outcome_3);
+    const totalOutcome4 = parseAleoInt(obj.total_outcome_4);
+    const totalOutcome5 = parseAleoInt(obj.total_outcome_5);
+    const totalOutcome6 = parseAleoInt(obj.total_outcome_6);
+    const totalOutcome7 = parseAleoInt(obj.total_outcome_7);
     return {
       total_outcome_0: totalOutcome0,
       total_outcome_1: totalOutcome1,
       total_outcome_2: totalOutcome2,
       total_outcome_3: totalOutcome3,
+      total_outcome_4: totalOutcome4,
+      total_outcome_5: totalOutcome5,
+      total_outcome_6: totalOutcome6,
+      total_outcome_7: totalOutcome7,
       total_no: totalOutcome0,
       total_yes: totalOutcome1,
       participant_count: parseAleoInt(obj.participant_count),
@@ -413,6 +429,10 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
       key === "total_outcome_1" ||
       key === "total_outcome_2" ||
       key === "total_outcome_3" ||
+      key === "total_outcome_4" ||
+      key === "total_outcome_5" ||
+      key === "total_outcome_6" ||
+      key === "total_outcome_7" ||
       key === "total_no" ||
       key === "total_yes" ||
       key === "participant_count" ||
@@ -423,12 +443,14 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
   }
 
   const merged = { ...base, ...parsed };
+  const totalOutcome0 = parsed.total_outcome_0 ?? parsed.total_no ?? 0;
+  const totalOutcome1 = parsed.total_outcome_1 ?? parsed.total_yes ?? 0;
   return {
     ...merged,
-    total_outcome_0: merged.total_outcome_0 || merged.total_no,
-    total_outcome_1: merged.total_outcome_1 || merged.total_yes,
-    total_no: merged.total_outcome_0 || merged.total_no,
-    total_yes: merged.total_outcome_1 || merged.total_yes,
+    total_outcome_0: totalOutcome0,
+    total_outcome_1: totalOutcome1,
+    total_no: totalOutcome0,
+    total_yes: totalOutcome1,
   };
 };
 

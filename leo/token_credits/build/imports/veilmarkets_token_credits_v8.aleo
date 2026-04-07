@@ -44,7 +44,7 @@ function place_bet:
     assert.eq r5 true;
     gte r3 1000000u64 into r6;
     assert.eq r6 true;
-    lte r2 3u8 into r7;
+    lte r2 7u8 into r7;
     assert.eq r7 true;
     call credits.aleo/transfer_private_to_public r0 veilmarkets_token_credits_v8.aleo r3 into r8 r9;
     cast self.caller into r10 as field;

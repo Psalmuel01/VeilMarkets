@@ -54,7 +54,7 @@ function place_bet:
     assert.eq r8 true;
     gte r5 1000000u64 into r9;
     assert.eq r9 true;
-    lte r4 3u8 into r10;
+    lte r4 7u8 into r10;
     assert.eq r10 true;
     cast r1.siblings r1.leaf_index into r11 as test_usdcx_stablecoin.aleo/MerkleProof;
     cast r2.siblings r2.leaf_index into r12 as test_usdcx_stablecoin.aleo/MerkleProof;

@@ -82,7 +82,7 @@ program veilmarkets_oracle_v8.aleo {
         proposed_outcome: u8,
         proposer: address,
     ) {
-        assert(proposed_outcome <= 3u8);
+        assert(proposed_outcome <= 7u8);
         // Verify proposer has stake
         let stake: u64 = Mapping::get(active_oracles, proposer);
         assert(stake >= MIN_ORACLE_STAKE);
@@ -144,8 +144,8 @@ program veilmarkets_oracle_v8.aleo {
         public market_id: field,
         public outcome: u8,
     ) -> (OracleCredential, Future) {
-        // Outcomes are indexed from 0..3 (core validates market-specific bounds).
-        assert(outcome <= 3u8);
+        // Outcomes are indexed from 0..7 (core validates market-specific bounds).
+        assert(outcome <= 7u8);
         let updated_credential: OracleCredential = OracleCredential {
             owner: credential.owner,
             staked_amount: credential.staked_amount,
@@ -169,7 +169,7 @@ program veilmarkets_oracle_v8.aleo {
     // FINALIZATION: The step that speaks to Core
     async transition resolve_on_core(public market_id: field, public outcome: u8) -> Future {
         assert_eq(self.caller, aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n);
-        assert(outcome <= 3u8);
+        assert(outcome <= 7u8);
         // One transition calls another
         let f_core: Future = veilmarkets_v8.aleo/resolve_market(
             market_id,
@@ -183,7 +183,7 @@ program veilmarkets_oracle_v8.aleo {
         f_core.await();
         let proposal: ResolutionProposal = Mapping::get(proposals, market_id);
         if (proposal.is_disputed) {
-            // If disputed, calculate winner from up to 4 indexed outcomes.
+            // If disputed, calculate winner from up to 8 indexed outcomes.
             let vote_0: u64 = Mapping::get_or_use(
                 votes,
                 BHP256::hash_to_field(market_id + 0u8 as field),
@@ -204,13 +204,47 @@ program veilmarkets_oracle_v8.aleo {
                 BHP256::hash_to_field(market_id + 3u8 as field),
                 0u64,
             );
+            let vote_4: u64 = Mapping::get_or_use(
+                votes,
+                BHP256::hash_to_field(market_id + 4u8 as field),
+                0u64,
+            );
+            let vote_5: u64 = Mapping::get_or_use(
+                votes,
+                BHP256::hash_to_field(market_id + 5u8 as field),
+                0u64,
+            );
+            let vote_6: u64 = Mapping::get_or_use(
+                votes,
+                BHP256::hash_to_field(market_id + 6u8 as field),
+                0u64,
+            );
+            let vote_7: u64 = Mapping::get_or_use(
+                votes,
+                BHP256::hash_to_field(market_id + 7u8 as field),
+                0u64,
+            );
 
             let best_01_outcome: u8 = (vote_1 > vote_0) ? 1u8 : 0u8;
             let best_01_votes: u64 = (vote_1 > vote_0) ? vote_1 : vote_0;
             let best_23_outcome: u8 = (vote_3 > vote_2) ? 3u8 : 2u8;
             let best_23_votes: u64 = (vote_3 > vote_2) ? vote_3 : vote_2;
-            let winning_outcome: u8 =
+            let best_45_outcome: u8 = (vote_5 > vote_4) ? 5u8 : 4u8;
+            let best_45_votes: u64 = (vote_5 > vote_4) ? vote_5 : vote_4;
+            let best_67_outcome: u8 = (vote_7 > vote_6) ? 7u8 : 6u8;
+            let best_67_votes: u64 = (vote_7 > vote_6) ? vote_7 : vote_6;
+
+            let best_0123_outcome: u8 =
                 (best_23_votes > best_01_votes) ? best_23_outcome : best_01_outcome;
+            let best_0123_votes: u64 =
+                (best_23_votes > best_01_votes) ? best_23_votes : best_01_votes;
+            let best_4567_outcome: u8 =
+                (best_67_votes > best_45_votes) ? best_67_outcome : best_45_outcome;
+            let best_4567_votes: u64 =
+                (best_67_votes > best_45_votes) ? best_67_votes : best_45_votes;
+
+            let winning_outcome: u8 =
+                (best_4567_votes > best_0123_votes) ? best_4567_outcome : best_0123_outcome;
             assert_eq(outcome, winning_outcome);
 
             // Reward distribution logic (90/10 split)

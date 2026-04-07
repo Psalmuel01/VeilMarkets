@@ -59,7 +59,7 @@ program veilmarkets_token_credits_v8.aleo {
     ) -> (credits.aleo/credits, EscrowedBet, Future) {
         assert(input_credits.microcredits >= bet_amount);
         assert(bet_amount >= MIN_BET);
-        assert(outcome <= 3u8);
+        assert(outcome <= 7u8);
 
         // Transfer bet_amount to this contract's public balance
         let (change, transfer_future): (credits.aleo/credits, Future) =
@@ -81,6 +81,7 @@ program veilmarkets_token_credits_v8.aleo {
             outcome,
             bet_amount,
             escrow_id,
+            self.caller,
         );
 
         let bet_record: EscrowedBet = EscrowedBet {

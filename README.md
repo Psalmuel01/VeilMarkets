@@ -2,11 +2,11 @@
 
 Privacy-aware prediction markets on Aleo.
 
-VeilMarkets lets users create markets, place bets, and claim payouts with zero-knowledge-backed verification. The app supports binary and categorical markets (2-4 outcomes) with multi-token settlement rails.
+VeilMarkets lets users create markets, place bets, and claim payouts with zero-knowledge-backed verification. The app supports binary and categorical markets (2-8 outcomes) with multi-token settlement rails.
 
 ## Current Scope
 
-- Binary and categorical markets (2-4 outcomes)
+- Binary and categorical markets (2-8 outcomes)
 - Market categories: Crypto, Finance, Sports, Politics, Entertainment, Tech, Other
 - Settlement tokens:
   - Aleo Credits

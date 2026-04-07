@@ -76,7 +76,7 @@ program veilmarkets_token_usad_v8.aleo {
         let bet_amount_u128: u128 = bet_amount as u128;
         assert(input_token.amount >= bet_amount_u128);
         assert(bet_amount >= MIN_BET);
-        assert(outcome <= 3u8);
+        assert(outcome <= 7u8);
 
         // Transfer bet_amount to this contract's public USAD balance
         let external_proof_0: test_usad_stablecoin.aleo/MerkleProof =
@@ -116,6 +116,7 @@ program veilmarkets_token_usad_v8.aleo {
             outcome,
             bet_amount,
             escrow_id,
+            self.caller,
         );
 
         let bet_record: EscrowedBet = EscrowedBet {

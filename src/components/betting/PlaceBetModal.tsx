@@ -70,6 +70,10 @@ export const PlaceBetModal = ({
       pool.total_outcome_1 ?? pool.total_yes ?? 0,
       pool.total_outcome_2 ?? 0,
       pool.total_outcome_3 ?? 0,
+      pool.total_outcome_4 ?? 0,
+      pool.total_outcome_5 ?? 0,
+      pool.total_outcome_6 ?? 0,
+      pool.total_outcome_7 ?? 0,
     ];
     const selectedPool = totals[selectedOutcome] ?? 0;
     const totalPool = totals
