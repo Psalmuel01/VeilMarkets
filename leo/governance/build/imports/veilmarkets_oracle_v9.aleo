@@ -1,6 +1,7 @@
 import veilmarkets_factory_v9.aleo;
 import veilmarkets_core_v9.aleo;
 import credits.aleo;
+
 program veilmarkets_oracle_v9.aleo;
 
 record OracleCredential:

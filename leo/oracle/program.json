@@ -7,18 +7,17 @@
   "dependencies": [
     {
       "name": "veilmarkets_factory_v9.aleo",
-      "location": "local",
-      "path": "../factory"
+      "location": "network",
+      "path": null
     },
     {
       "name": "veilmarkets_core_v9.aleo",
-      "location": "local",
-      "path": "../core"
+      "location": "network",
+      "path": null
     },
     {
       "name": "credits.aleo",
       "location": "network",
-      "network": "testnet",
       "path": null
     }
   ],
