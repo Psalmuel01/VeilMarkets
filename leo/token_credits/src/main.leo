@@ -47,14 +47,15 @@ program veilmarkets_token_credits_v8.aleo {
 
     // ── Place bet ──────────────────────────────────────────────────────────────
     // Atomically escrows native credits and registers the bet in core.
-    // Called directly by the bettor. The escrow_id uses a block-height salt
-    // to prevent same-block collision for identical (caller, market, amount).
+    // Called directly by the bettor. The bettor supplies a private nonce
+    // to ensure a unique escrow_id for repeated identical bets.
 
     async transition place_bet(
         input_credits: credits.aleo/credits,
-        public market_id: field,
-        public outcome: u8,
-        public bet_amount: u64,
+        market_id: field,
+        outcome: u8,
+        bet_amount: u64,
+        bet_nonce: field,
     ) -> (credits.aleo/credits, EscrowedBet, Future) {
         assert(input_credits.microcredits >= bet_amount);
         assert(bet_amount >= MIN_BET);
@@ -68,10 +69,11 @@ program veilmarkets_token_credits_v8.aleo {
                 bet_amount,
             );
 
-        // Escrow ID: hash of caller + market + amount. Salt added in finalize
-        // via block.height to prevent same-block replay.
+        // Escrow ID: include caller + market + outcome + amount + caller-provided nonce
+        // so repeated same-size bets do not collide.
         let escrow_id: field = BHP256::hash_to_field(
-            self.caller as field + market_id + bet_amount as field,
+            self.caller as field + market_id + outcome as field + bet_amount as field
+                + bet_nonce,
         );
 
         let core_future: Future = veilmarkets_v8.aleo/place_bet(
@@ -79,7 +81,6 @@ program veilmarkets_token_credits_v8.aleo {
             outcome,
             bet_amount,
             escrow_id,
-            self.caller,
         );
 
         let bet_record: EscrowedBet = EscrowedBet {

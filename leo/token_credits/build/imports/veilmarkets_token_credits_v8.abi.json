@@ -156,11 +156,13 @@
         {
           "name": "input_credits",
           "ty": {
-            "Record": {
-              "path": [
-                "credits"
-              ],
-              "program": "credits"
+            "Plaintext": {
+              "Struct": {
+                "path": [
+                  "credits"
+                ],
+                "program": "credits"
+              }
             }
           },
           "mode": "None"
@@ -209,11 +211,13 @@
       "outputs": [
         {
           "ty": {
-            "Record": {
-              "path": [
-                "credits"
-              ],
-              "program": "credits"
+            "Plaintext": {
+              "Struct": {
+                "path": [
+                  "credits"
+                ],
+                "program": "credits"
+              }
             }
           },
           "mode": "None"
@@ -263,11 +267,13 @@
       "outputs": [
         {
           "ty": {
-            "Record": {
-              "path": [
-                "credits"
-              ],
-              "program": "credits"
+            "Plaintext": {
+              "Struct": {
+                "path": [
+                  "credits"
+                ],
+                "program": "credits"
+              }
             }
           },
           "mode": "None"
@@ -306,11 +312,13 @@
       "outputs": [
         {
           "ty": {
-            "Record": {
-              "path": [
-                "credits"
-              ],
-              "program": "credits"
+            "Plaintext": {
+              "Struct": {
+                "path": [
+                  "credits"
+                ],
+                "program": "credits"
+              }
             }
           },
           "mode": "None"

@@ -128,6 +128,11 @@ const toMicrocredits = (credits: number): number => Math.max(1_000_000, Math.flo
 const formatU64 = (value: number): string => `${Math.max(0, Math.floor(value))}u64`;
 const formatU8 = (value: number): string => `${Math.max(0, Math.floor(value))}u8`;
 const formatField = (value: string): string => (value.endsWith("field") ? value : `${value}field`);
+const generateRandomField = (): string => {
+  const seed = crypto.getRandomValues(new Uint32Array(2));
+  const randomValue = (BigInt(seed[0]) << 32n) + BigInt(seed[1]);
+  return `${randomValue}field`;
+};
 const USDCX_FREEZELIST_PROGRAM_ID = "test_usdcx_freezelist.aleo";
 const USAD_FREEZELIST_PROGRAM_ID = "test_usad_freezelist.aleo";
 const MIN_ORACLE_STAKE_MICROCREDITS = 30_000_000;
@@ -1200,6 +1205,7 @@ export const useAleoPrograms = () => {
     setLoading(true);
     const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
     const amountMicro = toMicrocredits(amountCredits);
+    const betNonce = generateRandomField();
 
     try {
       const tokenProgram = resolveTokenAdapterProgram(tokenId);
@@ -1267,6 +1273,7 @@ export const useAleoPrograms = () => {
               cleanMarketId,
               formatU8(outcome),
               formatU64(amountMicro),
+              betNonce,
             ],
             fee: 1_500_000,
             privateFee: false,
@@ -1302,6 +1309,7 @@ export const useAleoPrograms = () => {
             cleanMarketId,
             formatU8(outcome),
             formatU64(amountMicro),
+            betNonce,
           ],
           fee: 1_500_000,
           privateFee: false,

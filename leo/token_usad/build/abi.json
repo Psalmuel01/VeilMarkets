@@ -226,7 +226,7 @@
               "Primitive": "Field"
             }
           },
-          "mode": "Public"
+          "mode": "None"
         },
         {
           "name": "outcome",
@@ -237,7 +237,7 @@
               }
             }
           },
-          "mode": "Public"
+          "mode": "None"
         },
         {
           "name": "bet_amount",
@@ -248,7 +248,16 @@
               }
             }
           },
-          "mode": "Public"
+          "mode": "None"
+        },
+        {
+          "name": "bet_nonce",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "None"
         }
       ],
       "outputs": [

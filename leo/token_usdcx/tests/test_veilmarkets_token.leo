@@ -3,8 +3,16 @@ import veilmarkets_token_usdcx_v8.aleo;
 program test_veilmarkets_token.aleo {
     const MIN_BET: u64 = 1000000u64; // 1 USDCx (6 decimals)
 
-    function compute_escrow_id(bettor: address, market_id: field, amount: u64) -> field {
-        return BHP256::hash_to_field(bettor as field + market_id + amount as field);
+    function compute_escrow_id(
+        bettor: address,
+        market_id: field,
+        outcome: u8,
+        amount: u64,
+        bet_nonce: field,
+    ) -> field {
+        return BHP256::hash_to_field(
+            bettor as field + market_id + outcome as field + amount as field + bet_nonce,
+        );
     }
 
     @test
@@ -22,9 +30,12 @@ program test_veilmarkets_token.aleo {
         let bettor_b: address = aleo13wreywph6vpjfcn9z3unaulyv7mgepsu5pzwnzd32786j5gzzvqqrw8565;
         let market_id: field = 88field;
 
-        let escrow_a: field = compute_escrow_id(bettor_a, market_id, 1000000u64);
-        let escrow_b: field = compute_escrow_id(bettor_a, market_id, 2000000u64);
-        let escrow_c: field = compute_escrow_id(bettor_b, market_id, 1000000u64);
+        let escrow_a: field =
+            compute_escrow_id(bettor_a, market_id, 0u8, 1000000u64, 21field);
+        let escrow_b: field =
+            compute_escrow_id(bettor_a, market_id, 0u8, 1000000u64, 22field);
+        let escrow_c: field =
+            compute_escrow_id(bettor_b, market_id, 0u8, 1000000u64, 21field);
 
         assert(escrow_a != escrow_b);
         assert(escrow_a != escrow_c);

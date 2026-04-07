@@ -63,9 +63,10 @@ program veilmarkets_token_usdcx_v8.aleo {
         input_token: test_usdcx_stablecoin.aleo/Token,
         token_proof_0: TokenMerkleProof,
         token_proof_1: TokenMerkleProof,
-        public market_id: field,
-        public outcome: u8,
-        public bet_amount: u64,
+        market_id: field,
+        outcome: u8,
+        bet_amount: u64,
+        bet_nonce: field,
     ) -> (
         test_usdcx_stablecoin.aleo/ComplianceRecord,
         test_usdcx_stablecoin.aleo/Token,
@@ -106,7 +107,8 @@ program veilmarkets_token_usdcx_v8.aleo {
             );
 
         let escrow_id: field = BHP256::hash_to_field(
-            self.caller as field + market_id + bet_amount as field,
+            self.caller as field + market_id + outcome as field + bet_amount as field
+                + bet_nonce,
         );
 
         let core_future: Future = veilmarkets_v8.aleo/place_bet(
@@ -114,7 +116,6 @@ program veilmarkets_token_usdcx_v8.aleo {
             outcome,
             bet_amount,
             escrow_id,
-            self.caller,
         );
 
         let bet_record: EscrowedBet = EscrowedBet {

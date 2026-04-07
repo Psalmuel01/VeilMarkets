@@ -57,7 +57,7 @@ program veilmarkets_v8.aleo {
     mapping markets: field => MarketInfo;
     mapping pools: field => PoolState;
     mapping spent_nullifiers: field => bool; // Anti-replay protection
-    mapping position_to_escrow: field => field; // Maps position hash to escrow id
+    mapping position_to_escrow: field => field; // Maps bet commitment to escrow id
     mapping pending_payouts: field => PayoutClaim; // nullifier => PayoutClaim (for token contract)
 
     // Constants
@@ -155,24 +155,26 @@ program veilmarkets_v8.aleo {
     }
 
     // Place bet - INTEGRATED with token contract
-    // This is called BY the token contract after escrow is confirmed
+    // Called by token adapter. Bet primitives are supplied as private inputs
+    // and linked through a commitment key used in finalize.
     async transition place_bet(
-        public market_id: field,
-        public outcome: u8,
-        public amount: u64,
-        public escrow_id: field, // From token contract
-        public bettor: address,
+        market_id: field,
+        outcome: u8,
+        amount: u64,
+        escrow_id: field, // From token contract
     ) -> Future {
         assert(outcome <= 3u8);
         assert(amount > 0u64);
-        let bettor_hash: field = BHP256::hash_to_field(bettor);
-        let position_hash: field = BHP256::hash_to_field(bettor_hash + market_id + escrow_id);
+        // Commitment key used for escrow linkage without exposing bettor identity.
+        let bet_commitment: field = BHP256::hash_to_field(
+            market_id + outcome as field + amount as field + escrow_id,
+        );
         let f: Future = finalize_place_bet(
             market_id,
             outcome,
             amount,
             escrow_id,
-            position_hash,
+            bet_commitment,
             self.caller,
         );
         return f;
@@ -183,7 +185,7 @@ program veilmarkets_v8.aleo {
         outcome: u8,
         amount: u64,
         escrow_id: field,
-        position_hash: field,
+        bet_commitment: field,
         caller: address,
     ) {
         let market: MarketInfo = Mapping::get(markets, market_id);
@@ -218,15 +220,15 @@ program veilmarkets_v8.aleo {
             escrowed_amount: pool.escrowed_amount + amount,
         };
         Mapping::set(pools, market_id, updated_pool);
-        Mapping::set(position_to_escrow, position_hash, escrow_id);
+        Mapping::set(position_to_escrow, bet_commitment, escrow_id);
     }
 
     // Generate position record (called by user after on-chain confirmation)
     transition mint_position_record(
-        public market_id: field,
-        public outcome: u8,
-        public amount: u64,
-        public escrow_id: field,
+        market_id: field,
+        outcome: u8,
+        amount: u64,
+        escrow_id: field,
     ) -> BetPosition {
         // User generates their own record - only they know the nonce
         // This ensures privacy of the bet details
@@ -287,12 +289,13 @@ program veilmarkets_v8.aleo {
 
     // Claim winnings - with nullifier anti-replay
     async transition claim_winnings(private position: BetPosition) -> (WinningsClaim, Future) {
-        // Generate position hash (verified in finalize)
-        let owner_hash: field = BHP256::hash_to_field(position.owner);
-        let position_hash: field = BHP256::hash_to_field(
-            owner_hash + position.market_id + position.escrow_id,
+        // Commitment must match the one set at placement time.
+        let bet_commitment: field = BHP256::hash_to_field(
+            position.market_id + position.outcome as field + position.amount as field
+                + position.escrow_id,
         );
         // Generate nullifier from position (verified in finalize)
+        let owner_hash: field = BHP256::hash_to_field(position.owner);
         let amount_field: field = position.amount as field;
         let nullifier: field = BHP256::hash_to_field(
             owner_hash + position.market_id + amount_field + position.outcome as field
@@ -304,7 +307,7 @@ program veilmarkets_v8.aleo {
             position.amount,
             position.escrow_id,
             nullifier,
-            position_hash,
+            bet_commitment,
         );
         // Payout computed in finalize, returned in record
         let claim: WinningsClaim = WinningsClaim {
@@ -323,14 +326,14 @@ program veilmarkets_v8.aleo {
         bet_amount: u64,
         escrow_id: field,
         nullifier: field,
-        position_hash: field,
+        bet_commitment: field,
     ) {
         // Anti-replay: check nullifier not spent
         let is_spent: bool = Mapping::get_or_use(spent_nullifiers, nullifier, false);
         assert(!is_spent);
         Mapping::set(spent_nullifiers, nullifier, true);
         // Check escrow link exists and belongs to this position
-        let stored_escrow: field = Mapping::get(position_to_escrow, position_hash);
+        let stored_escrow: field = Mapping::get(position_to_escrow, bet_commitment);
         assert_eq(stored_escrow, escrow_id);
         let market: MarketInfo = Mapping::get(markets, market_id);
         assert(market.is_resolved);

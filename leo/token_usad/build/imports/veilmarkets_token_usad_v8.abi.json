@@ -1,5 +1,5 @@
 {
-  "program": "veilmarkets_token_credits_v8.aleo",
+  "program": "veilmarkets_token_usad_v8.aleo",
   "structs": [
     {
       "path": [
@@ -38,6 +38,32 @@
           "name": "escrow_id",
           "ty": {
             "Primitive": "Field"
+          }
+        }
+      ]
+    },
+    {
+      "path": [
+        "TokenMerkleProof"
+      ],
+      "fields": [
+        {
+          "name": "siblings",
+          "ty": {
+            "Array": {
+              "element": {
+                "Primitive": "Field"
+              },
+              "length": 16
+            }
+          }
+        },
+        {
+          "name": "leaf_index",
+          "ty": {
+            "Primitive": {
+              "UInt": "U32"
+            }
           }
         }
       ]
@@ -120,7 +146,7 @@
           "path": [
             "EscrowInfo"
           ],
-          "program": "veilmarkets_token_credits_v8"
+          "program": "veilmarkets_token_usad_v8"
         }
       }
     },
@@ -154,13 +180,43 @@
       "is_async": true,
       "inputs": [
         {
-          "name": "input_credits",
+          "name": "input_token",
           "ty": {
-            "Record": {
-              "path": [
-                "credits"
-              ],
-              "program": "credits"
+            "Plaintext": {
+              "Struct": {
+                "path": [
+                  "Token"
+                ],
+                "program": "test_usad_stablecoin"
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "token_proof_0",
+          "ty": {
+            "Plaintext": {
+              "Struct": {
+                "path": [
+                  "TokenMerkleProof"
+                ],
+                "program": "veilmarkets_token_usad_v8"
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "token_proof_1",
+          "ty": {
+            "Plaintext": {
+              "Struct": {
+                "path": [
+                  "TokenMerkleProof"
+                ],
+                "program": "veilmarkets_token_usad_v8"
+              }
             }
           },
           "mode": "None"
@@ -209,11 +265,26 @@
       "outputs": [
         {
           "ty": {
-            "Record": {
-              "path": [
-                "credits"
-              ],
-              "program": "credits"
+            "Plaintext": {
+              "Struct": {
+                "path": [
+                  "ComplianceRecord"
+                ],
+                "program": "test_usad_stablecoin"
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": {
+            "Plaintext": {
+              "Struct": {
+                "path": [
+                  "Token"
+                ],
+                "program": "test_usad_stablecoin"
+              }
             }
           },
           "mode": "None"
@@ -224,7 +295,7 @@
               "path": [
                 "EscrowedBet"
               ],
-              "program": "veilmarkets_token_credits_v8"
+              "program": "veilmarkets_token_usad_v8"
             }
           },
           "mode": "None"
@@ -263,11 +334,26 @@
       "outputs": [
         {
           "ty": {
-            "Record": {
-              "path": [
-                "credits"
-              ],
-              "program": "credits"
+            "Plaintext": {
+              "Struct": {
+                "path": [
+                  "ComplianceRecord"
+                ],
+                "program": "test_usad_stablecoin"
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": {
+            "Plaintext": {
+              "Struct": {
+                "path": [
+                  "Token"
+                ],
+                "program": "test_usad_stablecoin"
+              }
             }
           },
           "mode": "None"
@@ -306,11 +392,26 @@
       "outputs": [
         {
           "ty": {
-            "Record": {
-              "path": [
-                "credits"
-              ],
-              "program": "credits"
+            "Plaintext": {
+              "Struct": {
+                "path": [
+                  "ComplianceRecord"
+                ],
+                "program": "test_usad_stablecoin"
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": {
+            "Plaintext": {
+              "Struct": {
+                "path": [
+                  "Token"
+                ],
+                "program": "test_usad_stablecoin"
+              }
             }
           },
           "mode": "None"

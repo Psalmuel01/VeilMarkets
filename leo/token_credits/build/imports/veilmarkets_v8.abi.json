@@ -428,7 +428,7 @@
               "Primitive": "Field"
             }
           },
-          "mode": "Public"
+          "mode": "None"
         },
         {
           "name": "outcome",
@@ -439,7 +439,7 @@
               }
             }
           },
-          "mode": "Public"
+          "mode": "None"
         },
         {
           "name": "amount",
@@ -450,7 +450,7 @@
               }
             }
           },
-          "mode": "Public"
+          "mode": "None"
         },
         {
           "name": "escrow_id",
@@ -459,16 +459,7 @@
               "Primitive": "Field"
             }
           },
-          "mode": "Public"
-        },
-        {
-          "name": "bettor",
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Address"
-            }
-          },
-          "mode": "Public"
+          "mode": "None"
         }
       ],
       "outputs": [
@@ -489,7 +480,7 @@
               "Primitive": "Field"
             }
           },
-          "mode": "Public"
+          "mode": "None"
         },
         {
           "name": "outcome",
@@ -500,7 +491,7 @@
               }
             }
           },
-          "mode": "Public"
+          "mode": "None"
         },
         {
           "name": "amount",
@@ -511,7 +502,7 @@
               }
             }
           },
-          "mode": "Public"
+          "mode": "None"
         },
         {
           "name": "escrow_id",
@@ -520,7 +511,7 @@
               "Primitive": "Field"
             }
           },
-          "mode": "Public"
+          "mode": "None"
         }
       ],
       "outputs": [
