@@ -1,10 +1,10 @@
-import veilmarkets_factory_v8.aleo;
-import veilmarkets_v8.aleo;
+import veilmarkets_factory_v9.aleo;
+import veilmarkets_v9.aleo;
 import merkle_tree.aleo;
 import test_usdcx_multisig_core.aleo;
 import test_usdcx_freezelist.aleo;
 import test_usdcx_stablecoin.aleo;
-import veilmarkets_token_usdcx_v8.aleo;
+import veilmarkets_token_usdcx_v9.aleo;
 program test_veilmarkets_token.aleo;
 
 function usdcx_min_bet_decimal:

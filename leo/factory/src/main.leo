@@ -1,25 +1,32 @@
-// VeilMarkets Factory
-// Central deployment and permission management
-// All contracts verify against this factory's registry
-program veilmarkets_factory_v8.aleo {
-    // Contract registry - maps address to official type
+// VeilMarkets Factory (v9)
+// Canonical registry + trust anchor for cross-program authorization.
+program veilmarkets_factory_v9.aleo {
     mapping contracts: address => u8;
 
-    // Initialize with admin
+    const TYPE_TOKEN: u8 = 1u8;
+    const TYPE_ORACLE: u8 = 2u8;
+    const TYPE_CORE: u8 = 3u8;
+    const TYPE_GOVERNANCE: u8 = 4u8;
+    const ADMIN: address = aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
+
     @admin(address = "aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n")
     async constructor() {}
 
-    // Register a contract address for a specific type
-    // Types: 1 = TOKEN, 2 = ORACLE, 3 = CORE (reserved)
     async transition register_contract(public contract_type: u8, public contract_address: address) -> Future {
-        return finalize_register_contract(contract_type, contract_address);
+        return finalize_register_contract(contract_type, contract_address, self.caller);
     }
 
-    async function finalize_register_contract(contract_type: u8, contract_address: address) {
+    async function finalize_register_contract(contract_type: u8, contract_address: address, caller: address) {
+        assert_eq(caller, ADMIN);
+        assert(
+            contract_type == TYPE_TOKEN
+                || contract_type == TYPE_ORACLE
+                || contract_type == TYPE_CORE
+                || contract_type == TYPE_GOVERNANCE
+        );
         Mapping::set(contracts, contract_address, contract_type);
     }
 
-    // Authentication helper for cross-contract calls
     async transition verify_is_registered(public contract_type: u8, public caller_address: address) -> Future {
         return finalize_verify_is_registered(contract_type, caller_address);
     }

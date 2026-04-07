@@ -1,5 +1,5 @@
-import veilmarkets_factory_v8.aleo;
-import veilmarkets_v8.aleo;
+import veilmarkets_factory_v9.aleo;
+import veilmarkets_v9.aleo;
 program test_veilmarkets.aleo;
 
 closure is_valid_market_shape:
@@ -9,7 +9,7 @@ closure is_valid_market_shape:
     is.eq r0 0u8 into r3;
     is.eq r1 2u8 into r4;
     lt r1 2u8 into r5;
-    lte r1 8u8 into r6;
+    lte r1 32u8 into r6;
     ternary r5 false r6 into r7;
     ternary r3 r4 r7 into r8;
     ternary r2 false r8 into r9;
@@ -24,13 +24,13 @@ function validates_market_shape_rules:
     assert.eq r2 true;
     call is_valid_market_shape 1u8 4u8 into r3;
     assert.eq r3 true;
-    call is_valid_market_shape 1u8 8u8 into r4;
+    call is_valid_market_shape 1u8 32u8 into r4;
     assert.eq r4 true;
     call is_valid_market_shape 0u8 3u8 into r5;
     assert.eq r5 false;
     call is_valid_market_shape 1u8 1u8 into r6;
     assert.eq r6 false;
-    call is_valid_market_shape 1u8 9u8 into r7;
+    call is_valid_market_shape 1u8 33u8 into r7;
     assert.eq r7 false;
     call is_valid_market_shape 2u8 2u8 into r8;
     assert.eq r8 false;

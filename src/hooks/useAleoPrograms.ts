@@ -45,6 +45,7 @@ import {
   CREDITS_TOKEN_PROGRAM_ID,
   USDCX_TOKEN_PROGRAM_ID,
   USAD_TOKEN_PROGRAM_ID,
+  LEGACY_PROGRAM_ID,
   resolveTokenAdapterProgram,
   resolveTokenBaseProgram,
   resolveTokenTicker,
@@ -53,6 +54,7 @@ import {
 } from "../lib/constants";
 
 export interface ChainMarket {
+  program_id?: string;
   creator: string;
   title_hash: string;
   category: number;
@@ -725,8 +727,12 @@ export const useAleoPrograms = () => {
         try {
           const cleanId = row.market_id.replace(/field$/i, '').trim();
           const fieldId = `${cleanId}field`;
+          const sourceProgramId =
+            typeof row.program_id === "string" && row.program_id.trim().length > 0
+              ? row.program_id.trim()
+              : PROGRAM_ID;
 
-          const raw = await fetchMappingValue(PROGRAM_ID, "markets", fieldId);
+          const raw = await fetchMappingValue(sourceProgramId, "markets", fieldId);
           // console.log(`[fetchMarkets] On-chain data for ${fieldId}:`, raw);
 
           if (!raw) {
@@ -738,6 +744,7 @@ export const useAleoPrograms = () => {
 
           return {
             ...parsed,
+            program_id: sourceProgramId,
             id: parsed.id || fieldId,
             title: row.title || `Market ${row.market_id.slice(0, 8)}...`,
             description: row.description || 'No description.',
@@ -779,7 +786,10 @@ export const useAleoPrograms = () => {
   const fetchPoolStats = useCallback(async (marketId: string): Promise<PoolInfo | null> => {
     try {
       const cleanedId = marketId.replace("field", "").trim() + "field";
-      const raw = await fetchMappingValue(PROGRAM_ID, "pools", cleanedId);
+      let raw = await fetchMappingValue(PROGRAM_ID, "pools", cleanedId);
+      if (!raw) {
+        raw = await fetchMappingValue(LEGACY_PROGRAM_ID, "pools", cleanedId);
+      }
       if (!raw) return null;
       return parsePoolInfo(raw as any);
     } catch (error) {
@@ -1018,7 +1028,7 @@ export const useAleoPrograms = () => {
           } catch (metadataError) {
             const maybeError = metadataError as { code?: string; message?: string };
             if (maybeError?.code === "42501") {
-              toast.warning("Market created on-chain, but metadata save was blocked by Supabase RLS for markets_v8.");
+              toast.warning("Market created on-chain, but metadata save was blocked by Supabase RLS for markets_v9.");
             } else {
               toast.warning("Market created on-chain, but metadata save failed.");
             }
@@ -1208,6 +1218,17 @@ export const useAleoPrograms = () => {
     const betNonce = generateRandomField();
 
     try {
+      const v9Market = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
+      if (!v9Market) {
+        const legacyMarket = await fetchMappingValue(LEGACY_PROGRAM_ID, "markets", cleanMarketId);
+        if (legacyMarket) {
+          toast.error("This market is legacy v8 and is now read-only. Please create/trade on v9 markets.");
+        } else {
+          toast.error("Market not found on v9.");
+        }
+        return;
+      }
+
       const tokenProgram = resolveTokenAdapterProgram(tokenId);
       const tokenKind = resolveTokenKind(tokenId);
       const tokenLabel = resolveTokenDisplayName(tokenId);
@@ -1320,6 +1341,109 @@ export const useAleoPrograms = () => {
       return betResult ? betResult.transactionId : null;
     } catch (error) {
       console.error("Place bet failed:", error);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fundPool = async (marketId: string, amountCredits: number, tokenId: string) => {
+    if (!address) {
+      toast.error("Please connect your wallet first");
+      return null;
+    }
+
+    setLoading(true);
+    const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+    const amountMicro = toMicrocredits(amountCredits);
+    const lpNonce = generateRandomField();
+
+    try {
+      const tokenProgram = resolveTokenAdapterProgram(tokenId);
+      const tokenKind = resolveTokenKind(tokenId);
+      const tokenLabel = resolveTokenDisplayName(tokenId);
+
+      if (!tokenProgram || !tokenKind) {
+        toast.error(`Unsupported market token: ${tokenId}`);
+        return null;
+      }
+
+      const v9Market = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
+      if (!v9Market) {
+        toast.error("Pool funding is only available for v9 markets.");
+        return null;
+      }
+
+      toast.info(`Funding pool with ${tokenLabel}...`);
+
+      if (tokenKind === "usdcx" || tokenKind === "usad") {
+        const baseTokenProgram = resolveTokenBaseProgram(tokenId);
+        if (!baseTokenProgram) return null;
+
+        const tokenRecord = await findTokenRecord(baseTokenProgram, amountMicro);
+        if (!tokenRecord) {
+          toast.error(`Insufficient private ${tokenLabel} balance.`);
+          return null;
+        }
+
+        const tokenInput = extractRecordPlaintextInput(tokenRecord, ["owner", "amount"]);
+        if (!tokenInput) {
+          toast.error(`Unable to prepare private ${tokenLabel} record input.`);
+          return null;
+        }
+
+        const generatedProofInputs = await buildStablecoinMerkleProofInputs(baseTokenProgram);
+        const walletProofInputs = extractUsdcMerkleProofInputs(tokenRecord);
+        const proof = generatedProofInputs ?? walletProofInputs;
+        if (!proof) {
+          toast.error(`Missing private ${tokenLabel} proof inputs. Reconnect wallet and try again.`);
+          return null;
+        }
+
+        const result = await executeAndPoll({
+          program: tokenProgram,
+          function: "fund_pool",
+          inputs: [
+            tokenInput,
+            proof[0],
+            proof[1],
+            cleanMarketId,
+            formatU64(amountMicro),
+            lpNonce,
+          ],
+          fee: 1_500_000,
+          privateFee: false,
+        }, tokenProgram, "fund_pool");
+
+        if (result) triggerRefresh();
+        return result ? result.transactionId : null;
+      }
+
+      const creditsRecord = await findTokenRecord("credits.aleo", amountMicro);
+      if (!creditsRecord) {
+        toast.error("Insufficient private Aleo Credits balance.");
+        return null;
+      }
+      const creditsInput =
+        extractRecordPlaintextInput(creditsRecord, ["owner", "microcredits"]) ??
+        (creditsRecord.recordPlaintext || creditsRecord.plaintext);
+      if (!creditsInput) {
+        toast.error("Unable to prepare private credits record input.");
+        return null;
+      }
+
+      const result = await executeAndPoll({
+        program: tokenProgram,
+        function: "fund_pool",
+        inputs: [creditsInput, cleanMarketId, formatU64(amountMicro), lpNonce],
+        fee: 1_500_000,
+        privateFee: false,
+      }, tokenProgram, "fund_pool");
+
+      if (result) triggerRefresh();
+      return result ? result.transactionId : null;
+    } catch (error) {
+      console.error("Fund pool failed:", error);
       return null;
     } finally {
       setLoading(false);
@@ -1504,6 +1628,15 @@ export const useAleoPrograms = () => {
     try {
       const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
       const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
+      if (!marketRaw) {
+        const legacyMarket = await fetchMappingValue(LEGACY_PROGRAM_ID, "markets", cleanMarketId);
+        if (legacyMarket) {
+          toast.error("v8 markets are legacy read-only in this app. Claim from the v8 flow if needed.");
+        } else {
+          toast.error("Market not found on v9.");
+        }
+        return null;
+      }
       const marketInfo = marketRaw ? parseMarketInfo(marketRaw as string | object, cleanMarketId) : null;
       const payoutTokenProgram = resolveTokenAdapterProgram(marketInfo?.token_id ?? "");
       const payoutTicker = resolveTokenTicker(marketInfo?.token_id ?? "");
@@ -1639,6 +1772,7 @@ export const useAleoPrograms = () => {
   return {
     createMarket,
     placeBet,
+    fundPool,
     resolveMarket: resolveMarketOnCore,
     proposeResolution,
     disputeResolution,

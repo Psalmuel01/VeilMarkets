@@ -33,7 +33,7 @@ describe("aleo parsing helpers", () => {
         transitions: [
           {
             function: "create_market",
-            program: "veilmarkets_v8.aleo",
+            program: "veilmarkets_v9.aleo",
             outputs: [{ value: { arguments: ["987654field"] } }],
           },
         ],

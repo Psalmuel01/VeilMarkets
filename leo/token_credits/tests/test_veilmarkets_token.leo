@@ -1,4 +1,4 @@
-import veilmarkets_token_credits_v8.aleo;
+import veilmarkets_token_credits_v9.aleo;
 
 program test_veilmarkets_token.aleo {
     const MIN_BET: u64 = 1000000u64;

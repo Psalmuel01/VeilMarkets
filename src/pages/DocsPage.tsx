@@ -21,7 +21,7 @@ const sections = [
     content: [
       {
         title: "What is VeilMarkets?",
-        description: "VeilMarkets is a privacy-first prediction market platform built on Aleo. It supports binary and categorical markets (2-8 outcomes) with settlement in Aleo Credits, USDCx, or USAD.",
+        description: "VeilMarkets is a privacy-first prediction market platform built on Aleo. It supports binary and categorical markets (2-32 outcomes) with settlement in Aleo Credits, USDCx, or USAD.",
       },
       {
         title: "How do I participate?",
@@ -69,7 +69,7 @@ const sections = [
   },
   {
     id: "whats-new",
-    title: "What's New in v8",
+    title: "What's New in v9",
     icon: Zap,
     content: [
       {
@@ -112,7 +112,7 @@ const sections = [
       },
       {
         title: "Smart contracts",
-        description: "The v8 suite includes factory, core, oracle, and token adapters (Credits, USDCx, USAD). Together they enforce market creation, escrow, resolution, and payout verification.",
+        description: "The v9 suite includes factory, core, oracle, governance, and token adapters (Credits, USDCx, USAD). Together they enforce market creation, escrow, quorum resolution, governance-bound params, and payout verification.",
       },
     ],
   },
@@ -185,7 +185,7 @@ export default function DocsPage() {
             <h1 className="text-4xl font-bold">Documentation</h1>
           </div>
           <p className="text-muted-foreground text-lg">
-            Learn how VeilMarkets v8 powers private multi-outcome prediction markets with multi-token settlement on Aleo
+            Learn how VeilMarkets v9 powers private multi-outcome prediction markets with multi-token settlement on Aleo
           </p>
         </motion.div>
 

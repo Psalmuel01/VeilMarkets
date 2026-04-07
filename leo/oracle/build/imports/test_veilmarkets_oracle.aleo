@@ -1,7 +1,7 @@
-import veilmarkets_factory_v8.aleo;
-import veilmarkets_v8.aleo;
+import veilmarkets_factory_v9.aleo;
+import veilmarkets_v9.aleo;
 import credits.aleo;
-import veilmarkets_oracle_v8.aleo;
+import veilmarkets_oracle_v9.aleo;
 program test_veilmarkets_oracle.aleo;
 
 closure compute_disputed_winner:
@@ -54,7 +54,7 @@ function split_proposer_wins:
     assert.eq 45000000u64 45000000u64;
 
 function deadline_adds_window:
-    assert.eq 100300u64 100300u64;
+    assert.eq 110800u64 110800u64;
 
 constructor:
     assert.eq edition 0u16;

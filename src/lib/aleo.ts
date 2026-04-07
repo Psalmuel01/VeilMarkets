@@ -55,6 +55,9 @@ export interface PoolInfo {
   total_yes: number;
   participant_count: number;
   locked: boolean;
+  total_collateral: number;
+  total_shares: number;
+  lp_supply: number;
   escrowed_amount: number;
 }
 
@@ -375,6 +378,9 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
     total_yes: 0,
     participant_count: 0,
     locked: false,
+    total_collateral: 0,
+    total_shares: 0,
+    lp_supply: 0,
     escrowed_amount: 0,
   };
 
@@ -403,7 +409,10 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
       total_yes: totalOutcome1,
       participant_count: parseAleoInt(obj.participant_count),
       locked: parseAleoBool(obj.locked),
-      escrowed_amount: parseAleoInt(obj.escrowed_amount),
+      total_collateral: parseAleoInt(obj.total_collateral),
+      total_shares: parseAleoInt(obj.total_shares),
+      lp_supply: parseAleoInt(obj.lp_supply),
+      escrowed_amount: parseAleoInt(obj.escrowed_amount ?? obj.total_collateral),
     };
   }
 
@@ -436,6 +445,9 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
       key === "total_no" ||
       key === "total_yes" ||
       key === "participant_count" ||
+      key === "total_collateral" ||
+      key === "total_shares" ||
+      key === "lp_supply" ||
       key === "escrowed_amount"
     ) {
       parsed[key] = parseAleoInt(value) as never;

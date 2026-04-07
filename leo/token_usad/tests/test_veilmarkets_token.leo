@@ -1,4 +1,4 @@
-import veilmarkets_token_usad_v8.aleo;
+import veilmarkets_token_usad_v9.aleo;
 
 program test_veilmarkets_token.aleo {
     const MIN_BET: u64 = 1000000u64; // 1 USAD (6 decimals)

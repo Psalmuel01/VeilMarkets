@@ -1,5 +1,5 @@
 {
-  "program": "veilmarkets_oracle_v8.aleo",
+  "program": "veilmarkets_oracle_v9.aleo",
   "structs": [
     {
       "path": [
@@ -124,7 +124,7 @@
           "path": [
             "ResolutionProposal"
           ],
-          "program": "veilmarkets_oracle_v8"
+          "program": "veilmarkets_oracle_v9"
         }
       }
     },
@@ -151,6 +151,17 @@
       }
     },
     {
+      "name": "vote_weight_totals",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
       "name": "disputes",
       "key": {
         "Primitive": "Field"
@@ -160,7 +171,33 @@
           "path": [
             "Dispute"
           ],
-          "program": "veilmarkets_oracle_v8"
+          "program": "veilmarkets_oracle_v9"
+        }
+      }
+    },
+    {
+      "name": "oracle_u64",
+      "key": {
+        "Primitive": {
+          "UInt": "U8"
+        }
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "oracle_u8",
+      "key": {
+        "Primitive": {
+          "UInt": "U8"
+        }
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U8"
         }
       }
     }
@@ -213,7 +250,7 @@
               "path": [
                 "OracleCredential"
               ],
-              "program": "veilmarkets_oracle_v8"
+              "program": "veilmarkets_oracle_v9"
             }
           },
           "mode": "None"
@@ -322,7 +359,7 @@
               "path": [
                 "OracleCredential"
               ],
-              "program": "veilmarkets_oracle_v8"
+              "program": "veilmarkets_oracle_v9"
             }
           },
           "mode": "None"
@@ -355,7 +392,62 @@
               "path": [
                 "OracleCredential"
               ],
-              "program": "veilmarkets_oracle_v8"
+              "program": "veilmarkets_oracle_v9"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Future",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "submit_quorum_vote",
+      "is_async": true,
+      "inputs": [
+        {
+          "name": "credential",
+          "ty": {
+            "Record": {
+              "path": [
+                "OracleCredential"
+              ],
+              "program": "veilmarkets_oracle_v9"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "market_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "outcome",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U8"
+              }
+            }
+          },
+          "mode": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "OracleCredential"
+              ],
+              "program": "veilmarkets_oracle_v9"
             }
           },
           "mode": "None"
@@ -368,6 +460,38 @@
     },
     {
       "name": "resolve_on_core",
+      "is_async": true,
+      "inputs": [
+        {
+          "name": "market_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "outcome",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U8"
+              }
+            }
+          },
+          "mode": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": "Future",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "execute_quorum_resolution",
       "is_async": true,
       "inputs": [
         {
@@ -426,6 +550,74 @@
           },
           "mode": "None"
         },
+        {
+          "ty": "Future",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "set_protocol_u64",
+      "is_async": true,
+      "inputs": [
+        {
+          "name": "param_key",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U8"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "value",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": "Future",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "set_protocol_u8",
+      "is_async": true,
+      "inputs": [
+        {
+          "name": "param_key",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U8"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "value",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U8"
+              }
+            }
+          },
+          "mode": "Public"
+        }
+      ],
+      "outputs": [
         {
           "ty": "Future",
           "mode": "None"

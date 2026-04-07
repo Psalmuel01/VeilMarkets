@@ -1,11 +1,11 @@
-import veilmarkets_factory_v8.aleo;
+import veilmarkets_factory_v9.aleo;
 
 program test_factory.aleo {
     function is_valid_registry_type(contract_type: u8) -> bool {
         if (contract_type < 1u8) {
             return false;
         }
-        return contract_type <= 3u8;
+        return contract_type <= 4u8;
     }
 
     @test
@@ -13,12 +13,14 @@ program test_factory.aleo {
         let token_type: u8 = 1u8;
         let oracle_type: u8 = 2u8;
         let core_type: u8 = 3u8;
+        let governance_type: u8 = 4u8;
 
         assert_eq(is_valid_registry_type(token_type), true);
         assert_eq(is_valid_registry_type(oracle_type), true);
         assert_eq(is_valid_registry_type(core_type), true);
+        assert_eq(is_valid_registry_type(governance_type), true);
         assert_eq(is_valid_registry_type(0u8), false);
-        assert_eq(is_valid_registry_type(4u8), false);
+        assert_eq(is_valid_registry_type(5u8), false);
     }
 
     @test

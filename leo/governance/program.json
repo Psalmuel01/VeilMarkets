@@ -1,0 +1,20 @@
+{
+  "program": "veilmarkets_governance_v9.aleo",
+  "version": "0.1.0",
+  "description": "",
+  "license": "MIT",
+  "leo": "3.5.0",
+  "dependencies": [
+    {
+      "name": "veilmarkets_v9.aleo",
+      "location": "local",
+      "path": "../core"
+    },
+    {
+      "name": "veilmarkets_oracle_v9.aleo",
+      "location": "local",
+      "path": "../oracle"
+    }
+  ],
+  "dev_dependencies": null
+}

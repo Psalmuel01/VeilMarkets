@@ -1,6 +1,8 @@
 import { supabase } from "./supabase";
+import { LEGACY_PROGRAM_ID, PROGRAM_ID } from "./constants";
 
-const MARKETS_TABLE = "markets_v8";
+const MARKETS_TABLE_V9 = "markets_v9";
+const MARKETS_TABLE_V8 = "markets_v8";
 
 export interface MarketMetadata {
   title: string;
@@ -9,6 +11,7 @@ export interface MarketMetadata {
 }
 
 export interface MarketMetadataRow {
+  program_id?: string;
   transaction_id: string;
   market_id: string;
   title: string;
@@ -48,9 +51,10 @@ export const saveMarketMetadata = async (payload: SaveMarketMetadataInput) => {
     .filter((label) => label.length > 0);
 
   const { data, error } = await supabase
-    .from(MARKETS_TABLE)
+    .from(MARKETS_TABLE_V9)
     .insert([
       {
+        program_id: PROGRAM_ID,
         transaction_id: payload.transaction_id,
         market_id: payload.market_id,
         title: payload.title,
@@ -78,19 +82,30 @@ export const saveMarketMetadata = async (payload: SaveMarketMetadataInput) => {
 
 export const getAllMarketMetadata = async (): Promise<MarketMetadataRow[]> => {
   try {
-    const { data, error } = await supabase
-      .from(MARKETS_TABLE)
-      .select(
-        "market_id, transaction_id, title, description, source, category, market_type, outcome_count, outcome_labels, token_id, close_time, resolution_time, created_by, created_at, expiry_time",
-      )
-      .order("created_at", { ascending: false });
+    const [v9Result, v8Result] = await Promise.all([
+      supabase
+        .from(MARKETS_TABLE_V9)
+        .select(
+          "program_id, market_id, transaction_id, title, description, source, category, market_type, outcome_count, outcome_labels, token_id, close_time, resolution_time, created_by, created_at, expiry_time",
+        )
+        .order("created_at", { ascending: false }),
+      supabase
+        .from(MARKETS_TABLE_V8)
+        .select(
+          "market_id, transaction_id, title, description, source, category, market_type, outcome_count, outcome_labels, token_id, close_time, resolution_time, created_by, created_at, expiry_time",
+        )
+        .order("created_at", { ascending: false }),
+    ]);
 
-    if (error) {
-      console.error("[getAllMarketMetadata] Error:", error.message);
-      return [];
+    if (v9Result.error && v9Result.error.code !== "42P01") {
+      console.error("[getAllMarketMetadata] v9 Error:", v9Result.error.message);
+    }
+    if (v8Result.error && v8Result.error.code !== "42P01") {
+      console.error("[getAllMarketMetadata] v8 Error:", v8Result.error.message);
     }
 
-    return (data ?? []).map((row) => ({
+    const v9Rows = (v9Result.data ?? []).map((row) => ({
+      program_id: String(row.program_id ?? PROGRAM_ID),
       market_id: row.market_id,
       transaction_id: row.transaction_id,
       title: row.title,
@@ -109,6 +124,39 @@ export const getAllMarketMetadata = async (): Promise<MarketMetadataRow[]> => {
       created_at: row.created_at,
       expiry_time: row.expiry_time ? Number(row.expiry_time) : undefined,
     }));
+
+    const v8Rows = (v8Result.data ?? []).map((row) => ({
+      program_id: LEGACY_PROGRAM_ID,
+      market_id: row.market_id,
+      transaction_id: row.transaction_id,
+      title: row.title,
+      description: row.description,
+      source: row.source || "Creator",
+      category: Number(row.category ?? 0),
+      market_type: Number(row.market_type ?? 0),
+      outcome_count: Number(row.outcome_count ?? 2),
+      outcome_labels: Array.isArray(row.outcome_labels)
+        ? row.outcome_labels.map((label: unknown) => String(label))
+        : ["No", "Yes"],
+      token_id: String(row.token_id ?? ""),
+      close_time: Number(row.close_time ?? 0),
+      resolution_time: Number(row.resolution_time ?? 0),
+      created_by: row.created_by ? String(row.created_by) : undefined,
+      created_at: row.created_at,
+      expiry_time: row.expiry_time ? Number(row.expiry_time) : undefined,
+    }));
+
+    const deduped = new Map<string, MarketMetadataRow>();
+    [...v9Rows, ...v8Rows].forEach((row) => {
+      const key = `${row.program_id ?? PROGRAM_ID}:${row.market_id}`;
+      if (!deduped.has(key)) deduped.set(key, row);
+    });
+
+    return Array.from(deduped.values()).sort((a, b) => {
+      const tsA = a.created_at ? Date.parse(a.created_at) : 0;
+      const tsB = b.created_at ? Date.parse(b.created_at) : 0;
+      return tsB - tsA;
+    });
   } catch (e) {
     console.error("[getAllMarketMetadata] Failed:", e);
     return [];
@@ -118,37 +166,73 @@ export const getAllMarketMetadata = async (): Promise<MarketMetadataRow[]> => {
 export const getMarketMetadata = async (marketId: string): Promise<MarketMetadataRow | null> => {
   try {
     const { data, error } = await supabase
-      .from(MARKETS_TABLE)
+      .from(MARKETS_TABLE_V9)
+      .select(
+        "program_id, market_id, transaction_id, title, description, source, category, market_type, outcome_count, outcome_labels, token_id, close_time, resolution_time, created_by, created_at, expiry_time",
+      )
+      .eq("market_id", marketId)
+      .maybeSingle();
+
+    if (error && error.code !== "PGRST116") {
+      console.error("[getMarketMetadata] Error:", error.message);
+    }
+
+    if (data) {
+      return {
+        program_id: String(data.program_id ?? PROGRAM_ID),
+        market_id: data.market_id,
+        transaction_id: data.transaction_id,
+        title: data.title,
+        description: data.description,
+        source: data.source || "Creator",
+        category: Number(data.category ?? 0),
+        market_type: Number(data.market_type ?? 0),
+        outcome_count: Number(data.outcome_count ?? 2),
+        outcome_labels: Array.isArray(data.outcome_labels)
+          ? data.outcome_labels.map((label: unknown) => String(label))
+          : ["No", "Yes"],
+        token_id: String(data.token_id ?? ""),
+        close_time: Number(data.close_time ?? 0),
+        resolution_time: Number(data.resolution_time ?? 0),
+        created_by: data.created_by ? String(data.created_by) : undefined,
+        created_at: data.created_at ?? undefined,
+        expiry_time: data.expiry_time ? Number(data.expiry_time) : undefined,
+      };
+    }
+
+    const legacy = await supabase
+      .from(MARKETS_TABLE_V8)
       .select(
         "market_id, transaction_id, title, description, source, category, market_type, outcome_count, outcome_labels, token_id, close_time, resolution_time, created_by, created_at, expiry_time",
       )
       .eq("market_id", marketId)
       .maybeSingle();
 
-    if (error) {
-      console.error("[getMarketMetadata] Error:", error.message);
+    if (legacy.error) {
+      console.error("[getMarketMetadata] Legacy fallback error:", legacy.error.message);
       return null;
     }
+    if (!legacy.data) return null;
 
-    if (!data) return null;
     return {
-      market_id: data.market_id,
-      transaction_id: data.transaction_id,
-      title: data.title,
-      description: data.description,
-      source: data.source || "Creator",
-      category: Number(data.category ?? 0),
-      market_type: Number(data.market_type ?? 0),
-      outcome_count: Number(data.outcome_count ?? 2),
-      outcome_labels: Array.isArray(data.outcome_labels)
-        ? data.outcome_labels.map((label: unknown) => String(label))
+      program_id: LEGACY_PROGRAM_ID,
+      market_id: legacy.data.market_id,
+      transaction_id: legacy.data.transaction_id,
+      title: legacy.data.title,
+      description: legacy.data.description,
+      source: legacy.data.source || "Creator",
+      category: Number(legacy.data.category ?? 0),
+      market_type: Number(legacy.data.market_type ?? 0),
+      outcome_count: Number(legacy.data.outcome_count ?? 2),
+      outcome_labels: Array.isArray(legacy.data.outcome_labels)
+        ? legacy.data.outcome_labels.map((label: unknown) => String(label))
         : ["No", "Yes"],
-      token_id: String(data.token_id ?? ""),
-      close_time: Number(data.close_time ?? 0),
-      resolution_time: Number(data.resolution_time ?? 0),
-      created_by: data.created_by ? String(data.created_by) : undefined,
-      created_at: data.created_at ?? undefined,
-      expiry_time: data.expiry_time ? Number(data.expiry_time) : undefined,
+      token_id: String(legacy.data.token_id ?? ""),
+      close_time: Number(legacy.data.close_time ?? 0),
+      resolution_time: Number(legacy.data.resolution_time ?? 0),
+      created_by: legacy.data.created_by ? String(legacy.data.created_by) : undefined,
+      created_at: legacy.data.created_at ?? undefined,
+      expiry_time: legacy.data.expiry_time ? Number(legacy.data.expiry_time) : undefined,
     };
   } catch (e) {
     console.error("[getMarketMetadata] Failed:", e);

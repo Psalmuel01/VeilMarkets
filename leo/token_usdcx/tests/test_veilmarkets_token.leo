@@ -1,4 +1,4 @@
-import veilmarkets_token_usdcx_v8.aleo;
+import veilmarkets_token_usdcx_v9.aleo;
 
 program test_veilmarkets_token.aleo {
     const MIN_BET: u64 = 1000000u64; // 1 USDCx (6 decimals)

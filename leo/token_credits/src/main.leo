@@ -1,15 +1,15 @@
 // VeilMarkets Token — Credits Adapter (v8)
 // Handles betting and pro-rata payouts using native credits.aleo
 import credits.aleo;
-import veilmarkets_v8.aleo;
-import veilmarkets_factory_v8.aleo;
+import veilmarkets_v9.aleo;
+import veilmarkets_factory_v9.aleo;
 
-program veilmarkets_token_credits_v8.aleo {
+program veilmarkets_token_credits_v9.aleo {
 
     // ── Structs ────────────────────────────────────────────────────────────────
 
     struct EscrowInfo {
-        holder: address,
+        holder_commitment: field,
         market_id: field,
         amount: u64,
         outcome: u8,
@@ -59,7 +59,7 @@ program veilmarkets_token_credits_v8.aleo {
     ) -> (credits.aleo/credits, EscrowedBet, Future) {
         assert(input_credits.microcredits >= bet_amount);
         assert(bet_amount >= MIN_BET);
-        assert(outcome <= 7u8);
+        assert(outcome <= 31u8);
 
         // Transfer bet_amount to this contract's public balance
         let (change, transfer_future): (credits.aleo/credits, Future) =
@@ -75,13 +75,14 @@ program veilmarkets_token_credits_v8.aleo {
             self.caller as field + market_id + outcome as field + bet_amount as field
                 + bet_nonce,
         );
+        let owner_commitment: field = BHP256::hash_to_field(self.caller as field + escrow_id);
 
-        let core_future: Future = veilmarkets_v8.aleo/place_bet(
+        let core_future: Future = veilmarkets_v9.aleo/place_bet(
             market_id,
             outcome,
             bet_amount,
             escrow_id,
-            self.caller,
+            owner_commitment,
         );
 
         let bet_record: EscrowedBet = EscrowedBet {
@@ -98,7 +99,64 @@ program veilmarkets_token_credits_v8.aleo {
             outcome,
             bet_amount,
             escrow_id,
-            self.caller,
+            owner_commitment,
+            transfer_future,
+            core_future,
+        );
+
+        return (change, bet_record, f);
+    }
+
+    async transition buy_shares(
+        input_credits: credits.aleo/credits,
+        market_id: field,
+        outcome: u8,
+        bet_amount: u64,
+        min_shares_out: u64,
+        bet_nonce: field,
+    ) -> (credits.aleo/credits, EscrowedBet, Future) {
+        assert(input_credits.microcredits >= bet_amount);
+        assert(bet_amount >= MIN_BET);
+        assert(min_shares_out > 0u64);
+        assert(outcome <= 31u8);
+
+        let (change, transfer_future): (credits.aleo/credits, Future) =
+            credits.aleo/transfer_private_to_public(
+                input_credits,
+                self.address,
+                bet_amount,
+            );
+
+        let escrow_id: field = BHP256::hash_to_field(
+            self.caller as field + market_id + outcome as field + bet_amount as field
+                + bet_nonce,
+        );
+        let owner_commitment: field = BHP256::hash_to_field(self.caller as field + escrow_id);
+
+        let core_future: Future = veilmarkets_v9.aleo/buy_shares(
+            market_id,
+            outcome,
+            bet_amount,
+            min_shares_out,
+            escrow_id,
+            owner_commitment,
+        );
+
+        let bet_record: EscrowedBet = EscrowedBet {
+            owner: self.signer,
+            market_id: market_id,
+            amount: bet_amount,
+            outcome: outcome,
+            escrow_id: escrow_id,
+            nonce: BHP256::hash_to_group(escrow_id),
+        };
+
+        let f: Future = finalize_place_bet(
+            market_id,
+            outcome,
+            bet_amount,
+            escrow_id,
+            owner_commitment,
             transfer_future,
             core_future,
         );
@@ -111,7 +169,7 @@ program veilmarkets_token_credits_v8.aleo {
         outcome: u8,
         amount: u64,
         escrow_id: field,
-        holder: address,
+        owner_commitment: field,
         transfer_future: Future,
         core_future: Future,
     ) {
@@ -123,13 +181,62 @@ program veilmarkets_token_credits_v8.aleo {
         assert(!exists);
 
         let details: EscrowInfo = EscrowInfo {
-            holder: holder,
+            holder_commitment: owner_commitment,
             market_id: market_id,
             amount: amount,
             outcome: outcome,
             escrow_id: escrow_id,
         };
         Mapping::set(escrow_details, escrow_id, details);
+
+        let current_total: u64 = Mapping::get_or_use(market_escrow, market_id, 0u64);
+        Mapping::set(market_escrow, market_id, current_total + amount);
+    }
+
+    // ── Fund pool ───────────────────────────────────────────────────────────────
+    // Adds liquidity collateral to a market pool through the core v9 engine.
+
+    async transition fund_pool(
+        input_credits: credits.aleo/credits,
+        market_id: field,
+        amount: u64,
+        lp_nonce: field,
+    ) -> (credits.aleo/credits, Future) {
+        assert(input_credits.microcredits >= amount);
+        assert(amount >= MIN_BET);
+
+        let (change, transfer_future): (credits.aleo/credits, Future) =
+            credits.aleo/transfer_private_to_public(
+                input_credits,
+                self.address,
+                amount,
+            );
+
+        let lp_position_id: field = BHP256::hash_to_field(
+            self.caller as field + market_id + amount as field + lp_nonce,
+        );
+        let owner_commitment: field =
+            BHP256::hash_to_field(self.caller as field + lp_position_id);
+
+        let core_future: Future = veilmarkets_v9.aleo/fund_pool(
+            market_id,
+            amount,
+            lp_position_id,
+            owner_commitment,
+        );
+
+        let f: Future = finalize_fund_pool(market_id, amount, transfer_future, core_future);
+        return (change, f);
+    }
+
+    async function finalize_fund_pool(
+        market_id: field,
+        amount: u64,
+        transfer_future: Future,
+        core_future: Future,
+    ) {
+        transfer_future.await();
+        core_future.await();
 
         let current_total: u64 = Mapping::get_or_use(market_escrow, market_id, 0u64);
         Mapping::set(market_escrow, market_id, current_total + amount);
@@ -144,7 +251,7 @@ program veilmarkets_token_credits_v8.aleo {
         public nullifier: field,
     ) -> (credits.aleo/credits, Future) {
         // Core verifies the payout amount and marks the nullifier consumed
-        let core_result: Future = veilmarkets_v8.aleo/verify_claim(nullifier, payout_amount);
+        let core_result: Future = veilmarkets_v9.aleo/verify_claim(nullifier, payout_amount);
 
         // Transfer payout from contract's public balance to caller's private record
         let (payout_record, transfer_future): (credits.aleo/credits, Future) =
@@ -199,7 +306,9 @@ program veilmarkets_token_credits_v8.aleo {
 
         // Verify caller is the original holder
         let details: EscrowInfo = Mapping::get(escrow_details, escrow_id);
-        assert_eq(details.holder, caller);
+        let expected_holder_commitment: field =
+            BHP256::hash_to_field(caller as field + escrow_id);
+        assert_eq(details.holder_commitment, expected_holder_commitment);
         assert_eq(details.amount, amount);
 
         // Verify the market is actually cancelled (winning_outcome == 255u8)

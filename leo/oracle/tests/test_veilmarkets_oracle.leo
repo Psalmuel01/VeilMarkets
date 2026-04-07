@@ -1,8 +1,8 @@
-import veilmarkets_oracle_v8.aleo;
+import veilmarkets_oracle_v9.aleo;
 
 program test_veilmarkets_oracle.aleo {
     const MIN_ORACLE_STAKE: u64 = 30000000u64;
-    const DISPUTE_WINDOW: u64 = 300u64;
+    const DISPUTE_WINDOW: u64 = 10800u64;
 
     function compute_disputed_winner(
         vote_0: u64,
@@ -69,7 +69,7 @@ program test_veilmarkets_oracle.aleo {
         let now_ts: u64 = 100000u64;
         let challenge_deadline: u64 = now_ts + DISPUTE_WINDOW;
 
-        assert_eq(challenge_deadline, 100300u64);
+        assert_eq(challenge_deadline, 110800u64);
     }
 
     @noupgrade

@@ -1,5 +1,5 @@
 {
-  "program": "veilmarkets_token_credits_v8.aleo",
+  "program": "veilmarkets_token_credits_v9.aleo",
   "structs": [
     {
       "path": [
@@ -120,7 +120,7 @@
           "path": [
             "EscrowInfo"
           ],
-          "program": "veilmarkets_token_credits_v8"
+          "program": "veilmarkets_token_credits_v9"
         }
       }
     },
@@ -224,7 +224,71 @@
               "path": [
                 "EscrowedBet"
               ],
-              "program": "veilmarkets_token_credits_v8"
+              "program": "veilmarkets_token_credits_v9"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Future",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "fund_pool",
+      "is_async": true,
+      "inputs": [
+        {
+          "name": "input_credits",
+          "ty": {
+            "Record": {
+              "path": [
+                "credits"
+              ],
+              "program": "credits"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "market_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "amount",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "lp_nonce",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "None"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "credits"
+              ],
+              "program": "credits"
             }
           },
           "mode": "None"

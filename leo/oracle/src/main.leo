@@ -1,11 +1,10 @@
-// VeilMarkets Oracle: Optimistic Edition
-// Fast, game-theoretic resolution with 24h dispute window
+// VeilMarkets Oracle (v9)
+// Quorum-aware optimistic resolution with dispute bonds and stake slashing.
 import credits.aleo;
-import veilmarkets_v8.aleo;
-import veilmarkets_factory_v8.aleo;
+import veilmarkets_v9.aleo;
+import veilmarkets_factory_v9.aleo;
 
-program veilmarkets_oracle_v8.aleo {
-    // Records & Structs
+program veilmarkets_oracle_v9.aleo {
     struct ResolutionProposal {
         market_id: field,
         proposed_outcome: u8,
@@ -27,29 +26,44 @@ program veilmarkets_oracle_v8.aleo {
         proposal_outcome: u8,
     }
 
-    // Mappings
     mapping proposals: field => ResolutionProposal;
-    mapping active_oracles: address => u64; // address => staked_amount
-    mapping votes: field => u64; // (market_id + outcome) => total_weight
+    mapping active_oracles: address => u64;
+    mapping votes: field => u64; // (market_id + outcome) => weighted votes
+    mapping vote_weight_totals: field => u64; // market_id => total disputed vote weight
+    mapping disputed_voter_counts: field => u64; // market_id => unique disputed voters
+    mapping vote_receipts: field => bool; // hash(market_id + voter)
     mapping disputes: field => Dispute;
+    mapping oracle_u64: u8 => u64;
+    mapping oracle_u8: u8 => u8;
 
-    // Constants
-    const MIN_ORACLE_STAKE: u64 = 30000000u64; // 30 Credits (for testing)
-    const DISPUTE_WINDOW: u64 = 300u64; // 5 minutes in seconds
     const CORE_CONTRACT_TYPE: u8 = 3u8;
+    const GOVERNANCE_CONTRACT_TYPE: u8 = 4u8;
     const PLATFORM_ADDR: address = aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
 
-    // Initialize
+    const PARAM_MIN_ORACLE_STAKE: u8 = 0u8;
+    const PARAM_DISPUTE_WINDOW: u8 = 1u8;
+    const PARAM_MIN_VOTERS: u8 = 0u8; // oracle_u8
+
+    const DEFAULT_MIN_ORACLE_STAKE: u64 = 30000000u64; // 30 ALEO
+    const DEFAULT_DISPUTE_WINDOW: u64 = 10800u64; // 3 hours
+    const DEFAULT_MIN_VOTERS: u8 = 3u8;
+
     @admin(address = "aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n")
     async constructor() {}
 
-    // Register as an Oracle (Staking)
+    inline outcome_vote_key(market_id: field, outcome: u8) -> field {
+        return BHP256::hash_to_field(market_id + outcome as field);
+    }
+
+    inline vote_receipt_key(market_id: field, voter: address) -> field {
+        return BHP256::hash_to_field(market_id + voter as field);
+    }
+
     async transition register_oracle(stake_credits: credits.aleo/credits, public amount: u64) -> (
         credits.aleo/credits,
         OracleCredential,
         Future,
     ) {
-        assert(amount >= MIN_ORACLE_STAKE);
         let (change, transfer_future): (credits.aleo/credits, Future) = credits.aleo/transfer_private_to_public(
             stake_credits,
             self.address,
@@ -67,13 +81,18 @@ program veilmarkets_oracle_v8.aleo {
 
     async function finalize_register_oracle(oracle: address, amount: u64, transfer_future: Future) {
         transfer_future.await();
+        let min_stake: u64 = Mapping::get_or_use(
+            oracle_u64,
+            PARAM_MIN_ORACLE_STAKE,
+            DEFAULT_MIN_ORACLE_STAKE,
+        );
+        assert(amount >= min_stake);
         let current_stake: u64 = Mapping::get_or_use(active_oracles, oracle, 0u64);
         Mapping::set(active_oracles, oracle, current_stake + amount);
     }
 
-    // OPTIMISTIC STEP 1: Propose result
     async transition propose_resolution(public market_id: field, public proposed_outcome: u8) -> Future {
-        // Must be a registered oracle
+        assert(proposed_outcome <= 31u8);
         return finalize_propose_resolution(market_id, proposed_outcome, self.caller);
     }
 
@@ -82,31 +101,35 @@ program veilmarkets_oracle_v8.aleo {
         proposed_outcome: u8,
         proposer: address,
     ) {
-        assert(proposed_outcome <= 7u8);
-        // Verify proposer has stake
+        let min_stake: u64 = Mapping::get_or_use(
+            oracle_u64,
+            PARAM_MIN_ORACLE_STAKE,
+            DEFAULT_MIN_ORACLE_STAKE,
+        );
         let stake: u64 = Mapping::get(active_oracles, proposer);
-        assert(stake >= MIN_ORACLE_STAKE);
-        // Don't allow double proposal
+        assert(stake >= min_stake);
         let existing: bool = Mapping::contains(proposals, market_id);
         assert(!existing);
+        let dispute_window: u64 = Mapping::get_or_use(
+            oracle_u64,
+            PARAM_DISPUTE_WINDOW,
+            DEFAULT_DISPUTE_WINDOW,
+        );
         let proposal: ResolutionProposal = ResolutionProposal {
             market_id: market_id,
             proposed_outcome: proposed_outcome,
-            challenge_deadline: block.timestamp as u64 + DISPUTE_WINDOW,
+            challenge_deadline: block.timestamp as u64 + dispute_window,
             is_disputed: false,
             proposer: proposer,
         };
         Mapping::set(proposals, market_id, proposal);
     }
 
-    // OPTIMISTIC STEP 2: Dispute (if someone lied)
     async transition dispute_resolution(
         dispute_stake: credits.aleo/credits,
         public market_id: field,
         public amount: u64,
     ) -> (credits.aleo/credits, Future) {
-        // Anyone can dispute if they pay a bond
-        assert(amount >= MIN_ORACLE_STAKE);
         let (change, transfer_future): (credits.aleo/credits, Future) = credits.aleo/transfer_private_to_public(
             dispute_stake,
             self.address,
@@ -125,6 +148,12 @@ program veilmarkets_oracle_v8.aleo {
         transfer_future: Future,
     ) {
         transfer_future.await();
+        let min_stake: u64 = Mapping::get_or_use(
+            oracle_u64,
+            PARAM_MIN_ORACLE_STAKE,
+            DEFAULT_MIN_ORACLE_STAKE,
+        );
+        assert(amount >= min_stake);
         let proposal: ResolutionProposal = Mapping::get(proposals, market_id);
         assert(!proposal.is_disputed);
         assert(block.timestamp as u64 < proposal.challenge_deadline);
@@ -138,40 +167,71 @@ program veilmarkets_oracle_v8.aleo {
         Mapping::set(disputes, market_id, dispute);
     }
 
-    // FALLBACK: Voting (only if disputed)
     async transition vote_on_resolution(
         credential: OracleCredential,
         public market_id: field,
         public outcome: u8,
     ) -> (OracleCredential, Future) {
-        // Outcomes are indexed from 0..7 (core validates market-specific bounds).
-        assert(outcome <= 7u8);
+        assert(outcome <= 31u8);
+        assert_eq(credential.owner, self.caller);
         let updated_credential: OracleCredential = OracleCredential {
             owner: credential.owner,
             staked_amount: credential.staked_amount,
             reputation_score: credential.reputation_score,
             nonce: BHP256::hash_to_group(credential.nonce as field),
         };
-        return (
-            updated_credential,
-            finalize_vote_on_resolution(market_id, outcome, credential.staked_amount),
-        );
+        let f: Future = finalize_vote_on_resolution(market_id, outcome, self.caller);
+        return (updated_credential, f);
     }
 
-    async function finalize_vote_on_resolution(market_id: field, outcome: u8, weight: u64) {
+    async function finalize_vote_on_resolution(market_id: field, outcome: u8, voter: address) {
         let proposal: ResolutionProposal = Mapping::get(proposals, market_id);
         assert(proposal.is_disputed);
-        let vote_id: field = BHP256::hash_to_field(market_id + outcome as field);
+
+        let receipt_key: field = vote_receipt_key(market_id, voter);
+        let voted: bool = Mapping::get_or_use(vote_receipts, receipt_key, false);
+        assert(!voted);
+        Mapping::set(vote_receipts, receipt_key, true);
+
+        let min_stake: u64 = Mapping::get_or_use(
+            oracle_u64,
+            PARAM_MIN_ORACLE_STAKE,
+            DEFAULT_MIN_ORACLE_STAKE,
+        );
+        let weight: u64 = Mapping::get(active_oracles, voter);
+        assert(weight >= min_stake);
+
+        let vote_id: field = outcome_vote_key(market_id, outcome);
         let current_votes: u64 = Mapping::get_or_use(votes, vote_id, 0u64);
         Mapping::set(votes, vote_id, current_votes + weight);
+
+        let total_weight: u64 = Mapping::get_or_use(vote_weight_totals, market_id, 0u64);
+        Mapping::set(vote_weight_totals, market_id, total_weight + weight);
+        let voter_count: u64 = Mapping::get_or_use(disputed_voter_counts, market_id, 0u64);
+        Mapping::set(disputed_voter_counts, market_id, voter_count + 1u64);
     }
 
-    // FINALIZATION: The step that speaks to Core
+    // Alias for the new naming.
+    async transition submit_quorum_vote(
+        credential: OracleCredential,
+        public market_id: field,
+        public outcome: u8,
+    ) -> (OracleCredential, Future) {
+        assert(outcome <= 31u8);
+        assert_eq(credential.owner, self.caller);
+        let updated_credential: OracleCredential = OracleCredential {
+            owner: credential.owner,
+            staked_amount: credential.staked_amount,
+            reputation_score: credential.reputation_score,
+            nonce: BHP256::hash_to_group(credential.nonce as field),
+        };
+        let f: Future = finalize_vote_on_resolution(market_id, outcome, self.caller);
+        return (updated_credential, f);
+    }
+
     async transition resolve_on_core(public market_id: field, public outcome: u8) -> Future {
-        assert_eq(self.caller, aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n);
-        assert(outcome <= 7u8);
-        // One transition calls another
-        let f_core: Future = veilmarkets_v8.aleo/resolve_market(
+        assert(outcome <= 31u8);
+        let f_core: Future = veilmarkets_v9.aleo/resolve_market(
             market_id,
             outcome,
             self.address,
@@ -180,118 +240,80 @@ program veilmarkets_oracle_v8.aleo {
     }
 
     async function finalize_resolve_on_core(market_id: field, outcome: u8, f_core: Future) {
-        f_core.await();
         let proposal: ResolutionProposal = Mapping::get(proposals, market_id);
+
         if (proposal.is_disputed) {
-            // If disputed, calculate winner from up to 8 indexed outcomes.
-            let vote_0: u64 = Mapping::get_or_use(
-                votes,
-                BHP256::hash_to_field(market_id + 0u8 as field),
-                0u64,
-            );
-            let vote_1: u64 = Mapping::get_or_use(
-                votes,
-                BHP256::hash_to_field(market_id + 1u8 as field),
-                0u64,
-            );
-            let vote_2: u64 = Mapping::get_or_use(
-                votes,
-                BHP256::hash_to_field(market_id + 2u8 as field),
-                0u64,
-            );
-            let vote_3: u64 = Mapping::get_or_use(
-                votes,
-                BHP256::hash_to_field(market_id + 3u8 as field),
-                0u64,
-            );
-            let vote_4: u64 = Mapping::get_or_use(
-                votes,
-                BHP256::hash_to_field(market_id + 4u8 as field),
-                0u64,
-            );
-            let vote_5: u64 = Mapping::get_or_use(
-                votes,
-                BHP256::hash_to_field(market_id + 5u8 as field),
-                0u64,
-            );
-            let vote_6: u64 = Mapping::get_or_use(
-                votes,
-                BHP256::hash_to_field(market_id + 6u8 as field),
-                0u64,
-            );
-            let vote_7: u64 = Mapping::get_or_use(
-                votes,
-                BHP256::hash_to_field(market_id + 7u8 as field),
-                0u64,
-            );
+            let vote_weight: u64 = Mapping::get_or_use(votes, outcome_vote_key(market_id, outcome), 0u64);
+            let total_weight: u64 = Mapping::get_or_use(vote_weight_totals, market_id, 0u64);
 
-            let best_01_outcome: u8 = (vote_1 > vote_0) ? 1u8 : 0u8;
-            let best_01_votes: u64 = (vote_1 > vote_0) ? vote_1 : vote_0;
-            let best_23_outcome: u8 = (vote_3 > vote_2) ? 3u8 : 2u8;
-            let best_23_votes: u64 = (vote_3 > vote_2) ? vote_3 : vote_2;
-            let best_45_outcome: u8 = (vote_5 > vote_4) ? 5u8 : 4u8;
-            let best_45_votes: u64 = (vote_5 > vote_4) ? vote_5 : vote_4;
-            let best_67_outcome: u8 = (vote_7 > vote_6) ? 7u8 : 6u8;
-            let best_67_votes: u64 = (vote_7 > vote_6) ? vote_7 : vote_6;
-
-            let best_0123_outcome: u8 =
-                (best_23_votes > best_01_votes) ? best_23_outcome : best_01_outcome;
-            let best_0123_votes: u64 =
-                (best_23_votes > best_01_votes) ? best_23_votes : best_01_votes;
-            let best_4567_outcome: u8 =
-                (best_67_votes > best_45_votes) ? best_67_outcome : best_45_outcome;
-            let best_4567_votes: u64 =
-                (best_67_votes > best_45_votes) ? best_67_votes : best_45_votes;
-
-            let winning_outcome: u8 =
-                (best_4567_votes > best_0123_votes) ? best_4567_outcome : best_0123_outcome;
-            assert_eq(outcome, winning_outcome);
-
-            // Reward distribution logic (90/10 split)
-            let dispute: Dispute = Mapping::get(disputes, market_id);
-            
-            if (winning_outcome != proposal.proposed_outcome) {
-                // Case 1: Disputer (Challenger) Wins
-                // Slash proposer's stake (capped at MIN_ORACLE_STAKE)
-                let proposer_stake: u64 = Mapping::get(active_oracles, proposal.proposer);
-                let slashed: u64 = MIN_ORACLE_STAKE;
-                Mapping::set(active_oracles, proposal.proposer, proposer_stake - slashed);
-                
-                let plat_fee: u64 = slashed / 10u64;
-                let win_reward: u64 = slashed - plat_fee;
-                
-                // Disputer gets their bond back + 90% of slashed amount
-                let current_disp_bal: u64 = Mapping::get_or_use(active_oracles, dispute.challenger, 0u64);
-                Mapping::set(active_oracles, dispute.challenger, current_disp_bal + dispute.stake + win_reward);
-                
-                // Platform gets 10%
-                let current_plat_bal: u64 = Mapping::get_or_use(active_oracles, PLATFORM_ADDR, 0u64);
-                Mapping::set(active_oracles, PLATFORM_ADDR, current_plat_bal + plat_fee);
-            } else {
-                // Case 2: Proposer Wins
-                let bond: u64 = dispute.stake;
-                let plat_fee: u64 = bond / 10u64;
-                let win_reward: u64 = bond - plat_fee;
-                
-                // Proposer keeps their original stake (already in active_oracles) 
-                // and gains 90% of the challenger's bond.
-                let current_prop_bal: u64 = Mapping::get(active_oracles, proposal.proposer);
-                Mapping::set(active_oracles, proposal.proposer, current_prop_bal + win_reward);
-                
-                // Platform gets 10%
-                let current_plat_bal: u64 = Mapping::get_or_use(active_oracles, PLATFORM_ADDR, 0u64);
-                Mapping::set(active_oracles, PLATFORM_ADDR, current_plat_bal + plat_fee);
-            }
-            // Note: Platform residues are credited to PLATFORM_ADDR in active_oracles.
-            // Only the admin can withdraw these funds using unstake_credits.
+            let min_voters: u8 = Mapping::get_or_use(oracle_u8, PARAM_MIN_VOTERS, DEFAULT_MIN_VOTERS);
+            let min_stake: u64 = Mapping::get_or_use(
+                oracle_u64,
+                PARAM_MIN_ORACLE_STAKE,
+                DEFAULT_MIN_ORACLE_STAKE,
+            );
+            let quorum_weight: u64 = min_stake * min_voters as u64;
+            let voter_count: u64 = Mapping::get_or_use(disputed_voter_counts, market_id, 0u64);
+            assert(voter_count >= min_voters as u64);
+            assert(total_weight >= quorum_weight);
+            assert(vote_weight > 0u64);
         } else {
-            // If not disputed, check deadline and outcome
             assert(block.timestamp as u64 >= proposal.challenge_deadline);
             assert_eq(outcome, proposal.proposed_outcome);
         }
+
+        f_core.await();
+
+        if (proposal.is_disputed) {
+            let dispute: Dispute = Mapping::get(disputes, market_id);
+            let min_stake: u64 = Mapping::get_or_use(
+                oracle_u64,
+                PARAM_MIN_ORACLE_STAKE,
+                DEFAULT_MIN_ORACLE_STAKE,
+            );
+
+            if (outcome != proposal.proposed_outcome) {
+                let proposer_stake: u64 = Mapping::get(active_oracles, proposal.proposer);
+                let slash_amount: u64 =
+                    (proposer_stake >= min_stake) ? min_stake : proposer_stake;
+                Mapping::set(active_oracles, proposal.proposer, proposer_stake - slash_amount);
+
+                let platform_fee: u64 = slash_amount / 10u64;
+                let winner_reward: u64 = slash_amount - platform_fee;
+
+                let disputer_balance: u64 = Mapping::get_or_use(active_oracles, dispute.challenger, 0u64);
+                Mapping::set(
+                    active_oracles,
+                    dispute.challenger,
+                    disputer_balance + dispute.stake + winner_reward,
+                );
+
+                let platform_balance: u64 = Mapping::get_or_use(active_oracles, PLATFORM_ADDR, 0u64);
+                Mapping::set(active_oracles, PLATFORM_ADDR, platform_balance + platform_fee);
+            } else {
+                let bond: u64 = dispute.stake;
+                let platform_fee: u64 = bond / 10u64;
+                let proposer_reward: u64 = bond - platform_fee;
+
+                let proposer_balance: u64 = Mapping::get(active_oracles, proposal.proposer);
+                Mapping::set(active_oracles, proposal.proposer, proposer_balance + proposer_reward);
+
+                let platform_balance: u64 = Mapping::get_or_use(active_oracles, PLATFORM_ADDR, 0u64);
+                Mapping::set(active_oracles, PLATFORM_ADDR, platform_balance + platform_fee);
+            }
+        }
     }
 
-    // UNSTAKE: Oracles can withdraw their credits
+    async transition execute_quorum_resolution(public market_id: field, public outcome: u8) -> Future {
+        assert(outcome <= 31u8);
+        let f_core: Future = veilmarkets_v9.aleo/resolve_market(
+            market_id,
+            outcome,
+            self.address,
+        );
+        return finalize_resolve_on_core(market_id, outcome, f_core);
+    }
+
     async transition unstake_credits(public amount: u64) -> (credits.aleo/credits, Future) {
         let (output_credits, transfer_future): (credits.aleo/credits, Future) = credits.aleo/transfer_public_to_private(
             self.caller,
@@ -305,5 +327,41 @@ program veilmarkets_oracle_v8.aleo {
         let current_stake: u64 = Mapping::get(active_oracles, oracle);
         assert(current_stake >= amount);
         Mapping::set(active_oracles, oracle, current_stake - amount);
+    }
+
+    async transition set_protocol_u64(public param_key: u8, public value: u64) -> Future {
+        let auth: Future = veilmarkets_factory_v9.aleo/verify_is_registered(
+            GOVERNANCE_CONTRACT_TYPE,
+            self.caller,
+        );
+        return finalize_set_protocol_u64(param_key, value, auth);
+    }
+
+    async function finalize_set_protocol_u64(param_key: u8, value: u64, auth: Future) {
+        auth.await();
+        if (param_key == PARAM_MIN_ORACLE_STAKE) {
+            assert(value > 0u64);
+        }
+        if (param_key == PARAM_DISPUTE_WINDOW) {
+            assert(value >= 60u64);
+        }
+        Mapping::set(oracle_u64, param_key, value);
+    }
+
+    async transition set_protocol_u8(public param_key: u8, public value: u8) -> Future {
+        let auth: Future = veilmarkets_factory_v9.aleo/verify_is_registered(
+            GOVERNANCE_CONTRACT_TYPE,
+            self.caller,
+        );
+        return finalize_set_protocol_u8(param_key, value, auth);
+    }
+
+    async function finalize_set_protocol_u8(param_key: u8, value: u8, auth: Future) {
+        auth.await();
+        if (param_key == PARAM_MIN_VOTERS) {
+            assert(value >= 3u8);
+            assert(value <= 32u8);
+        }
+        Mapping::set(oracle_u8, param_key, value);
     }
 }
