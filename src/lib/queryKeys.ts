@@ -5,6 +5,18 @@ export const queryKeys = {
   markets: ["markets"] as const,
   market: (marketId: string) => ["market", normalizeMarketIdKey(marketId)] as const,
   marketPool: (marketId: string) => ["market", "pool", normalizeMarketIdKey(marketId)] as const,
+  marketUserPosition: (
+    marketId: string,
+    address?: string | null,
+    outcome?: number | null,
+  ) =>
+    [
+      "market",
+      "user-position",
+      normalizeMarketIdKey(marketId),
+      address ?? "guest",
+      outcome ?? "all",
+    ] as const,
   marketOutcomeTotals: (marketId: string, outcomeCount: number) =>
     ["market", "outcomes", normalizeMarketIdKey(marketId), outcomeCount] as const,
   buyQuote: (marketId: string, outcome: number, amountMicro: number, slippageBps: number) =>

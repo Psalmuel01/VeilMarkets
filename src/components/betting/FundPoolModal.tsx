@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { Coins, Loader2, Wallet } from "lucide-react";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
-import { useFundPoolMutation } from "@/hooks/useVeilQuery";
+import {
+  useFundPoolMutation,
+  useMarketPoolQuery,
+  useMarketUserPositionQuery,
+} from "@/hooks/useVeilQuery";
 import { resolveTokenTicker } from "@/lib/constants";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import {
@@ -35,9 +39,14 @@ export const FundPoolModal = ({
   const tokenTicker = resolveTokenTicker(tokenId);
   const { publicKey } = useAleoPrograms();
   const fundPoolMutation = useFundPoolMutation();
+  const poolQuery = useMarketPoolQuery(marketId, open && Boolean(publicKey));
+  const positionQuery = useMarketUserPositionQuery(marketId, null, open && Boolean(publicKey));
   const [step, setStep] = useState<Step>("form");
   const [amount, setAmount] = useState("10");
   const [txId, setTxId] = useState<string | null>(null);
+  const poolCollateral = (poolQuery.data?.total_collateral ?? 0) / 1_000_000;
+  const lpCollateral = (positionQuery.data?.lpCollateral ?? 0) / 1_000_000;
+  const lpShares = positionQuery.data?.lpShares ?? 0;
 
   const resetState = () => {
     setStep("form");
@@ -82,7 +91,7 @@ export const FundPoolModal = ({
           </DialogHeader>
 
           {!publicKey ? (
-            <div className="text-center py-8 space-y-4">
+            <div className="text-center py-8 space-y-3">
               <div className="mx-auto w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
                 <Wallet className="w-7 h-7 text-muted-foreground/50" />
               </div>
@@ -91,6 +100,26 @@ export const FundPoolModal = ({
             </div>
           ) : step === "form" ? (
             <div className="space-y-5">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Current Pool</span>
+                  <span className="font-semibold text-white">
+                    {poolCollateral.toLocaleString(undefined, { maximumFractionDigits: 4 })} {tokenTicker}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Your LP Position</span>
+                  <span className="font-semibold text-white">
+                    {lpCollateral.toLocaleString(undefined, { maximumFractionDigits: 4 })} {tokenTicker}
+                  </span>
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  LP shares tracked: {lpShares.toLocaleString()}.
+                </div>
+                <div className="text-[11px] text-warning">
+                  LP withdrawal is not live in v9 yet, so liquidity cannot be removed from UI right now.
+                </div>
+              </div>
               <div className="space-y-2">
                 <label className="text-[10px] uppercase tracking-widest text-muted-foreground/60 font-bold">
                   Amount ({tokenTicker})
@@ -112,12 +141,12 @@ export const FundPoolModal = ({
               </div>
             </div>
           ) : step === "processing" ? (
-            <div className="py-10 text-center space-y-4">
+            <div className="py-10 text-center space-y-3">
               <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto" />
               <p className="text-sm text-muted-foreground">Submitting liquidity transaction...</p>
             </div>
           ) : step === "success" ? (
-            <div className="py-4 space-y-4 text-center">
+            <div className="py-4 space-y-3 text-center">
               <h3 className="text-lg font-bold text-white">Liquidity Added</h3>
               {txId && (
                 <code className="block rounded-lg bg-white/5 border border-white/10 p-3 text-xs text-primary break-all">
@@ -129,7 +158,7 @@ export const FundPoolModal = ({
               </Button>
             </div>
           ) : (
-            <div className="py-4 space-y-4 text-center">
+            <div className="py-4 space-y-3 text-center">
               <h3 className="text-lg font-bold text-white">Funding Failed</h3>
               <p className="text-sm text-muted-foreground">The transaction was rejected or timed out.</p>
               <div className="flex gap-3">

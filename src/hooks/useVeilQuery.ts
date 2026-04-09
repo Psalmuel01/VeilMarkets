@@ -23,6 +23,7 @@ interface PlaceBetVariables {
 
 interface SellSharesVariables {
   marketId: string;
+  outcome: number;
   sharesToSell: number;
   slippageBps?: number;
 }
@@ -48,6 +49,7 @@ const invalidateCoreQueries = async (
     const normalizedMarketId = (marketId || "").replace(/field$/i, "").trim();
     await invalidate({ queryKey: queryKeys.market(marketId) });
     await invalidate({ queryKey: queryKeys.marketPool(marketId) });
+    await invalidate({ queryKey: ["market", "user-position", normalizedMarketId] });
     await invalidate({ queryKey: queryKeys.marketProposal(marketId) });
     await invalidate({ queryKey: ["market", "outcomes", normalizedMarketId] });
     await invalidate({ queryKey: ["market", "quote", normalizedMarketId] });
@@ -105,6 +107,23 @@ export const useMarketPoolQuery = (marketId?: string, enabled = true) => {
     enabled: Boolean(marketId) && enabled,
     staleTime: DEFAULT_STALE_MS,
     refetchInterval: POLL_INTERVAL_MS,
+  });
+};
+
+export const useMarketUserPositionQuery = (
+  marketId?: string,
+  outcome?: number | null,
+  enabled = true,
+) => {
+  const { fetchMarketPositionSummary, publicKey } = useAleoPrograms();
+
+  return useQuery({
+    queryKey: queryKeys.marketUserPosition(marketId ?? "", publicKey, outcome ?? null),
+    queryFn: () => fetchMarketPositionSummary(marketId ?? "", typeof outcome === "number" ? outcome : undefined),
+    enabled: Boolean(publicKey) && Boolean(marketId) && enabled,
+    staleTime: DEFAULT_STALE_MS,
+    refetchInterval: POLL_INTERVAL_MS,
+    refetchOnWindowFocus: true,
   });
 };
 
@@ -386,8 +405,8 @@ export const useSellSharesMutation = () => {
   const { sellShares, publicKey } = useAleoPrograms();
 
   return useMutation({
-    mutationFn: async ({ marketId, sharesToSell, slippageBps }: SellSharesVariables) => {
-      const result = await sellShares(marketId, sharesToSell, { slippageBps });
+    mutationFn: async ({ marketId, outcome, sharesToSell, slippageBps }: SellSharesVariables) => {
+      const result = await sellShares(marketId, sharesToSell, { slippageBps, outcome });
       if (!result) throw new Error("Sell shares transaction failed");
       return result;
     },

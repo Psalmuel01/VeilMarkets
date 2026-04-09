@@ -39,6 +39,7 @@ import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { ADMIN_ADDRESS, resolveTokenDisplayName, resolveTokenTicker } from "@/lib/constants";
 import { getOutcomeLabel, getOutcomeLabels, getOutcomeTone, isCancelledOutcome, normalizeOutcomeCount } from "@/lib/outcomes";
 import {
+  useMarketUserPositionQuery,
   useMarketPoolQuery,
   useMarketsQuery,
   useOutcomeTotalsQuery,
@@ -74,6 +75,7 @@ export default function MarketDetailPage() {
   const { id } = useParams();
   const [showBetModal, setShowBetModal] = useState(false);
   const [showSellModal, setShowSellModal] = useState(false);
+  const [sellOutcome, setSellOutcome] = useState<number | null>(null);
   const [showFundModal, setShowFundModal] = useState(false);
   const [showResolutionModal, setShowResolutionModal] = useState(false);
   const [showFinalizeModal, setShowFinalizeModal] = useState(false);
@@ -148,6 +150,29 @@ export default function MarketDetailPage() {
           ? "Won"
           : "Lost"
       : null;
+  const { data: userPosition } = useMarketUserPositionQuery(
+    id,
+    null,
+    Boolean(publicKey && id),
+  );
+  const sellableOutcomeEntries = useMemo(
+    () =>
+      Object.entries(userPosition?.outcomeShares ?? {})
+        .map(([outcomeKey, shares]) => ({
+          outcome: Number.parseInt(outcomeKey, 10),
+          shares: Number.isFinite(shares) ? shares : 0,
+        }))
+        .filter((entry) => Number.isFinite(entry.outcome) && entry.shares > 0)
+        .sort((a, b) => b.shares - a.shares),
+    [userPosition?.outcomeShares],
+  );
+  const defaultSellOutcome =
+    sellOutcome !== null ? sellOutcome : sellableOutcomeEntries[0]?.outcome ?? null;
+  const sellableSharesForSelectedOutcome =
+    defaultSellOutcome !== null ? (userPosition?.outcomeShares?.[defaultSellOutcome] ?? 0) : 0;
+  const lpShares = userPosition?.lpShares ?? 0;
+  const lpCollateral = (userPosition?.lpCollateral ?? 0) / 1_000_000;
+  const lpIsEstimated = userPosition?.lpEstimated ?? false;
 
   const notFound = Boolean(id) && !isMarketsLoading && !foundMarket;
   const loadingMarket = !id || (isMarketsLoading && !foundMarket);
@@ -164,7 +189,8 @@ export default function MarketDetailPage() {
     outcomeTotalsData ?? Array.from({ length: normalizedOutcomeCount }, () => 0);
   const activeOutcomeTotals = outcomeTotals.slice(0, normalizedOutcomeCount);
   const totalPoolMicro = activeOutcomeTotals.reduce((acc, value) => acc + value, 0);
-  const totalVolume = totalPoolMicro / 1_000_000;
+  const openInterest = totalPoolMicro / 1_000_000;
+  const poolLiquidity = (pool?.total_collateral ?? 0) / 1_000_000;
   const outcomePercents = activeOutcomeTotals.map((amount) =>
     totalPoolMicro > 0 ? Math.round((amount / totalPoolMicro) * 100) : Math.round(100 / normalizedOutcomeCount),
   );
@@ -367,8 +393,20 @@ export default function MarketDetailPage() {
         {/* Market Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
           {[
-            { label: "Total Volume", value: `${totalVolume.toLocaleString()}`, unit: marketTokenTicker, icon: Activity, color: "text-primary" },
-            { label: "Pool Size", value: "Locked", unit: "ZK-POOL", icon: Lock, color: "text-accent" },
+            {
+              label: "Open Interest",
+              value: `${openInterest.toLocaleString(undefined, { maximumFractionDigits: 4 })}`,
+              unit: marketTokenTicker,
+              icon: Activity,
+              color: "text-primary",
+            },
+            {
+              label: "Pool Liquidity",
+              value: `${poolLiquidity.toLocaleString(undefined, { maximumFractionDigits: 4 })}`,
+              unit: marketTokenTicker,
+              icon: Lock,
+              color: "text-accent",
+            },
             { label: "Resolution", value: "Oracle", unit: "SOURCE", icon: Shield, color: "text-success" },
             { label: "Closing", value: market.closingDate, unit: "EST", icon: Calendar, color: "text-muted-foreground" },
           ].map((stat, i) => (
@@ -488,8 +526,10 @@ export default function MarketDetailPage() {
                     outcome={label}
                     tone={getOutcomeTone(market.market_type, normalizedOutcomeCount, index)}
                     selected={false}
-                    onSelect={() => { if (!hasUserBet && marketStatus === "Open") setShowBetModal(true); }}
-                    disabled={marketStatus !== "Open" || hasUserBet}
+                    onSelect={() => {
+                      if (marketStatus === "Open") setShowBetModal(true);
+                    }}
+                    disabled={marketStatus !== "Open"}
                   />
                 ))}
               </div>
@@ -511,12 +551,14 @@ export default function MarketDetailPage() {
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="p-5 rounded-3xl bg-white/[0.02] border border-white/5 flex flex-col gap-1">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Total Cumulative Bets</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Participants</span>
                   <span className="text-2xl font-bold text-white font-mono">{market.betsPlaced}</span>
                 </div>
                 <div className="p-5 rounded-3xl bg-white/[0.02] border border-white/5 flex flex-col gap-1">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Aggregated Volume</span>
-                  <span className="text-2xl font-bold text-primary font-mono">{totalVolume.toLocaleString()} {marketTokenTicker}</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Pool Liquidity</span>
+                  <span className="text-2xl font-bold text-primary font-mono">
+                    {poolLiquidity.toLocaleString(undefined, { maximumFractionDigits: 4 })} {marketTokenTicker}
+                  </span>
                 </div>
               </div>
             </div>
@@ -550,6 +592,12 @@ export default function MarketDetailPage() {
                       <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 font-mono">Wager Size</span>
                       <span className="font-mono encrypted-text text-white">•••••• {marketTokenTicker}</span>
                     </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 font-mono">Total Sellable Shares</span>
+                      <span className="font-mono text-white">
+                        {sellableOutcomeEntries.reduce((sum, entry) => sum + entry.shares, 0).toLocaleString()}
+                      </span>
+                    </div>
                   </div>
                   {marketStatus === "Settled" && userBetResult && (
                     <div className="flex justify-between items-center p-4 rounded-2xl bg-white/5">
@@ -562,13 +610,46 @@ export default function MarketDetailPage() {
                       </span>
                     </div>
                   )}
-                  {marketStatus === "Open" && Number.isFinite(numericUserOutcome) && (
+                  {marketStatus === "Open" && (
                     <Button
-                      onClick={() => setShowSellModal(true)}
+                      onClick={() => setShowBetModal(true)}
                       className="w-full h-12 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white"
                     >
-                      Sell Shares
+                      Buy More Shares
                     </Button>
+                  )}
+                  {marketStatus === "Open" && sellableOutcomeEntries.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
+                        Sell By Outcome
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {sellableOutcomeEntries.slice(0, 4).map((entry) => (
+                          <Button
+                            key={`sell-${entry.outcome}`}
+                            type="button"
+                            variant="outline"
+                            className="h-10 rounded-xl text-xs"
+                            onClick={() => {
+                              setSellOutcome(entry.outcome);
+                              setShowSellModal(true);
+                            }}
+                          >
+                            {getOutcomeLabel(
+                              market.market_type,
+                              normalizedOutcomeCount,
+                              entry.outcome,
+                              market.outcome_labels,
+                            )} ({entry.shares.toLocaleString()})
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {marketStatus === "Open" && sellableOutcomeEntries.length === 0 && (
+                    <p className="text-xs text-warning">
+                      Share records are still syncing. Wait a bit, then try selling again.
+                    </p>
                   )}
                   <ZKBadge variant="proof" className="w-full justify-center py-4 rounded-2xl bg-primary/10 text-primary border border-primary/20" />
                 </div>
@@ -583,7 +664,7 @@ export default function MarketDetailPage() {
                   <ConnectWalletButton className="w-full justify-center" />
                 </div>
               ) : (
-                <div className="text-center mb-5 space-y-6 relative z-10">
+                <div className="text-center py-10 space-y-6 relative z-10">
                   <div className="w-16 h-16 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto">
                     <Lock className="w-8 h-8 text-muted-foreground/40" />
                   </div>
@@ -604,10 +685,32 @@ export default function MarketDetailPage() {
               {publicKey && marketStatus === "Open" && (
                 <Button
                   onClick={() => setShowFundModal(true)}
-                  className="w-full mt- h-14 rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 text-white"
+                  className="w-full mt-4 h-12 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white"
                 >
                   Provide Liquidity
                 </Button>
+              )}
+              {publicKey && (
+                <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Your LP Liquidity</span>
+                    <span className="text-white font-mono">
+                      {lpCollateral.toLocaleString(undefined, { maximumFractionDigits: 4 })} {marketTokenTicker}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">LP Shares</span>
+                    <span className="text-white font-mono">{lpShares.toLocaleString()}</span>
+                  </div>
+                  {lpIsEstimated && (
+                    <p className="text-muted-foreground">
+                      Displayed from your local successful funding history on this browser.
+                    </p>
+                  )}
+                  <p className="text-warning">
+                    LP withdrawal is not live in v9 yet, so removal is not available in UI right now.
+                  </p>
+                </div>
               )}
             </div>
 
@@ -740,17 +843,21 @@ export default function MarketDetailPage() {
         outcomeLabels={market.outcome_labels}
       />
 
-      {Number.isFinite(numericUserOutcome) && (
+      {defaultSellOutcome !== null && (
         <SellSharesModal
           open={showSellModal}
-          onClose={() => setShowSellModal(false)}
+          onClose={() => {
+            setShowSellModal(false);
+            setSellOutcome(null);
+          }}
           marketTitle={market.title}
           marketId={market.id}
           tokenId={market.token_id}
-          outcome={numericUserOutcome as number}
+          outcome={defaultSellOutcome}
           marketType={market.market_type}
           outcomeCount={market.outcome_count}
           outcomeLabels={market.outcome_labels}
+          closeTime={market.close_time}
         />
       )}
 

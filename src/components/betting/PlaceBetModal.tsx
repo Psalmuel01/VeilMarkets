@@ -210,7 +210,7 @@ export const PlaceBetModal = ({
                         Collateral Amount
                       </label>
                     </div>
-                    <span className="text-xs font-mono text-muted-foreground">Max: 10 {tokenTicker}</span>
+                    <span className="text-xs font-mono text-muted-foreground">Max: 20 {tokenTicker}</span>
                   </div>
                   <WagerSlider
                     value={wagerAmount}

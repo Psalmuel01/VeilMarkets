@@ -96,6 +96,20 @@ interface CoreProtocolConfig {
   virtualLiquidity: number;
 }
 
+interface MarketPositionSummary {
+  marketId: string;
+  outcome: number | null;
+  sellableShares: number; // max shares sellable in a single sell transaction for selected outcome
+  sellableCollateral: number;
+  outcomeShares: Record<number, number>;
+  outcomeMaxPositionShares: Record<number, number>;
+  tradePositionCount: number;
+  lpShares: number;
+  lpCollateral: number;
+  lpPositionCount: number;
+  lpEstimated: boolean;
+}
+
 interface BuyQuote {
   marketId: string;
   outcome: number;
@@ -167,6 +181,34 @@ const generateRandomField = (): string => {
 const USDCX_FREEZELIST_PROGRAM_ID = "test_usdcx_freezelist.aleo";
 const USAD_FREEZELIST_PROGRAM_ID = "test_usad_freezelist.aleo";
 const MIN_ORACLE_STAKE_MICROCREDITS = 30_000_000;
+const LP_LOCAL_KEY_PREFIX = "veilmarkets_lp_v9";
+
+const buildLpLocalKey = (ownerAddress: string, marketId: string): string =>
+  `${LP_LOCAL_KEY_PREFIX}:${ownerAddress.toLowerCase()}:${marketId.replace(/field$/i, "").trim()}`;
+
+const readLocalLpContribution = (ownerAddress: string, marketId: string): number => {
+  if (typeof window === "undefined") return 0;
+  try {
+    const raw = window.localStorage.getItem(buildLpLocalKey(ownerAddress, marketId));
+    const parsed = raw ? Number.parseInt(raw, 10) : 0;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  } catch {
+    return 0;
+  }
+};
+
+const addLocalLpContribution = (ownerAddress: string, marketId: string, amountMicro: number): void => {
+  if (typeof window === "undefined") return;
+  if (!Number.isFinite(amountMicro) || amountMicro <= 0) return;
+  try {
+    const key = buildLpLocalKey(ownerAddress, marketId);
+    const current = Number.parseInt(window.localStorage.getItem(key) ?? "0", 10);
+    const safeCurrent = Number.isFinite(current) && current > 0 ? current : 0;
+    window.localStorage.setItem(key, String(safeCurrent + Math.floor(amountMicro)));
+  } catch {
+    // no-op
+  }
+};
 
 const parseMappingU64 = (value: unknown): number => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -1309,7 +1351,10 @@ export const useAleoPrograms = () => {
 
   const findCreditsRecord = (amountMicro: number) => findTokenRecord("credits.aleo", amountMicro);
 
-  const findClaimablePositionRecord = async (marketId: string): Promise<WalletRecord | null> => {
+  const findClaimablePositionRecord = async (
+    marketId: string,
+    options?: { outcome?: number; includeLp?: boolean },
+  ): Promise<WalletRecord | null> => {
     if (!address) return null;
 
     const cleanMarketId = marketId.includes("field") ? marketId.replace("field", "") : marketId;
@@ -1320,12 +1365,29 @@ export const useAleoPrograms = () => {
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       const unspent = records.filter((record) => !record.spent);
 
-      const found = unspent.find((record) => {
-        const recordMarketId = parseRecordField(record, "market_id");
-        return recordMarketId === cleanMarketId;
-      });
+      const candidates = unspent
+        .filter((record) => {
+          const recordMarketId = parseRecordField(record, "market_id");
+          if (recordMarketId !== cleanMarketId) return false;
 
-      return found ?? null;
+          const outcomeRaw = Number.parseInt(parseRecordField(record, "outcome"), 10);
+          if (options?.outcome !== undefined) {
+            return Number.isFinite(outcomeRaw) && outcomeRaw === options.outcome;
+          }
+
+          if (!options?.includeLp) {
+            return !Number.isFinite(outcomeRaw) || outcomeRaw !== 255;
+          }
+          return true;
+        })
+        .map((record) => ({
+          record,
+          shares: Number.parseInt(parseRecordField(record, "shares"), 10),
+        }))
+        .filter((entry) => Number.isFinite(entry.shares) && entry.shares > 0)
+        .sort((a, b) => b.shares - a.shares);
+
+      return candidates[0]?.record ?? null;
     } catch (error) {
       if (isWalletNoResponse(error)) {
         toast.error("Wallet did not respond. Unlock/approve the wallet and retry claim.");
@@ -1335,18 +1397,147 @@ export const useAleoPrograms = () => {
     }
   };
 
-  const waitForPositionRecord = async (marketId: string): Promise<WalletRecord | null> => {
+  const waitForPositionRecord = async (
+    marketId: string,
+    options?: { outcome?: number; includeLp?: boolean },
+  ): Promise<WalletRecord | null> => {
     for (let i = 0; i < 10; i++) {
-      const record = await findClaimablePositionRecord(marketId);
+      const record = await findClaimablePositionRecord(marketId, options);
       if (record) return record;
       await new Promise((r) => setTimeout(r, 2000));
     }
     return null;
   };
 
+  const fetchMarketPositionSummary = useCallback(
+    async (marketId: string, outcome?: number): Promise<MarketPositionSummary> => {
+      const cleanMarketId = marketId.replace(/field$/i, "").trim();
+      const empty: MarketPositionSummary = {
+        marketId: cleanMarketId,
+        outcome: typeof outcome === "number" ? outcome : null,
+        sellableShares: 0,
+        sellableCollateral: 0,
+        outcomeShares: {},
+        outcomeMaxPositionShares: {},
+        tradePositionCount: 0,
+        lpShares: 0,
+        lpCollateral: 0,
+        lpPositionCount: 0,
+        lpEstimated: false,
+      };
+      if (!address || !cleanMarketId) return empty;
+
+      try {
+        const rawRecords = await requestRecordsWithRetry(requestRecords, PROGRAM_ID, "BetPosition");
+        const records = rawRecords.filter(
+          (entry): entry is WalletRecord => typeof entry === "object" && entry !== null,
+        );
+        const unspent = records.filter((record) => !record.spent);
+
+        let sellableShares = 0;
+        let sellableCollateral = 0;
+        const outcomeShares: Record<number, number> = {};
+        const outcomeMaxPositionShares: Record<number, number> = {};
+        let tradePositionCount = 0;
+        let lpShares = 0;
+        let lpCollateral = 0;
+        let lpPositionCount = 0;
+        const seenPositionIds = new Set<string>();
+
+        for (const record of unspent) {
+          const recordMarketId = parseRecordField(record, "market_id");
+          if (recordMarketId !== cleanMarketId) continue;
+
+          const recordOutcome = Number.parseInt(parseRecordField(record, "outcome"), 10);
+          const recordPositionId = parseRecordField(record, "position_id") || parseRecordField(record, "escrow_id");
+          const shares = Number.parseInt(parseRecordField(record, "shares"), 10);
+          const collateral = Number.parseInt(parseRecordField(record, "collateral_in"), 10);
+          if (!Number.isFinite(shares) || shares <= 0) continue;
+          if (recordPositionId) seenPositionIds.add(formatField(recordPositionId));
+
+          if (recordOutcome === 255) {
+            lpPositionCount += 1;
+            lpShares += shares;
+            if (Number.isFinite(collateral) && collateral > 0) lpCollateral += collateral;
+            continue;
+          }
+          outcomeShares[recordOutcome] = (outcomeShares[recordOutcome] ?? 0) + shares;
+          outcomeMaxPositionShares[recordOutcome] = Math.max(
+            outcomeMaxPositionShares[recordOutcome] ?? 0,
+            shares,
+          );
+
+          tradePositionCount += 1;
+          if (typeof outcome === "number" && recordOutcome === outcome) {
+            if (shares > sellableShares) {
+              sellableShares = shares;
+              sellableCollateral = Number.isFinite(collateral) && collateral > 0 ? collateral : 0;
+            }
+          }
+        }
+
+        const escrowRecords = await fetchEscrowedBetRecords(cleanMarketId);
+        for (const escrow of escrowRecords) {
+          const positionId = formatField(escrow.escrowId);
+          if (seenPositionIds.has(positionId)) continue;
+
+          const pending = await fetchPendingPositionSnapshot(positionId);
+          if (!pending) continue;
+          if (normalizeField(pending.marketId) !== normalizeField(`${cleanMarketId}field`)) continue;
+          if (pending.outcome === 255) continue;
+          if (pending.shares <= 0) continue;
+
+          seenPositionIds.add(positionId);
+          tradePositionCount += 1;
+          outcomeShares[pending.outcome] = (outcomeShares[pending.outcome] ?? 0) + pending.shares;
+          outcomeMaxPositionShares[pending.outcome] = Math.max(
+            outcomeMaxPositionShares[pending.outcome] ?? 0,
+            pending.shares,
+          );
+          if (typeof outcome === "number" && pending.outcome === outcome) {
+            if (pending.shares > sellableShares) {
+              sellableShares = pending.shares;
+              sellableCollateral = pending.collateralIn;
+            }
+          }
+        }
+
+        let lpEstimated = false;
+        if (lpShares <= 0 && lpCollateral <= 0) {
+          const localLpContribution = readLocalLpContribution(address, cleanMarketId);
+          if (localLpContribution > 0) {
+            lpEstimated = true;
+            lpShares = localLpContribution;
+            lpCollateral = localLpContribution;
+            lpPositionCount = Math.max(lpPositionCount, 1);
+          }
+        }
+
+        return {
+          marketId: cleanMarketId,
+          outcome: typeof outcome === "number" ? outcome : null,
+          sellableShares,
+          sellableCollateral,
+          outcomeShares,
+          outcomeMaxPositionShares,
+          tradePositionCount,
+          lpShares,
+          lpCollateral,
+          lpPositionCount,
+          lpEstimated,
+        };
+      } catch (error) {
+        console.error("Failed to fetch market position summary:", error);
+        return empty;
+      }
+    },
+    [address, requestRecords],
+  );
+
   const findEscrowedBetRecord = async (
     marketId: string,
-    tokenProgramId: string = CREDITS_TOKEN_PROGRAM_ID
+    tokenProgramId: string = CREDITS_TOKEN_PROGRAM_ID,
+    options?: { outcome?: number },
   ): Promise<WalletRecord | null> => {
     if (!address) return null;
 
@@ -1360,7 +1551,10 @@ export const useAleoPrograms = () => {
 
       const found = unspent.find((record) => {
         const recordMarketId = parseRecordField(record, "market_id");
-        return recordMarketId === cleanMarketId;
+        if (recordMarketId !== cleanMarketId) return false;
+        if (options?.outcome === undefined) return true;
+        const outcomeRaw = Number.parseInt(parseRecordField(record, "outcome"), 10);
+        return Number.isFinite(outcomeRaw) && outcomeRaw === options.outcome;
       });
 
       return found ?? null;
@@ -1371,6 +1565,57 @@ export const useAleoPrograms = () => {
       console.error(`Error finding escrowed bet record in ${tokenProgramId}:`, error);
       return null;
     }
+  };
+
+  const fetchEscrowedBetRecords = async (
+    marketId: string,
+    options?: { outcome?: number },
+  ): Promise<
+    Array<{ record: WalletRecord; escrowId: string; outcome: number; amount: number; tokenProgramId: string }>
+  > => {
+    if (!address) return [];
+    const cleanMarketId = marketId.includes("field") ? marketId.replace("field", "") : marketId;
+    const tokenPrograms = [CREDITS_TOKEN_PROGRAM_ID, USDCX_TOKEN_PROGRAM_ID, USAD_TOKEN_PROGRAM_ID];
+    const results: Array<{
+      record: WalletRecord;
+      escrowId: string;
+      outcome: number;
+      amount: number;
+      tokenProgramId: string;
+    }> = [];
+
+    for (const tokenProgramId of tokenPrograms) {
+      try {
+        const rawRecords = await requestRecordsWithRetry(requestRecords, tokenProgramId, "EscrowedBet");
+        const records = rawRecords.filter(
+          (entry): entry is WalletRecord => typeof entry === "object" && entry !== null,
+        );
+        const unspent = records.filter((record) => !record.spent);
+
+        for (const record of unspent) {
+          const recordMarketId = parseRecordField(record, "market_id");
+          if (recordMarketId !== cleanMarketId) continue;
+
+          const outcomeRaw = Number.parseInt(parseRecordField(record, "outcome"), 10);
+          const escrowId = parseRecordField(record, "escrow_id");
+          const amountRaw = Number.parseInt(parseRecordField(record, "amount"), 10);
+          if (!escrowId || !Number.isFinite(outcomeRaw)) continue;
+          if (options?.outcome !== undefined && outcomeRaw !== options.outcome) continue;
+
+          results.push({
+            record,
+            escrowId: formatField(escrowId),
+            outcome: outcomeRaw,
+            amount: Number.isFinite(amountRaw) && amountRaw > 0 ? amountRaw : 0,
+            tokenProgramId,
+          });
+        }
+      } catch (error) {
+        console.warn(`[fetchEscrowedBetRecords] Failed for ${tokenProgramId}:`, error);
+      }
+    }
+
+    return results.sort((a, b) => b.amount - a.amount);
   };
 
   const findWinningsClaimRecord = async (marketId: string): Promise<WalletRecord | null> => {
@@ -1676,7 +1921,10 @@ export const useAleoPrograms = () => {
           privateFee: false,
         }, tokenProgram, "fund_pool");
 
-        if (result) triggerRefresh();
+        if (result) {
+          addLocalLpContribution(address, cleanMarketId, amountMicro);
+          triggerRefresh();
+        }
         return result ? result.transactionId : null;
       }
 
@@ -1701,7 +1949,10 @@ export const useAleoPrograms = () => {
         privateFee: false,
       }, tokenProgram, "fund_pool");
 
-      if (result) triggerRefresh();
+      if (result) {
+        addLocalLpContribution(address, cleanMarketId, amountMicro);
+        triggerRefresh();
+      }
       return result ? result.transactionId : null;
     } catch (error) {
       console.error("Fund pool failed:", error);
@@ -1714,7 +1965,7 @@ export const useAleoPrograms = () => {
   const sellShares = async (
     marketId: string,
     sharesToSell: number,
-    options?: { slippageBps?: number },
+    options?: { slippageBps?: number; outcome?: number },
   ): Promise<{ transactionId: string; payoutAmount: number; payoutTicker: string } | null> => {
     if (!address) {
       toast.error("Please connect your wallet first");
@@ -1737,9 +1988,58 @@ export const useAleoPrograms = () => {
         return null;
       }
 
-      const positionRecord = await findClaimablePositionRecord(cleanMarketId);
+      let positionRecord = await findClaimablePositionRecord(cleanMarketId, {
+        outcome: options?.outcome,
+      });
       if (!positionRecord) {
-        toast.error("No active position record found for this market.");
+        const escrowCandidates = await fetchEscrowedBetRecords(cleanMarketId, {
+          outcome: options?.outcome,
+        });
+        let chosen:
+          | {
+              positionId: string;
+              marketId: string;
+              outcome: number;
+              collateralIn: number;
+              shares: number;
+            }
+          | null = null;
+
+        for (const escrow of escrowCandidates) {
+          const pending = await fetchPendingPositionSnapshot(escrow.escrowId);
+          if (!pending) continue;
+          if (pending.shares <= 0) continue;
+          if (typeof options?.outcome === "number" && pending.outcome !== options.outcome) continue;
+
+          if (pending.shares >= Math.max(1, Math.floor(sharesToSell))) {
+            chosen = pending;
+            break;
+          }
+          if (!chosen || pending.shares > chosen.shares) chosen = pending;
+        }
+
+        if (chosen) {
+          toast.info("Preparing sellable position record...");
+          await executeAndPoll({
+            program: PROGRAM_ID,
+            function: "mint_share_record",
+            inputs: [
+              chosen.positionId,
+              chosen.marketId,
+              formatU8(chosen.outcome),
+              formatU64(chosen.collateralIn),
+              formatU64(chosen.shares),
+            ],
+            fee: 500_000,
+            privateFee: false,
+          }, PROGRAM_ID, "mint_share_record");
+          positionRecord = await waitForPositionRecord(cleanMarketId, {
+            outcome: chosen.outcome,
+          });
+        }
+      }
+      if (!positionRecord) {
+        toast.error("No sellable position record found for this market/outcome.");
         return null;
       }
 
@@ -2177,6 +2477,7 @@ export const useAleoPrograms = () => {
     fetchUSDCxBalance,
     fetchUSADBalances,
     fetchUSADBalance,
+    fetchMarketPositionSummary,
     fetchCoreProtocolConfig,
     quoteBuyShares,
     quoteSellShares,
