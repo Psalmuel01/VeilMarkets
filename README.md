@@ -2,17 +2,19 @@
 
 Privacy-aware prediction markets on Aleo.
 
-VeilMarkets lets users create markets, place bets, and claim payouts with zero-knowledge-backed verification. The app supports binary and categorical markets (2-32 outcomes) with multi-token settlement rails.
+VeilMarkets lets users create markets, trade outcome shares, and claim payouts with zero-knowledge-backed verification. The app supports binary and categorical markets (2-32 outcomes) with multi-token settlement rails.
 
 ## Current Scope
 
 - Binary and categorical markets (2-32 outcomes)
 - Market categories: Crypto, Finance, Sports, Politics, Entertainment, Tech, Other
 - Settlement tokens:
-  - Aleo Credits
-  - USDCx (ARC-20)
-  - USAD (ARC-20)
+- Aleo Credits
+- USDCx (ARC-20)
+- USAD (ARC-20)
 - Share-trading execution with private wallet records/claims and ZK verification
+- Fixed winner redemption semantics (1 payout unit per winning share)
+- LP accounting with post-resolution withdrawal (principal + LP fee share + trading surplus share)
 - Quorum-aware optimistic resolution with challenge + dispute flow
 
 ## Highlights (So Far)
@@ -41,7 +43,7 @@ VeilMarkets lets users create markets, place bets, and claim payouts with zero-k
 
 ## Architecture Overview
 
-1. User places a bet through the token adapter for that market.
+1. User buys shares through the token adapter for that market.
 2. Adapter escrows funds and calls core.
 3. Core updates share/pool accounting and links position commitments.
 4. Frontend can compute deterministic buy/sell quotes from on-chain config/state.
@@ -126,6 +128,9 @@ npm run dev
 - Runtime data and contract routing are v9-only.
 - Current payout flow remains claim-based via core `claim_winnings` + adapter `claim_payout`.
 - Core exposes quote transitions (`quote_buy`, `quote_sell`) plus canonical quote math used by execution paths.
+- Claim semantics are fixed-share, not pari-mutuel:
+  - resolved winner claim = `shares`
+  - cancelled market claim = original net collateral
 - Stablecoin private spend paths rely on valid private records and proof inputs.
 - If currency filtering behaves differently in production, verify all `VITE_*_TOKEN_PROGRAM_ADDRESS` values were set correctly before build/deploy.
 - Outcome labels for categorical markets are metadata-driven and support up to 32 outcomes in v9 schema.

@@ -184,7 +184,7 @@ const STEPS = [
   {
     icon: Lock,
     title: "Place a private bet",
-    description: "Your bet amount and identity are shielded using Aleo's ZK proofs before hitting the chain. Not even the protocol can see your position.",
+    description: "Your wallet records and claim artifacts use Aleo's private execution paths, while market-level totals remain publicly auditable.",
     tag: "Step 02",
   },
   {
@@ -200,13 +200,13 @@ const PRIVACY_FEATURES = [
   {
     icon: Lock,
     title: "Private bets",
-    body: "Your bet amounts and positions are encrypted. No one can see how much you wagered or which outcome you predicted.",
+    body: "Private records protect ownership and claim artifacts while preserving public aggregate market accounting.",
     accent: "var(--vm-accent)",
   },
   {
     icon: Eye,
     title: "Hidden identity",
-    body: "Your wallet address is never exposed on-chain. Participate in markets without revealing who you are.",
+    body: "Position ownership is commitment-based to reduce direct address-to-position linkage.",
     accent: "var(--vm-accent2)",
   },
   {
@@ -537,8 +537,8 @@ export default function LandingPage() {
             </motion.h1>
 
             <motion.p className="vm-hero-sub" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }}>
-              The first prediction market where your identity, position, and wager are fully encrypted
-              on-chain — while outcomes stay publicly auditable.
+              Private execution where ownership and claims are shielded, while
+              aggregate market state stays publicly auditable on-chain.
             </motion.p>
 
             <motion.div className="vm-cta-row" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }}>
@@ -607,8 +607,8 @@ export default function LandingPage() {
               <span className="vm-section-label">Zero-knowledge privacy</span>
               <h2 className="vm-h2">Your bet is yours alone</h2>
               <p className="vm-section-sub" style={{ marginBottom: 32 }}>
-                VeilMarkets uses Aleo's ZK proof system so your on-chain footprint reveals nothing —
-                not your identity, not your amount, not your predicted outcome.
+                VeilMarkets uses Aleo's ZK proof system to protect private records and claims,
+                while keeping settlement and aggregate state verifiable.
               </p>
               <ZKVisual />
             </motion.div>
