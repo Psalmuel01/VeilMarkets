@@ -34,6 +34,12 @@ interface FundPoolVariables {
   tokenId: string;
 }
 
+interface WithdrawLiquidityVariables {
+  marketId: string;
+  lpShares: number;
+  minPayoutMicro?: number;
+}
+
 interface PlaceBetMutationContext {
   previousPool?: PoolInfo | null;
   previousBalances?: TokenBalanceSummary | null;
@@ -340,8 +346,12 @@ export const usePlaceBetMutation = () => {
         }
         next.total_no = next.total_outcome_0;
         next.total_yes = next.total_outcome_1;
-        next.escrowed_amount += deltaMicro;
-        next.participant_count += 1;
+        next.trader_count = (next.trader_count ?? next.participant_count ?? 0) + 1;
+        next.participant_count = next.trader_count + (next.lp_count ?? 0);
+        next.trading_collateral = (next.trading_collateral ?? next.escrowed_amount ?? 0) + deltaMicro;
+        next.total_collateral = next.trading_collateral + (next.lp_collateral ?? 0);
+        next.cumulative_volume = (next.cumulative_volume ?? 0) + deltaMicro;
+        next.escrowed_amount = next.trading_collateral;
         return next;
       });
 
@@ -429,6 +439,26 @@ export const useFundPoolMutation = () => {
       const txId = await fundPool(marketId, amountCredits, tokenId);
       if (!txId) throw new Error("Fund pool transaction failed");
       return txId;
+    },
+    onSettled: async (_data, _error, variables) => {
+      await invalidateCoreQueries(
+        ({ queryKey }) => queryClient.invalidateQueries({ queryKey }),
+        variables.marketId,
+        publicKey,
+      );
+    },
+  });
+};
+
+export const useWithdrawLiquidityMutation = () => {
+  const queryClient = useQueryClient();
+  const { withdrawLiquidity, publicKey } = useAleoPrograms();
+
+  return useMutation({
+    mutationFn: async ({ marketId, lpShares, minPayoutMicro }: WithdrawLiquidityVariables) => {
+      const result = await withdrawLiquidity(marketId, lpShares, { minPayoutMicro });
+      if (!result) throw new Error("Withdraw liquidity transaction failed");
+      return result;
     },
     onSettled: async (_data, _error, variables) => {
       await invalidateCoreQueries(

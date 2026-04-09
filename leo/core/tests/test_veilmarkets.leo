@@ -16,8 +16,7 @@ fn calc_buy_shares(
     let oc: u64 = outcome_count as u64;
     let total_liq: u64 = pool_collateral + (virtual_liq * oc);
     let outcome_liq: u64 = (pool_collateral / oc) + virtual_liq + outcome_exposure;
-    let raw: u64 = mul_div_u64(net_collateral_in, total_liq, outcome_liq);
-    return (raw == 0u64) ? 1u64 : raw;
+    return mul_div_u64(net_collateral_in, total_liq, outcome_liq);
 }
 
 fn calc_sell_payout(
@@ -110,12 +109,10 @@ program test_veilmarkets.aleo {
     }
 
     @test
-    fn winner_redemption_proportional() {
-        let pool_total_collateral: u64 = 120000000u64;
-        let winning_supply: u64 = 30000000u64;
+    fn winner_redemption_fixed_unit() {
         let my_shares: u64 = 6000000u64;
-        let payout: u64 = mul_div_u64(my_shares, pool_total_collateral, winning_supply);
-        assert_eq(payout, 24000000u64);
+        let payout: u64 = my_shares;
+        assert_eq(payout, 6000000u64);
 
         let losing_payout: u64 = 0u64;
         assert_eq(losing_payout, 0u64);
@@ -172,6 +169,18 @@ program test_veilmarkets.aleo {
 
         assert(payout_small > 0u64);
         assert(payout_large > payout_small);
+    }
+
+    @test
+    fn tiny_trade_floor() {
+        let shares: u64 = calc_buy_shares(
+            1000000000u64,
+            32u8,
+            100000000u64,
+            500000000u64,
+            1u64,
+        );
+        assert_eq(shares, 0u64);
     }
 
     @noupgrade

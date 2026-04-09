@@ -15,6 +15,7 @@ program veilmarkets_core_v9.aleo {
     const PARAM_MIN_TRADE: u8 = 2u8;
     const PARAM_MIN_LIQUIDITY: u8 = 3u8;
     const PARAM_VIRTUAL_LIQ: u8 = 4u8;
+    const PARAM_LP_FEE_SHARE_BPS: u8 = 5u8;
 
     const FEE_TREASURY_KEY: u8 = 0u8;
 
@@ -23,6 +24,7 @@ program veilmarkets_core_v9.aleo {
     const DEFAULT_MIN_TRADE: u64 = 1000000u64;
     const DEFAULT_MIN_LIQUIDITY: u64 = 1000000u64;
     const DEFAULT_VIRTUAL_LIQ: u64 = 10000000u64;
+    const DEFAULT_LP_FEE_SHARE_BPS: u64 = 8000u64;
 
     struct MarketInfo {
         creator: address,
@@ -50,11 +52,15 @@ program veilmarkets_core_v9.aleo {
         total_outcome_5: u64,
         total_outcome_6: u64,
         total_outcome_7: u64,
-        participant_count: u64,
+        trader_count: u64,
+        lp_count: u64,
         locked: bool,
+        trading_collateral: u64,
+        lp_collateral: u64,
         total_collateral: u64,
         total_shares: u64,
         lp_supply: u64,
+        cumulative_volume: u64,
     }
 
     // Compatibility record name retained for existing frontend flows.
@@ -121,6 +127,14 @@ program veilmarkets_core_v9.aleo {
     mapping pending_position_outcome: field => u8; // key = position_id => outcome
     mapping pending_position_collateral: field => u64; // key = position_id => collateral_in
     mapping pending_position_shares: field => u64; // key = position_id => shares
+
+    // LP ownership accounting (privacy-preserving owner key provided by adapter).
+    mapping lp_balances: field => u64; // lp_owner_key => lp_shares
+    mapping market_fee_pool: field => u64; // market_id => accrued trading fees
+    mapping market_winner_supply_snapshot: field => u64; // market_id => winner share supply at resolution
+    mapping market_winner_payout_remaining: field => u64; // market_id => remaining winner payouts
+    mapping market_cancel_payout_remaining: field => u64; // market_id => remaining cancel refunds
+    mapping market_lp_trading_surplus: field => u64; // market_id => loser collateral distributable to LPs
 
     // Claims.
     mapping spent_nullifiers: field => bool;
@@ -256,6 +270,7 @@ program veilmarkets_core_v9.aleo {
         public market_id: field,
         public amount: u64,
         public lp_position_id: field,
+        public lp_owner_key: field,
         public owner_commitment: field,
     ) -> Final {
         let caller: address = self.caller;
@@ -264,10 +279,46 @@ program veilmarkets_core_v9.aleo {
             market_id,
             amount,
             lp_position_id,
+            lp_owner_key,
             owner_commitment,
             caller,
         );
         };
+    }
+
+
+    fn withdraw_liquidity(
+        public market_id: field,
+        public lp_shares: u64,
+        public min_payout: u64,
+        public withdraw_nonce: field,
+    ) -> (WinningsClaim, Final) {
+        assert(lp_shares > 0u64);
+        let lp_owner_key: field = self.caller as field;
+        let nullifier: field = BHP256::hash_to_field(
+            lp_owner_key + market_id + lp_shares as field + withdraw_nonce,
+        );
+
+        let claim: WinningsClaim = WinningsClaim {
+            owner: self.signer,
+            market_id: market_id,
+            payout_amount: 0u64,
+            nullifier: nullifier,
+            nonce: BHP256::hash_to_group(nullifier),
+        };
+
+        let caller: address = self.caller;
+        let f: Final = final {
+            finalize_withdraw_liquidity(
+            market_id,
+            lp_shares,
+            lp_owner_key,
+            min_payout,
+            nullifier,
+            caller,
+        );
+        };
+        return (claim, f);
     }
 
 
@@ -506,6 +557,10 @@ fn outcome_key(market_id: field, outcome: u8) -> field {
     return market_id + outcome as field;
 }
 
+fn lp_balance_key(market_id: field, lp_owner_key: field) -> field {
+    return market_id + lp_owner_key;
+}
+
 fn mul_div_u64(a: u64, b: u64, denom: u64) -> u64 {
     assert(denom > 0u64);
     let a128: u128 = a as u128;
@@ -550,7 +605,7 @@ fn calc_buy_shares(
         outcome_exposure_value,
     );
     let raw_shares: u64 = mul_div_u64(net_collateral_in, total_liq, outcome_liq);
-    return (raw_shares == 0u64) ? 1u64 : raw_shares;
+    return raw_shares;
 }
 
 fn calc_sell_payout(
@@ -680,11 +735,15 @@ final fn finalize_create_market(
         total_outcome_5: 0u64,
         total_outcome_6: 0u64,
         total_outcome_7: 0u64,
-        participant_count: 0u64,
+        trader_count: 0u64,
+        lp_count: 0u64,
         locked: false,
+        trading_collateral: 0u64,
+        lp_collateral: 0u64,
         total_collateral: 0u64,
         total_shares: 0u64,
         lp_supply: 0u64,
+        cumulative_volume: 0u64,
     };
 
     Mapping::set(markets, market_id, market);
@@ -728,13 +787,14 @@ final fn finalize_quote_buy(
         DEFAULT_FEE_BPS,
     );
     let quote: BuyQuoteComputation = compute_buy_quote(
-        pool.total_collateral,
+        pool.trading_collateral,
         market.outcome_count,
         virtual_liq,
         current_exposure,
         collateral_in,
         fee_bps,
     );
+    assert(quote.shares_out > 0u64);
 
     Mapping::set(quote_buy_shares_out, quote_id, quote.shares_out);
     Mapping::set(quote_buy_fee, quote_id, quote.fee);
@@ -774,7 +834,7 @@ final fn finalize_quote_sell(
         DEFAULT_FEE_BPS,
     );
     let quote: SellQuoteComputation = compute_sell_quote(
-        pool.total_collateral,
+        pool.trading_collateral,
         market.outcome_count,
         virtual_liq,
         current_exposure,
@@ -783,7 +843,7 @@ final fn finalize_quote_sell(
     );
     assert(quote.gross_payout > 0u64);
     assert(current_exposure >= quote.gross_payout);
-    assert(pool.total_collateral >= quote.gross_payout);
+    assert(pool.trading_collateral >= quote.gross_payout);
 
     Mapping::set(quote_sell_gross_payout, quote_id, quote.gross_payout);
     Mapping::set(quote_sell_fee, quote_id, quote.fee);
@@ -832,7 +892,7 @@ final fn finalize_buy_shares(
         DEFAULT_FEE_BPS,
     );
     let quote: BuyQuoteComputation = compute_buy_quote(
-        pool.total_collateral,
+        pool.trading_collateral,
         market.outcome_count,
         virtual_liq,
         current_exposure,
@@ -842,14 +902,19 @@ final fn finalize_buy_shares(
     let shares_out: u64 = quote.shares_out;
     let net_collateral_in: u64 = quote.net_collateral_in;
     let fee: u64 = quote.fee;
+    assert(shares_out > 0u64);
     assert(shares_out >= min_shares_out);
     let already_linked: bool = Mapping::contains(position_to_escrow, share_commitment);
     assert(!already_linked);
     let already_minted: bool = Mapping::get_or_use(minted_positions, share_commitment, false);
     assert(!already_minted);
 
+    let new_trading_collateral: u64 = pool.trading_collateral + net_collateral_in;
     let new_exposure: u64 = current_exposure + net_collateral_in;
     let new_supply: u64 = current_supply + shares_out;
+    // Fixed 1-unit winner redemption requires winner-side supply to stay solvent
+    // against trader-funded collateral.
+    assert(new_supply <= new_trading_collateral);
     Mapping::set(outcome_exposure, exposure_key, new_exposure);
     Mapping::set(outcome_share_supply, exposure_key, new_supply);
 
@@ -879,21 +944,35 @@ final fn finalize_buy_shares(
         total_outcome_5: new_total_5,
         total_outcome_6: new_total_6,
         total_outcome_7: new_total_7,
-        participant_count: pool.participant_count + 1u64,
+        trader_count: pool.trader_count + 1u64,
+        lp_count: pool.lp_count,
         locked: pool.locked,
-        total_collateral: pool.total_collateral + net_collateral_in,
+        trading_collateral: new_trading_collateral,
+        lp_collateral: pool.lp_collateral,
+        total_collateral: new_trading_collateral + pool.lp_collateral,
         total_shares: pool.total_shares + shares_out,
         lp_supply: pool.lp_supply,
+        cumulative_volume: pool.cumulative_volume + collateral_in,
     };
     Mapping::set(pools, market_id, updated_pool);
 
-    let accrued_fee: u64 = Mapping::get_or_use(protocol_fees, FEE_TREASURY_KEY, 0u64);
-    Mapping::set(protocol_fees, FEE_TREASURY_KEY, accrued_fee + fee);
+    let lp_fee_share_bps: u64 = Mapping::get_or_use(
+        protocol_u64,
+        PARAM_LP_FEE_SHARE_BPS,
+        DEFAULT_LP_FEE_SHARE_BPS,
+    );
+    assert(lp_fee_share_bps <= 10000u64);
+    let lp_fee_share: u64 = mul_div_u64(fee, lp_fee_share_bps, 10000u64);
+    let protocol_fee_share: u64 = fee - lp_fee_share;
+    let accrued_lp_fee: u64 = Mapping::get_or_use(market_fee_pool, market_id, 0u64);
+    Mapping::set(market_fee_pool, market_id, accrued_lp_fee + lp_fee_share);
+    let accrued_protocol_fee: u64 = Mapping::get_or_use(protocol_fees, FEE_TREASURY_KEY, 0u64);
+    Mapping::set(protocol_fees, FEE_TREASURY_KEY, accrued_protocol_fee + protocol_fee_share);
     Mapping::set(position_to_escrow, share_commitment, share_commitment);
     Mapping::set(position_owner_commitments, share_commitment, owner_commitment);
     Mapping::set(pending_position_market, share_commitment, market_id);
     Mapping::set(pending_position_outcome, share_commitment, outcome);
-    Mapping::set(pending_position_collateral, share_commitment, collateral_in);
+    Mapping::set(pending_position_collateral, share_commitment, net_collateral_in);
     Mapping::set(pending_position_shares, share_commitment, shares_out);
 }
 
@@ -901,6 +980,7 @@ final fn finalize_fund_pool(
     market_id: field,
     amount: u64,
     lp_position_id: field,
+    lp_owner_key: field,
     owner_commitment: field,
     caller: address,
 ) {
@@ -923,6 +1003,7 @@ final fn finalize_fund_pool(
 
     let pool: PoolState = Mapping::get(pools, market_id);
     assert(!pool.locked);
+    let new_lp_collateral: u64 = pool.lp_collateral + amount;
     let updated_pool: PoolState = PoolState {
         total_outcome_0: pool.total_outcome_0,
         total_outcome_1: pool.total_outcome_1,
@@ -932,13 +1013,20 @@ final fn finalize_fund_pool(
         total_outcome_5: pool.total_outcome_5,
         total_outcome_6: pool.total_outcome_6,
         total_outcome_7: pool.total_outcome_7,
-        participant_count: pool.participant_count + 1u64,
+        trader_count: pool.trader_count,
+        lp_count: pool.lp_count + 1u64,
         locked: pool.locked,
-        total_collateral: pool.total_collateral + amount,
+        trading_collateral: pool.trading_collateral,
+        lp_collateral: new_lp_collateral,
+        total_collateral: pool.trading_collateral + new_lp_collateral,
         total_shares: pool.total_shares,
         lp_supply: pool.lp_supply + amount,
+        cumulative_volume: pool.cumulative_volume,
     };
     Mapping::set(pools, market_id, updated_pool);
+    let balance_key: field = lp_balance_key(market_id, lp_owner_key);
+    let current_lp_balance: u64 = Mapping::get_or_use(lp_balances, balance_key, 0u64);
+    Mapping::set(lp_balances, balance_key, current_lp_balance + amount);
     Mapping::set(position_to_escrow, lp_position_id, lp_position_id);
     Mapping::set(position_owner_commitments, lp_position_id, owner_commitment);
     Mapping::set(pending_position_market, lp_position_id, market_id);
@@ -1044,7 +1132,7 @@ final fn finalize_sell_shares(
     );
 
     let quote: SellQuoteComputation = compute_sell_quote(
-        pool.total_collateral,
+        pool.trading_collateral,
         market.outcome_count,
         virtual_liq,
         current_exposure,
@@ -1059,11 +1147,13 @@ final fn finalize_sell_shares(
     assert(net_payout >= min_payout);
 
     assert(current_exposure >= gross_payout);
-    assert(pool.total_collateral >= gross_payout);
+    assert(pool.trading_collateral >= gross_payout);
     assert(pool.total_shares >= shares_to_sell);
 
     let new_exposure: u64 = current_exposure - gross_payout;
     let new_supply: u64 = current_supply - shares_to_sell;
+    let new_trading_collateral: u64 = pool.trading_collateral - gross_payout;
+    assert(new_supply <= new_trading_collateral);
     Mapping::set(outcome_exposure, exposure_key, new_exposure);
     Mapping::set(outcome_share_supply, exposure_key, new_supply);
 
@@ -1093,16 +1183,30 @@ final fn finalize_sell_shares(
         total_outcome_5: new_total_5,
         total_outcome_6: new_total_6,
         total_outcome_7: new_total_7,
-        participant_count: pool.participant_count,
+        trader_count: pool.trader_count,
+        lp_count: pool.lp_count,
         locked: pool.locked,
-        total_collateral: pool.total_collateral - gross_payout,
+        trading_collateral: new_trading_collateral,
+        lp_collateral: pool.lp_collateral,
+        total_collateral: new_trading_collateral + pool.lp_collateral,
         total_shares: pool.total_shares - shares_to_sell,
         lp_supply: pool.lp_supply,
+        cumulative_volume: pool.cumulative_volume + gross_payout,
     };
     Mapping::set(pools, market_id, updated_pool);
 
-    let accrued_fee: u64 = Mapping::get_or_use(protocol_fees, FEE_TREASURY_KEY, 0u64);
-    Mapping::set(protocol_fees, FEE_TREASURY_KEY, accrued_fee + fee);
+    let lp_fee_share_bps: u64 = Mapping::get_or_use(
+        protocol_u64,
+        PARAM_LP_FEE_SHARE_BPS,
+        DEFAULT_LP_FEE_SHARE_BPS,
+    );
+    assert(lp_fee_share_bps <= 10000u64);
+    let lp_fee_share: u64 = mul_div_u64(fee, lp_fee_share_bps, 10000u64);
+    let protocol_fee_share: u64 = fee - lp_fee_share;
+    let accrued_lp_fee: u64 = Mapping::get_or_use(market_fee_pool, market_id, 0u64);
+    Mapping::set(market_fee_pool, market_id, accrued_lp_fee + lp_fee_share);
+    let accrued_protocol_fee: u64 = Mapping::get_or_use(protocol_fees, FEE_TREASURY_KEY, 0u64);
+    Mapping::set(protocol_fees, FEE_TREASURY_KEY, accrued_protocol_fee + protocol_fee_share);
 
     let sold_collateral: u64 = mul_div_u64(
         state.collateral_in,
@@ -1159,16 +1263,34 @@ final fn finalize_claim_winnings(
     let market: MarketInfo = Mapping::get(markets, market_id);
     assert(market.is_resolved);
 
-    let pool: PoolState = Mapping::get(pools, market_id);
     let is_cancelled: bool = market.winning_outcome == OUTCOME_CANCELLED;
-    let winner_key: field = outcome_key(market_id, market.winning_outcome);
-    let winner_supply_raw: u64 = Mapping::get_or_use(outcome_share_supply, winner_key, 0u64);
     assert(is_cancelled || outcome == market.winning_outcome);
-    assert(is_cancelled || winner_supply_raw > 0u64);
-    let winner_supply: u64 = is_cancelled ? 1u64 : winner_supply_raw;
-    let winner_payout: u64 = mul_div_u64(state.shares, pool.total_collateral, winner_supply);
-    let payout: u64 = is_cancelled ? state.collateral_in : winner_payout;
+    let payout: u64 = is_cancelled ? state.collateral_in : state.shares;
     assert(payout > 0u64);
+
+    if (is_cancelled) {
+        let remaining_cancel_pool: u64 = Mapping::get_or_use(
+            market_cancel_payout_remaining,
+            market_id,
+            0u64,
+        );
+        assert(remaining_cancel_pool >= payout);
+        Mapping::set(market_cancel_payout_remaining, market_id, remaining_cancel_pool - payout);
+    } else {
+        let winner_supply_snapshot: u64 = Mapping::get_or_use(
+            market_winner_supply_snapshot,
+            market_id,
+            0u64,
+        );
+        assert(winner_supply_snapshot > 0u64);
+        let remaining_winner_pool: u64 = Mapping::get_or_use(
+            market_winner_payout_remaining,
+            market_id,
+            0u64,
+        );
+        assert(remaining_winner_pool >= payout);
+        Mapping::set(market_winner_payout_remaining, market_id, remaining_winner_pool - payout);
+    }
 
     let claim: PayoutClaim = PayoutClaim {
         amount: payout,
@@ -1186,6 +1308,80 @@ final fn finalize_claim_winnings(
         is_closed: true,
     };
     Mapping::set(positions, position_id, closed);
+}
+
+final fn finalize_withdraw_liquidity(
+    market_id: field,
+    lp_shares: u64,
+    lp_owner_key: field,
+    min_payout: u64,
+    nullifier: field,
+    caller: address,
+) {
+    let spent: bool = Mapping::get_or_use(spent_nullifiers, nullifier, false);
+    assert(!spent);
+    Mapping::set(spent_nullifiers, nullifier, true);
+
+    let market: MarketInfo = Mapping::get(markets, market_id);
+    assert(market.is_resolved);
+
+    let expected_owner_key: field = caller as field;
+    assert_eq(expected_owner_key, lp_owner_key);
+
+    let pool: PoolState = Mapping::get(pools, market_id);
+    assert(pool.lp_supply > 0u64);
+    assert(pool.lp_supply >= lp_shares);
+
+    let owner_balance_key: field = lp_balance_key(market_id, lp_owner_key);
+    let current_lp_balance: u64 = Mapping::get_or_use(lp_balances, owner_balance_key, 0u64);
+    assert(current_lp_balance >= lp_shares);
+
+    let fee_pool: u64 = Mapping::get_or_use(market_fee_pool, market_id, 0u64);
+    let trading_surplus_pool: u64 = Mapping::get_or_use(market_lp_trading_surplus, market_id, 0u64);
+
+    let principal_payout: u64 = mul_div_u64(lp_shares, pool.lp_collateral, pool.lp_supply);
+    let fee_payout: u64 = mul_div_u64(lp_shares, fee_pool, pool.lp_supply);
+    let trading_surplus_payout: u64 = mul_div_u64(lp_shares, trading_surplus_pool, pool.lp_supply);
+    let payout: u64 = principal_payout + fee_payout + trading_surplus_payout;
+    assert(payout > 0u64);
+    assert(payout >= min_payout);
+
+    let remaining_lp_collateral: u64 = pool.lp_collateral - principal_payout;
+    let remaining_fee_pool: u64 = fee_pool - fee_payout;
+    let remaining_trading_surplus_pool: u64 = trading_surplus_pool - trading_surplus_payout;
+    let remaining_lp_supply: u64 = pool.lp_supply - lp_shares;
+    let remaining_owner_lp_shares: u64 = current_lp_balance - lp_shares;
+
+    Mapping::set(lp_balances, owner_balance_key, remaining_owner_lp_shares);
+    Mapping::set(market_fee_pool, market_id, remaining_fee_pool);
+    Mapping::set(market_lp_trading_surplus, market_id, remaining_trading_surplus_pool);
+
+    let updated_pool: PoolState = PoolState {
+        total_outcome_0: pool.total_outcome_0,
+        total_outcome_1: pool.total_outcome_1,
+        total_outcome_2: pool.total_outcome_2,
+        total_outcome_3: pool.total_outcome_3,
+        total_outcome_4: pool.total_outcome_4,
+        total_outcome_5: pool.total_outcome_5,
+        total_outcome_6: pool.total_outcome_6,
+        total_outcome_7: pool.total_outcome_7,
+        trader_count: pool.trader_count,
+        lp_count: pool.lp_count,
+        locked: pool.locked,
+        trading_collateral: pool.trading_collateral,
+        lp_collateral: remaining_lp_collateral,
+        total_collateral: pool.trading_collateral + remaining_lp_collateral,
+        total_shares: pool.total_shares,
+        lp_supply: remaining_lp_supply,
+        cumulative_volume: pool.cumulative_volume,
+    };
+    Mapping::set(pools, market_id, updated_pool);
+
+    let claim: PayoutClaim = PayoutClaim {
+        amount: payout,
+        token_id: market.token_id,
+    };
+    Mapping::set(pending_payouts, nullifier, claim);
 }
 
 final fn finalize_verify_claim(nullifier: field, payout_amount: u64, caller: address) {
@@ -1217,6 +1413,17 @@ final fn finalize_resolve_market(
     Mapping::set(markets, market_id, market);
 
     let pool: PoolState = Mapping::get(pools, market_id);
+    let winner_key: field = outcome_key(market_id, winning_outcome);
+    let winner_supply_snapshot: u64 = Mapping::get_or_use(outcome_share_supply, winner_key, 0u64);
+    assert(winner_supply_snapshot > 0u64);
+    // Fixed 1-unit redemption solvency guard.
+    assert(winner_supply_snapshot <= pool.trading_collateral);
+    let lp_trading_surplus: u64 = pool.trading_collateral - winner_supply_snapshot;
+    Mapping::set(market_winner_supply_snapshot, market_id, winner_supply_snapshot);
+    Mapping::set(market_winner_payout_remaining, market_id, winner_supply_snapshot);
+    Mapping::set(market_cancel_payout_remaining, market_id, 0u64);
+    Mapping::set(market_lp_trading_surplus, market_id, lp_trading_surplus);
+
     let updated_pool: PoolState = PoolState {
         total_outcome_0: pool.total_outcome_0,
         total_outcome_1: pool.total_outcome_1,
@@ -1226,11 +1433,15 @@ final fn finalize_resolve_market(
         total_outcome_5: pool.total_outcome_5,
         total_outcome_6: pool.total_outcome_6,
         total_outcome_7: pool.total_outcome_7,
-        participant_count: pool.participant_count,
+        trader_count: pool.trader_count,
+        lp_count: pool.lp_count,
         locked: true,
+        trading_collateral: pool.trading_collateral,
+        lp_collateral: pool.lp_collateral,
         total_collateral: pool.total_collateral,
         total_shares: pool.total_shares,
         lp_supply: pool.lp_supply,
+        cumulative_volume: pool.cumulative_volume,
     };
     Mapping::set(pools, market_id, updated_pool);
 }
@@ -1247,6 +1458,10 @@ final fn finalize_cancel_market(market_id: field, caller: address) {
     Mapping::set(markets, market_id, market);
 
     let pool: PoolState = Mapping::get(pools, market_id);
+    Mapping::set(market_winner_supply_snapshot, market_id, 0u64);
+    Mapping::set(market_winner_payout_remaining, market_id, 0u64);
+    Mapping::set(market_cancel_payout_remaining, market_id, pool.trading_collateral);
+    Mapping::set(market_lp_trading_surplus, market_id, 0u64);
     let updated_pool: PoolState = PoolState {
         total_outcome_0: pool.total_outcome_0,
         total_outcome_1: pool.total_outcome_1,
@@ -1256,11 +1471,15 @@ final fn finalize_cancel_market(market_id: field, caller: address) {
         total_outcome_5: pool.total_outcome_5,
         total_outcome_6: pool.total_outcome_6,
         total_outcome_7: pool.total_outcome_7,
-        participant_count: pool.participant_count,
+        trader_count: pool.trader_count,
+        lp_count: pool.lp_count,
         locked: true,
+        trading_collateral: pool.trading_collateral,
+        lp_collateral: pool.lp_collateral,
         total_collateral: pool.total_collateral,
         total_shares: pool.total_shares,
         lp_supply: pool.lp_supply,
+        cumulative_volume: pool.cumulative_volume,
     };
     Mapping::set(pools, market_id, updated_pool);
 }
@@ -1275,6 +1494,9 @@ final fn finalize_set_protocol_u64(param_key: u8, value: u64, auth: Final) {
     }
     if (param_key == PARAM_VIRTUAL_LIQ) {
         assert(value > 0u64);
+    }
+    if (param_key == PARAM_LP_FEE_SHARE_BPS) {
+        assert(value <= 10000u64);
     }
     Mapping::set(protocol_u64, param_key, value);
 }

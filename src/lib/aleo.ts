@@ -53,11 +53,16 @@ export interface PoolInfo {
   // Legacy aliases kept for backwards compatibility in existing UI.
   total_no: number;
   total_yes: number;
+  trader_count: number;
+  lp_count: number;
   participant_count: number;
   locked: boolean;
+  trading_collateral: number;
+  lp_collateral: number;
   total_collateral: number;
   total_shares: number;
   lp_supply: number;
+  cumulative_volume: number;
   escrowed_amount: number;
 }
 
@@ -376,11 +381,16 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
     total_outcome_7: 0,
     total_no: 0,
     total_yes: 0,
+    trader_count: 0,
+    lp_count: 0,
     participant_count: 0,
     locked: false,
+    trading_collateral: 0,
+    lp_collateral: 0,
     total_collateral: 0,
     total_shares: 0,
     lp_supply: 0,
+    cumulative_volume: 0,
     escrowed_amount: 0,
   };
 
@@ -396,6 +406,14 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
     const totalOutcome5 = parseAleoInt(obj.total_outcome_5);
     const totalOutcome6 = parseAleoInt(obj.total_outcome_6);
     const totalOutcome7 = parseAleoInt(obj.total_outcome_7);
+    const traderCount = parseAleoInt(obj.trader_count ?? obj.participant_count);
+    const lpCount = parseAleoInt(obj.lp_count);
+    const tradingCollateral = parseAleoInt(obj.trading_collateral ?? obj.total_collateral);
+    const lpCollateral = parseAleoInt(obj.lp_collateral);
+    const totalCollateral = parseAleoInt(
+      obj.total_collateral ?? (tradingCollateral + lpCollateral),
+    );
+    const cumulativeVolume = parseAleoInt(obj.cumulative_volume);
     return {
       total_outcome_0: totalOutcome0,
       total_outcome_1: totalOutcome1,
@@ -407,12 +425,17 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
       total_outcome_7: totalOutcome7,
       total_no: totalOutcome0,
       total_yes: totalOutcome1,
-      participant_count: parseAleoInt(obj.participant_count),
+      trader_count: traderCount,
+      lp_count: lpCount,
+      participant_count: traderCount + lpCount,
       locked: parseAleoBool(obj.locked),
-      total_collateral: parseAleoInt(obj.total_collateral),
+      trading_collateral: tradingCollateral,
+      lp_collateral: lpCollateral,
+      total_collateral: totalCollateral,
       total_shares: parseAleoInt(obj.total_shares),
       lp_supply: parseAleoInt(obj.lp_supply),
-      escrowed_amount: parseAleoInt(obj.escrowed_amount ?? obj.total_collateral),
+      cumulative_volume: cumulativeVolume,
+      escrowed_amount: parseAleoInt(obj.escrowed_amount ?? tradingCollateral),
     };
   }
 
@@ -444,10 +467,15 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
       key === "total_outcome_7" ||
       key === "total_no" ||
       key === "total_yes" ||
+      key === "trader_count" ||
+      key === "lp_count" ||
       key === "participant_count" ||
+      key === "trading_collateral" ||
+      key === "lp_collateral" ||
       key === "total_collateral" ||
       key === "total_shares" ||
       key === "lp_supply" ||
+      key === "cumulative_volume" ||
       key === "escrowed_amount"
     ) {
       parsed[key] = parseAleoInt(value) as never;
@@ -463,6 +491,12 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
     total_outcome_1: totalOutcome1,
     total_no: totalOutcome0,
     total_yes: totalOutcome1,
+    participant_count:
+      (parsed.participant_count as number | undefined) ??
+      ((parsed.trader_count as number | undefined) ?? 0) + ((parsed.lp_count as number | undefined) ?? 0),
+    escrowed_amount:
+      (parsed.escrowed_amount as number | undefined) ??
+      ((parsed.trading_collateral as number | undefined) ?? (parsed.total_collateral as number | undefined) ?? 0),
   };
 };
 

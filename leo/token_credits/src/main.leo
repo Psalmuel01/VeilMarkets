@@ -1,5 +1,5 @@
 // VeilMarkets Token — Credits Adapter (v9)
-// Handles betting and pro-rata payouts using native credits.aleo
+// Handles share-trading settlement and payout rails using native credits.aleo
 import credits.aleo;
 import veilmarkets_core_v9.aleo;
 import veilmarkets_factory_v9.aleo;
@@ -191,6 +191,7 @@ program veilmarkets_token_credits_v9.aleo {
         let lp_position_id: field = BHP256::hash_to_field(
             self.caller as field + market_id + amount as field + lp_nonce,
         );
+        let lp_owner_key: field = self.caller as field;
         let owner_commitment: field =
             BHP256::hash_to_field(self.caller as field + lp_position_id);
 
@@ -198,6 +199,7 @@ program veilmarkets_token_credits_v9.aleo {
             market_id,
             amount,
             lp_position_id,
+            lp_owner_key,
             owner_commitment,
         );
 
@@ -342,4 +344,3 @@ final fn finalize_refund_bet(
     assert(current_total >= amount);
     Mapping::set(market_escrow, details.market_id, current_total - amount);
 }
-

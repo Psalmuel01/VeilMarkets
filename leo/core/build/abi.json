@@ -156,7 +156,15 @@
           }
         },
         {
-          "name": "participant_count",
+          "name": "trader_count",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "lp_count",
           "ty": {
             "Primitive": {
               "UInt": "U64"
@@ -167,6 +175,22 @@
           "name": "locked",
           "ty": {
             "Primitive": "Boolean"
+          }
+        },
+        {
+          "name": "trading_collateral",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "lp_collateral",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
           }
         },
         {
@@ -187,6 +211,14 @@
         },
         {
           "name": "lp_supply",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "cumulative_volume",
           "ty": {
             "Primitive": {
               "UInt": "U64"
@@ -521,6 +553,72 @@
     },
     {
       "name": "pending_position_shares",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "lp_balances",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "market_fee_pool",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "market_winner_supply_snapshot",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "market_winner_payout_remaining",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "market_cancel_payout_remaining",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "market_lp_trading_surplus",
       "key": {
         "Primitive": "Field"
       },
@@ -1017,6 +1115,15 @@
           "mode": "Public"
         },
         {
+          "name": "lp_owner_key",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
+        },
+        {
           "name": "owner_commitment",
           "ty": {
             "Plaintext": {
@@ -1027,6 +1134,69 @@
         }
       ],
       "outputs": [
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_liquidity",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "market_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "lp_shares",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "min_payout",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "withdraw_nonce",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "WinningsClaim"
+              ],
+              "program": "veilmarkets_core_v9.aleo"
+            }
+          },
+          "mode": "None"
+        },
         {
           "ty": "Final",
           "mode": "None"

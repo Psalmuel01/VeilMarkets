@@ -113,7 +113,7 @@ export function MarketCard({ market }: MarketCardProps) {
         <div className="pt-6 border-t border-white/5 flex items-center justify-between relative z-10">
           <div className="flex items-center gap-5">
             <div className="flex flex-col">
-              <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60 mb-0.5">Participants</span>
+              <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60 mb-0.5">Traders</span>
               <div className="flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-primary" />
                 <span className="text-sm font-bold font-mono text-white">{market.betsPlaced}</span>

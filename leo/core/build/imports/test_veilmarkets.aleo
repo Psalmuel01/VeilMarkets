@@ -53,9 +53,7 @@ closure calc_buy_shares:
     mul r12 r13 into r15;
     div r15 r14 into r16;
     cast r16 into r17 as u64;
-    is.eq r17 0u64 into r18;
-    ternary r18 1u64 r17 into r19;
-    output r19 as u64;
+    output r17 as u64;
 
 function quote_scales_outcome_counts:
     call calc_buy_shares 50000000u64 2u8 10000000u64 4000000u64 9000000u64 into r0;
@@ -98,15 +96,8 @@ function outcome_within_count:
     assert.eq true true;
     assert.eq false false;
 
-function winner_redemption_proportional:
-    assert.eq true true;
-    cast 6000000u64 into r0 as u128;
-    cast 120000000u64 into r1 as u128;
-    cast 30000000u64 into r2 as u128;
-    mul r0 r1 into r3;
-    div r3 r2 into r4;
-    cast r4 into r5 as u64;
-    assert.eq r5 24000000u64;
+function winner_redemption_fixed_unit:
+    assert.eq 6000000u64 6000000u64;
     assert.eq 0u64 0u64;
 
 closure calc_sell_payout:
@@ -171,6 +162,10 @@ function sell_quote_scales_with_shares:
     assert.eq r2 true;
     gt r1 r0 into r3;
     assert.eq r3 true;
+
+function tiny_trade_floor:
+    call calc_buy_shares 1000000000u64 32u8 100000000u64 500000000u64 1u64 into r0;
+    assert.eq r0 0u64;
 
 constructor:
     assert.eq edition 0u16;

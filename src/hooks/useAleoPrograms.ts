@@ -91,6 +91,7 @@ interface TokenBalanceSummary {
 interface CoreProtocolConfig {
   maxOutcomes: number;
   feeBps: number;
+  lpFeeShareBps: number;
   minTrade: number;
   minLiquidity: number;
   virtualLiquidity: number;
@@ -106,8 +107,9 @@ interface MarketPositionSummary {
   tradePositionCount: number;
   lpShares: number;
   lpCollateral: number;
+  lpFeeAccrued: number;
+  lpWithdrawable: number;
   lpPositionCount: number;
-  lpEstimated: boolean;
 }
 
 interface BuyQuote {
@@ -181,34 +183,6 @@ const generateRandomField = (): string => {
 const USDCX_FREEZELIST_PROGRAM_ID = "test_usdcx_freezelist.aleo";
 const USAD_FREEZELIST_PROGRAM_ID = "test_usad_freezelist.aleo";
 const MIN_ORACLE_STAKE_MICROCREDITS = 30_000_000;
-const LP_LOCAL_KEY_PREFIX = "veilmarkets_lp_v9";
-
-const buildLpLocalKey = (ownerAddress: string, marketId: string): string =>
-  `${LP_LOCAL_KEY_PREFIX}:${ownerAddress.toLowerCase()}:${marketId.replace(/field$/i, "").trim()}`;
-
-const readLocalLpContribution = (ownerAddress: string, marketId: string): number => {
-  if (typeof window === "undefined") return 0;
-  try {
-    const raw = window.localStorage.getItem(buildLpLocalKey(ownerAddress, marketId));
-    const parsed = raw ? Number.parseInt(raw, 10) : 0;
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-  } catch {
-    return 0;
-  }
-};
-
-const addLocalLpContribution = (ownerAddress: string, marketId: string, amountMicro: number): void => {
-  if (typeof window === "undefined") return;
-  if (!Number.isFinite(amountMicro) || amountMicro <= 0) return;
-  try {
-    const key = buildLpLocalKey(ownerAddress, marketId);
-    const current = Number.parseInt(window.localStorage.getItem(key) ?? "0", 10);
-    const safeCurrent = Number.isFinite(current) && current > 0 ? current : 0;
-    window.localStorage.setItem(key, String(safeCurrent + Math.floor(amountMicro)));
-  } catch {
-    // no-op
-  }
-};
 
 const parseMappingU64 = (value: unknown): number => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -303,6 +277,34 @@ const parseRecordField = (record: WalletRecord, field: string): string => {
   return "";
 };
 
+const extractTransitionField = (transition: unknown, field: string): string | null => {
+  if (!transition || typeof transition !== "object") return null;
+  const outputs = Array.isArray((transition as { outputs?: unknown[] }).outputs)
+    ? ((transition as { outputs?: unknown[] }).outputs as unknown[])
+    : [];
+  const patterns = [
+    new RegExp(`${field}\\s*:\\s*(\\d+field)`),
+    new RegExp(`"${field}"\\s*:\\s*"?(\\d+field)`),
+  ];
+
+  for (const output of outputs) {
+    const candidates: string[] = [];
+    if (typeof output === "string") candidates.push(output);
+    if (typeof output === "object" && output !== null) {
+      const obj = output as Record<string, unknown>;
+      if (typeof obj.value === "string") candidates.push(obj.value);
+      candidates.push(JSON.stringify(obj));
+    }
+    for (const candidate of candidates) {
+      for (const pattern of patterns) {
+        const match = candidate.match(pattern);
+        if (match?.[1]) return formatField(match[1]);
+      }
+    }
+  }
+  return null;
+};
+
 const extractRecordAmount = (record: WalletRecord): number => {
   // 1. Try common field names
   const possibleFields = ["microcredits", "amount", "value"];
@@ -395,6 +397,36 @@ const deriveOutcomeExposureKey = (marketIdField: string, outcome: number): strin
   const base = parseFieldBigInt(marketIdField);
   if (base === null) return null;
   return `${base + BigInt(Math.max(0, outcome))}field`;
+};
+
+const deriveLpBalanceKey = (marketIdField: string, lpOwnerField: string): string | null => {
+  const marketBase = parseFieldBigInt(marketIdField);
+  const ownerBase = parseFieldBigInt(lpOwnerField);
+  if (marketBase === null || ownerBase === null) return null;
+  return `${marketBase + ownerBase}field`;
+};
+
+let cachedAddressFieldHelpers:
+  | {
+      toField: (address: string) => string;
+    }
+  | null = null;
+
+const getAddressFieldHelpers = async (): Promise<{
+  toField: (address: string) => string;
+} | null> => {
+  if (cachedAddressFieldHelpers) return cachedAddressFieldHelpers;
+  try {
+    const wasm = await import("@provablehq/wasm");
+    cachedAddressFieldHelpers = {
+      toField: (address: string) =>
+        wasm.Address.from_string(address).toGroup().toXCoordinate().toString(),
+    };
+    return cachedAddressFieldHelpers;
+  } catch (error) {
+    console.warn("[AddressField] Unable to initialize address field helper:", error);
+    return null;
+  }
 };
 
 const formatMerkleProof = (value: unknown): string | null => {
@@ -908,18 +940,27 @@ export const useAleoPrograms = () => {
   );
 
   const fetchCoreProtocolConfig = useCallback(async (): Promise<CoreProtocolConfig> => {
-    const [maxOutcomesRaw, feeBpsRaw, minTradeRaw, minLiquidityRaw, virtualLiquidityRaw] =
+    const [
+      maxOutcomesRaw,
+      feeBpsRaw,
+      minTradeRaw,
+      minLiquidityRaw,
+      virtualLiquidityRaw,
+      lpFeeShareBpsRaw,
+    ] =
       await Promise.all([
         fetchMappingValue(PROGRAM_ID, "protocol_u8", "0u8"),
         fetchMappingValue(PROGRAM_ID, "protocol_u64", "1u8"),
         fetchMappingValue(PROGRAM_ID, "protocol_u64", "2u8"),
         fetchMappingValue(PROGRAM_ID, "protocol_u64", "3u8"),
         fetchMappingValue(PROGRAM_ID, "protocol_u64", "4u8"),
+        fetchMappingValue(PROGRAM_ID, "protocol_u64", "5u8"),
       ]);
 
     return {
       maxOutcomes: Math.min(32, Math.max(2, parseMappingU64(maxOutcomesRaw) || 32)),
       feeBps: Math.min(10_000, Math.max(0, parseMappingU64(feeBpsRaw) || 100)),
+      lpFeeShareBps: Math.min(10_000, Math.max(0, parseMappingU64(lpFeeShareBpsRaw) || 8_000)),
       minTrade: Math.max(1, parseMappingU64(minTradeRaw) || 1_000_000),
       minLiquidity: Math.max(1, parseMappingU64(minLiquidityRaw) || 1_000_000),
       virtualLiquidity: Math.max(1, parseMappingU64(virtualLiquidityRaw) || 10_000_000),
@@ -932,6 +973,16 @@ export const useAleoPrograms = () => {
       if (!exposureKey) return 0;
       const exposureRaw = await fetchMappingValue(PROGRAM_ID, "outcome_exposure", exposureKey);
       return parseMappingU64(exposureRaw);
+    },
+    [],
+  );
+
+  const fetchOutcomeShareSupply = useCallback(
+    async (marketIdField: string, outcome: number): Promise<number> => {
+      const exposureKey = deriveOutcomeExposureKey(marketIdField, outcome);
+      if (!exposureKey) return 0;
+      const supplyRaw = await fetchMappingValue(PROGRAM_ID, "outcome_share_supply", exposureKey);
+      return parseMappingU64(supplyRaw);
     },
     [],
   );
@@ -961,12 +1012,15 @@ export const useAleoPrograms = () => {
       const netCollateralMicro = Math.max(0, amountMicro - feeMicro);
       if (netCollateralMicro <= 0) return null;
 
-      const outcomeExposure = await fetchOutcomeExposure(cleanMarketId, outcome);
+      const [outcomeExposure, outcomeShareSupply] = await Promise.all([
+        fetchOutcomeExposure(cleanMarketId, outcome),
+        fetchOutcomeShareSupply(cleanMarketId, outcome),
+      ]);
       const outcomeCount = Math.max(2, market.outcome_count);
       const totalLiquidity =
-        pool.total_collateral + protocol.virtualLiquidity * outcomeCount;
+        pool.trading_collateral + protocol.virtualLiquidity * outcomeCount;
       const outcomeLiquidity =
-        Math.floor(pool.total_collateral / outcomeCount) +
+        Math.floor(pool.trading_collateral / outcomeCount) +
         protocol.virtualLiquidity +
         outcomeExposure;
 
@@ -974,12 +1028,13 @@ export const useAleoPrograms = () => {
         totalLiquidity > 0 && outcomeLiquidity > 0
           ? Math.floor((netCollateralMicro * totalLiquidity) / outcomeLiquidity)
           : 0;
-      const sharesOut = Math.max(1, rawShares);
+      if (rawShares <= 0) return null;
+      const sharesOut = rawShares;
+      const newTradingCollateral = pool.trading_collateral + netCollateralMicro;
+      if (outcomeShareSupply + sharesOut > newTradingCollateral) return null;
       const boundedSlippage = Math.min(5_000, Math.max(0, slippageBps));
-      const minSharesOut = Math.max(
-        1,
-        Math.floor((sharesOut * (10_000 - boundedSlippage)) / 10_000),
-      );
+      const minSharesOut = Math.floor((sharesOut * (10_000 - boundedSlippage)) / 10_000);
+      if (minSharesOut <= 0) return null;
 
       return {
         marketId: cleanMarketId,
@@ -992,7 +1047,7 @@ export const useAleoPrograms = () => {
         slippageBps: boundedSlippage,
       };
     },
-    [fetchCoreProtocolConfig, fetchOutcomeExposure],
+    [fetchCoreProtocolConfig, fetchOutcomeExposure, fetchOutcomeShareSupply],
   );
 
   const quoteSellShares = useCallback(
@@ -1017,9 +1072,9 @@ export const useAleoPrograms = () => {
       const protocol = await fetchCoreProtocolConfig();
       const outcomeExposure = await fetchOutcomeExposure(cleanMarketId, outcome);
       const outcomeCount = Math.max(2, market.outcome_count);
-      const totalLiquidity = pool.total_collateral + protocol.virtualLiquidity * outcomeCount;
+      const totalLiquidity = pool.trading_collateral + protocol.virtualLiquidity * outcomeCount;
       const outcomeLiquidity =
-        Math.floor(pool.total_collateral / outcomeCount) +
+        Math.floor(pool.trading_collateral / outcomeCount) +
         protocol.virtualLiquidity +
         outcomeExposure;
 
@@ -1422,8 +1477,9 @@ export const useAleoPrograms = () => {
         tradePositionCount: 0,
         lpShares: 0,
         lpCollateral: 0,
+        lpFeeAccrued: 0,
+        lpWithdrawable: 0,
         lpPositionCount: 0,
-        lpEstimated: false,
       };
       if (!address || !cleanMarketId) return empty;
 
@@ -1441,6 +1497,8 @@ export const useAleoPrograms = () => {
         let tradePositionCount = 0;
         let lpShares = 0;
         let lpCollateral = 0;
+        let lpFeeAccrued = 0;
+        let lpWithdrawable = 0;
         let lpPositionCount = 0;
         const seenPositionIds = new Set<string>();
 
@@ -1484,8 +1542,15 @@ export const useAleoPrograms = () => {
           const pending = await fetchPendingPositionSnapshot(positionId);
           if (!pending) continue;
           if (normalizeField(pending.marketId) !== normalizeField(`${cleanMarketId}field`)) continue;
-          if (pending.outcome === 255) continue;
           if (pending.shares <= 0) continue;
+
+          if (pending.outcome === 255) {
+            seenPositionIds.add(positionId);
+            lpPositionCount += 1;
+            lpShares += pending.shares;
+            lpCollateral += pending.collateralIn;
+            continue;
+          }
 
           seenPositionIds.add(positionId);
           tradePositionCount += 1;
@@ -1502,16 +1567,37 @@ export const useAleoPrograms = () => {
           }
         }
 
-        let lpEstimated = false;
-        if (lpShares <= 0 && lpCollateral <= 0) {
-          const localLpContribution = readLocalLpContribution(address, cleanMarketId);
-          if (localLpContribution > 0) {
-            lpEstimated = true;
-            lpShares = localLpContribution;
-            lpCollateral = localLpContribution;
-            lpPositionCount = Math.max(lpPositionCount, 1);
+        const marketField = `${cleanMarketId}field`;
+        const helpers = await getAddressFieldHelpers();
+        if (helpers) {
+          const lpOwnerField = formatField(helpers.toField(address));
+          const lpBalanceKey = deriveLpBalanceKey(marketField, lpOwnerField);
+          if (lpBalanceKey) {
+            const [lpSharesRaw, poolRaw, feePoolRaw, surplusRaw] = await Promise.all([
+              fetchMappingValue(PROGRAM_ID, "lp_balances", lpBalanceKey),
+              fetchMappingValue(PROGRAM_ID, "pools", marketField),
+              fetchMappingValue(PROGRAM_ID, "market_fee_pool", marketField),
+              fetchMappingValue(PROGRAM_ID, "market_lp_trading_surplus", marketField),
+            ]);
+            const mappedLpShares = parseMappingU64(lpSharesRaw);
+            if (mappedLpShares > 0) {
+              lpShares = mappedLpShares;
+              lpPositionCount = Math.max(lpPositionCount, 1);
+            }
+            const poolInfo = poolRaw ? parsePoolInfo(poolRaw as string | object) : null;
+            if (poolInfo && poolInfo.lp_supply > 0 && lpShares > 0) {
+              lpCollateral = Math.floor((lpShares * poolInfo.lp_collateral) / poolInfo.lp_supply);
+              lpFeeAccrued = Math.floor((lpShares * parseMappingU64(feePoolRaw)) / poolInfo.lp_supply);
+              const lpTradingSurplus = Math.floor(
+                (lpShares * parseMappingU64(surplusRaw)) / poolInfo.lp_supply,
+              );
+              lpWithdrawable = lpCollateral + lpFeeAccrued + lpTradingSurplus;
+            } else if (lpShares > 0) {
+              lpWithdrawable = lpCollateral;
+            }
           }
         }
+        if (lpWithdrawable <= 0 && lpCollateral > 0) lpWithdrawable = lpCollateral;
 
         return {
           marketId: cleanMarketId,
@@ -1523,8 +1609,9 @@ export const useAleoPrograms = () => {
           tradePositionCount,
           lpShares,
           lpCollateral,
+          lpFeeAccrued,
+          lpWithdrawable,
           lpPositionCount,
-          lpEstimated,
         };
       } catch (error) {
         console.error("Failed to fetch market position summary:", error);
@@ -1752,6 +1839,7 @@ export const useAleoPrograms = () => {
           return;
         }
 
+        const generatedProofPromise = buildStablecoinMerkleProofInputs(baseTokenProgram);
         const tokenRecord = await findTokenRecord(baseTokenProgram, amountMicro);
         if (!tokenRecord) {
           toast.error(`Insufficient private ${tokenLabel} balance.`);
@@ -1764,7 +1852,7 @@ export const useAleoPrograms = () => {
           return;
         }
 
-        const generatedProofInputs = await buildStablecoinMerkleProofInputs(baseTokenProgram);
+        const generatedProofInputs = await generatedProofPromise;
         const walletProofInputs = extractUsdcMerkleProofInputs(tokenRecord);
 
         const proofCandidates: Array<[string, string]> = [];
@@ -1886,6 +1974,7 @@ export const useAleoPrograms = () => {
         const baseTokenProgram = resolveTokenBaseProgram(tokenId);
         if (!baseTokenProgram) return null;
 
+        const generatedProofPromise = buildStablecoinMerkleProofInputs(baseTokenProgram);
         const tokenRecord = await findTokenRecord(baseTokenProgram, amountMicro);
         if (!tokenRecord) {
           toast.error(`Insufficient private ${tokenLabel} balance.`);
@@ -1898,7 +1987,7 @@ export const useAleoPrograms = () => {
           return null;
         }
 
-        const generatedProofInputs = await buildStablecoinMerkleProofInputs(baseTokenProgram);
+        const generatedProofInputs = await generatedProofPromise;
         const walletProofInputs = extractUsdcMerkleProofInputs(tokenRecord);
         const proof = generatedProofInputs ?? walletProofInputs;
         if (!proof) {
@@ -1921,10 +2010,7 @@ export const useAleoPrograms = () => {
           privateFee: false,
         }, tokenProgram, "fund_pool");
 
-        if (result) {
-          addLocalLpContribution(address, cleanMarketId, amountMicro);
-          triggerRefresh();
-        }
+        if (result) triggerRefresh();
         return result ? result.transactionId : null;
       }
 
@@ -1949,13 +2035,111 @@ export const useAleoPrograms = () => {
         privateFee: false,
       }, tokenProgram, "fund_pool");
 
-      if (result) {
-        addLocalLpContribution(address, cleanMarketId, amountMicro);
-        triggerRefresh();
-      }
+      if (result) triggerRefresh();
       return result ? result.transactionId : null;
     } catch (error) {
       console.error("Fund pool failed:", error);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const withdrawLiquidity = async (
+    marketId: string,
+    lpShares: number,
+    options?: { minPayoutMicro?: number },
+  ): Promise<{ transactionId: string; payoutAmount: number; payoutTicker: string } | null> => {
+    if (!address) {
+      toast.error("Please connect your wallet first");
+      return null;
+    }
+
+    setLoading(true);
+    try {
+      const cleanMarketId = normalizeFieldId(marketId);
+      const sharesToWithdraw = Math.max(1, Math.floor(lpShares));
+      const minPayoutMicro = Math.max(0, Math.floor(options?.minPayoutMicro ?? 0));
+      const withdrawNonce = generateRandomField();
+
+      const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
+      if (!marketRaw) {
+        toast.error("Market not found on v9.");
+        return null;
+      }
+      const marketInfo = parseMarketInfo(marketRaw as string | object, cleanMarketId);
+      const payoutTokenProgram = resolveTokenAdapterProgram(marketInfo.token_id ?? "");
+      const payoutTicker = resolveTokenTicker(marketInfo.token_id ?? "");
+      if (!payoutTokenProgram) {
+        toast.error("Unsupported market token for liquidity withdrawal.");
+        return null;
+      }
+
+      const withdrawResult = await executeAndPoll({
+        program: PROGRAM_ID,
+        function: "withdraw_liquidity",
+        inputs: [
+          cleanMarketId,
+          formatU64(sharesToWithdraw),
+          formatU64(minPayoutMicro),
+          withdrawNonce,
+        ],
+        fee: 1_000_000,
+        privateFee: false,
+      }, PROGRAM_ID, "withdraw_liquidity");
+
+      if (!withdrawResult?.transactionId) {
+        toast.error("Liquidity withdrawal transaction failed.");
+        return null;
+      }
+
+      let nullifierField = extractTransitionField(withdrawResult.transition, "nullifier");
+      if (!nullifierField) {
+        const claimRecord = await waitForWinningsClaimRecord(cleanMarketId);
+        if (!claimRecord) {
+          toast.error("Liquidity claim record not available yet. Please retry shortly.");
+          triggerRefresh();
+          return { transactionId: withdrawResult.transactionId, payoutAmount: 0, payoutTicker };
+        }
+        const nullifierRaw = parseRecordField(claimRecord, "nullifier");
+        if (!nullifierRaw) {
+          toast.error("Unable to read liquidity claim nullifier.");
+          return { transactionId: withdrawResult.transactionId, payoutAmount: 0, payoutTicker };
+        }
+        nullifierField = formatField(nullifierRaw);
+      }
+
+      const payoutAmount = await waitForPendingPayout(nullifierField);
+      if (!payoutAmount || payoutAmount <= 0) {
+        toast.error("Liquidity payout is not available yet. Please retry shortly.");
+        triggerRefresh();
+        return { transactionId: withdrawResult.transactionId, payoutAmount: 0, payoutTicker };
+      }
+
+      const payoutResult = await executeAndPoll({
+        program: payoutTokenProgram,
+        function: "claim_payout",
+        inputs: [formatU64(payoutAmount), nullifierField],
+        fee: 500_000,
+        privateFee: false,
+      }, payoutTokenProgram, "claim_payout");
+
+      if (!payoutResult?.transactionId) {
+        toast.error("Liquidity payout transfer failed.");
+        return null;
+      }
+
+      const payoutAmountDisplay = payoutAmount / 1_000_000;
+      toast.success(`Liquidity withdrawn: ${payoutAmountDisplay.toFixed(4)} ${payoutTicker}`);
+      triggerRefresh();
+      return {
+        transactionId: payoutResult.transactionId,
+        payoutAmount: payoutAmountDisplay,
+        payoutTicker,
+      };
+    } catch (error) {
+      console.error("Withdraw liquidity failed:", error);
+      toast.error(`Withdraw error: ${getErrorMessage(error)}`);
       return null;
     } finally {
       setLoading(false);
@@ -2087,20 +2271,21 @@ export const useAleoPrograms = () => {
         return null;
       }
 
-      const claimRecord = await waitForWinningsClaimRecord(marketId);
-      if (!claimRecord) {
-        toast.error("Sell payout claim record not available yet. Please retry shortly.");
-        triggerRefresh();
-        return { transactionId: sellResult.transactionId, payoutAmount: 0, payoutTicker };
+      let nullifierField = extractTransitionField(sellResult.transition, "nullifier");
+      if (!nullifierField) {
+        const claimRecord = await waitForWinningsClaimRecord(marketId);
+        if (!claimRecord) {
+          toast.error("Sell payout claim record not available yet. Please retry shortly.");
+          triggerRefresh();
+          return { transactionId: sellResult.transactionId, payoutAmount: 0, payoutTicker };
+        }
+        const nullifierRaw = parseRecordField(claimRecord, "nullifier");
+        if (!nullifierRaw) {
+          toast.error("Unable to read sell claim nullifier.");
+          return { transactionId: sellResult.transactionId, payoutAmount: 0, payoutTicker };
+        }
+        nullifierField = formatField(nullifierRaw);
       }
-
-      const nullifierRaw = parseRecordField(claimRecord, "nullifier");
-      if (!nullifierRaw) {
-        toast.error("Unable to read sell claim nullifier.");
-        return { transactionId: sellResult.transactionId, payoutAmount: 0, payoutTicker };
-      }
-
-      const nullifierField = formatField(nullifierRaw);
       const payoutAmount = await waitForPendingPayout(nullifierField);
       if (!payoutAmount || payoutAmount <= 0) {
         toast.error("Sell payout is not available yet. Please retry.");
@@ -2387,22 +2572,23 @@ export const useAleoPrograms = () => {
         return;
       }
 
-      // Step 2: Wait for WinningsClaim record, then claim payout from token contract
-      const claimRecord = await waitForWinningsClaimRecord(marketId);
-      if (!claimRecord) {
-        toast.error("Claim record not found in wallet yet. Please retry in a moment.");
-        triggerRefresh();
-        return { transactionId: claimResult.transactionId, payoutAmount: 0, payoutTicker };
+      // Step 2: Resolve nullifier, then claim payout from token contract
+      let nullifierField = extractTransitionField(claimResult.transition, "nullifier");
+      if (!nullifierField) {
+        const claimRecord = await waitForWinningsClaimRecord(marketId);
+        if (!claimRecord) {
+          toast.error("Claim record not found in wallet yet. Please retry in a moment.");
+          triggerRefresh();
+          return { transactionId: claimResult.transactionId, payoutAmount: 0, payoutTicker };
+        }
+        const nullifierRaw = parseRecordField(claimRecord, "nullifier");
+        if (!nullifierRaw) {
+          toast.error("Unable to read claim nullifier from wallet record.");
+          triggerRefresh();
+          return { transactionId: claimResult.transactionId, payoutAmount: 0, payoutTicker };
+        }
+        nullifierField = formatField(nullifierRaw);
       }
-
-      const nullifierRaw = parseRecordField(claimRecord, "nullifier");
-      if (!nullifierRaw) {
-        toast.error("Unable to read claim nullifier from wallet record.");
-        triggerRefresh();
-        return { transactionId: claimResult.transactionId, payoutAmount: 0, payoutTicker };
-      }
-
-      const nullifierField = formatField(nullifierRaw);
       const payoutAmount = await waitForPendingPayout(nullifierField);
 
       if (!payoutAmount || payoutAmount <= 0) {
@@ -2460,6 +2646,7 @@ export const useAleoPrograms = () => {
     placeBet,
     sellShares,
     fundPool,
+    withdrawLiquidity,
     resolveMarket: resolveMarketOnCore,
     proposeResolution,
     disputeResolution,

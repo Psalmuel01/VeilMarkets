@@ -26,6 +26,7 @@ import { OutcomeCard } from "@/components/betting/OutcomeCard";
 import { PlaceBetModal } from "@/components/betting/PlaceBetModal";
 import { SellSharesModal } from "@/components/betting/SellSharesModal";
 import { FundPoolModal } from "@/components/betting/FundPoolModal";
+import { WithdrawLiquidityModal } from "@/components/betting/WithdrawLiquidityModal";
 import { ResolutionModal } from "@/components/resolution/ResolutionModal";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import {
@@ -77,6 +78,7 @@ export default function MarketDetailPage() {
   const [showSellModal, setShowSellModal] = useState(false);
   const [sellOutcome, setSellOutcome] = useState<number | null>(null);
   const [showFundModal, setShowFundModal] = useState(false);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [showResolutionModal, setShowResolutionModal] = useState(false);
   const [showFinalizeModal, setShowFinalizeModal] = useState(false);
   const [finalizeStep, setFinalizeStep] = useState<"confirm" | "processing" | "success" | "failed">("confirm");
@@ -112,7 +114,7 @@ export default function MarketDetailPage() {
       status: foundMarket.is_resolved ? "Settled" : "Open",
       closingTime: formatDateFriendly(foundMarket.close_time),
       closingDate: new Date(foundMarket.close_time * 1000).toLocaleDateString(),
-      betsPlaced: pool?.participant_count || 0,
+      betsPlaced: pool?.trader_count || pool?.participant_count || 0,
       createdAt: "On-chain",
       resolutionSource: foundMarket.resolutionSource || "Creator",
       close_time: foundMarket.close_time,
@@ -124,7 +126,7 @@ export default function MarketDetailPage() {
       winningOutcome: foundMarket.winning_outcome,
       token_id: foundMarket.token_id,
     };
-  }, [foundMarket, pool?.participant_count]);
+  }, [foundMarket, pool?.participant_count, pool?.trader_count]);
 
   const userBet = useMemo(
     () => userBets.find((entry) => normalizeMarketIdKey(entry.market_id) === normalizedRouteId),
@@ -172,7 +174,8 @@ export default function MarketDetailPage() {
     defaultSellOutcome !== null ? (userPosition?.outcomeShares?.[defaultSellOutcome] ?? 0) : 0;
   const lpShares = userPosition?.lpShares ?? 0;
   const lpCollateral = (userPosition?.lpCollateral ?? 0) / 1_000_000;
-  const lpIsEstimated = userPosition?.lpEstimated ?? false;
+  const lpFeeAccrued = (userPosition?.lpFeeAccrued ?? 0) / 1_000_000;
+  const lpWithdrawable = (userPosition?.lpWithdrawable ?? 0) / 1_000_000;
 
   const notFound = Boolean(id) && !isMarketsLoading && !foundMarket;
   const loadingMarket = !id || (isMarketsLoading && !foundMarket);
@@ -191,6 +194,7 @@ export default function MarketDetailPage() {
   const totalPoolMicro = activeOutcomeTotals.reduce((acc, value) => acc + value, 0);
   const openInterest = totalPoolMicro / 1_000_000;
   const poolLiquidity = (pool?.total_collateral ?? 0) / 1_000_000;
+  const cumulativeVolume = (pool?.cumulative_volume ?? 0) / 1_000_000;
   const outcomePercents = activeOutcomeTotals.map((amount) =>
     totalPoolMicro > 0 ? Math.round((amount / totalPoolMicro) * 100) : Math.round(100 / normalizedOutcomeCount),
   );
@@ -331,7 +335,7 @@ export default function MarketDetailPage() {
                 </div>
                 <div className="flex items-center gap-2.5">
                   <Users className="w-4 h-4 text-accent" />
-                  <span className="text-white/80 font-mono tracking-normal text-sm">{market.betsPlaced} <span className="text-[10px] font-semibold uppercase text-muted-foreground/40 font-sans tracking-widest ml-1">Participants</span></span>
+                    <span className="text-white/80 font-mono tracking-normal text-sm">{market.betsPlaced} <span className="text-[10px] font-semibold uppercase text-muted-foreground/40 font-sans tracking-widest ml-1">Traders</span></span>
                 </div>
                 <div className="flex items-center gap-2.5">
                   <Zap className="w-4 h-4 text-success" />
@@ -401,13 +405,19 @@ export default function MarketDetailPage() {
               color: "text-primary",
             },
             {
-              label: "Pool Liquidity",
+              label: "TVL",
               value: `${poolLiquidity.toLocaleString(undefined, { maximumFractionDigits: 4 })}`,
               unit: marketTokenTicker,
               icon: Lock,
               color: "text-accent",
             },
-            { label: "Resolution", value: "Oracle", unit: "SOURCE", icon: Shield, color: "text-success" },
+            {
+              label: "Volume",
+              value: `${cumulativeVolume.toLocaleString(undefined, { maximumFractionDigits: 4 })}`,
+              unit: marketTokenTicker,
+              icon: TrendingUp,
+              color: "text-success",
+            },
             { label: "Closing", value: market.closingDate, unit: "EST", icon: Calendar, color: "text-muted-foreground" },
           ].map((stat, i) => (
             <motion.div
@@ -551,11 +561,11 @@ export default function MarketDetailPage() {
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="p-5 rounded-3xl bg-white/[0.02] border border-white/5 flex flex-col gap-1">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Participants</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Traders</span>
                   <span className="text-2xl font-bold text-white font-mono">{market.betsPlaced}</span>
                 </div>
                 <div className="p-5 rounded-3xl bg-white/[0.02] border border-white/5 flex flex-col gap-1">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Pool Liquidity</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">TVL</span>
                   <span className="text-2xl font-bold text-primary font-mono">
                     {poolLiquidity.toLocaleString(undefined, { maximumFractionDigits: 4 })} {marketTokenTicker}
                   </span>
@@ -700,16 +710,35 @@ export default function MarketDetailPage() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">LP Shares</span>
-                    <span className="text-white font-mono">{lpShares.toLocaleString()}</span>
+                    <span className="text-white font-mono">
+                      {(lpShares / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                    </span>
                   </div>
-                  {lpIsEstimated && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Accrued LP Fees</span>
+                    <span className="text-white font-mono">
+                      {lpFeeAccrued.toLocaleString(undefined, { maximumFractionDigits: 4 })} {marketTokenTicker}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Est. Withdrawable</span>
+                    <span className="text-white font-mono">
+                      {lpWithdrawable.toLocaleString(undefined, { maximumFractionDigits: 4 })} {marketTokenTicker}
+                    </span>
+                  </div>
+                  {marketStatus === "Settled" && lpShares > 0 && (
+                    <Button
+                      onClick={() => setShowWithdrawModal(true)}
+                      className="w-full mt-2 h-10 rounded-xl bg-success/10 border border-success/30 hover:bg-success/15 text-success"
+                    >
+                      Remove Liquidity
+                    </Button>
+                  )}
+                  {marketStatus !== "Settled" && lpShares > 0 && (
                     <p className="text-muted-foreground">
-                      Displayed from your local successful funding history on this browser.
+                      Liquidity withdrawal becomes available after settlement.
                     </p>
                   )}
-                  <p className="text-warning">
-                    LP withdrawal is not live in v9 yet, so removal is not available in UI right now.
-                  </p>
                 </div>
               )}
             </div>
@@ -867,6 +896,16 @@ export default function MarketDetailPage() {
         marketTitle={market.title}
         marketId={market.id}
         tokenId={market.token_id}
+      />
+
+      <WithdrawLiquidityModal
+        open={showWithdrawModal}
+        onClose={() => setShowWithdrawModal(false)}
+        marketTitle={market.title}
+        marketId={market.id}
+        tokenId={market.token_id}
+        lpShares={lpShares}
+        estimatedWithdrawableMicro={userPosition?.lpWithdrawable ?? 0}
       />
 
       <ResolutionModal
