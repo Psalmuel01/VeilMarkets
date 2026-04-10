@@ -100,7 +100,6 @@ program veilmarkets_token_usdcx_v10.aleo {
         token_proof_1: TokenMerkleProof,
         public market_id: field,
         public amount: u64,
-        public lp_nonce: field,
     ) -> (
         test_usdcx_stablecoin.aleo::ComplianceRecord,
         test_usdcx_stablecoin.aleo::Token,
@@ -134,7 +133,9 @@ program veilmarkets_token_usdcx_v10.aleo {
             token_proof,
         );
 
-        let lp_owner_key: field = self.signer as field + lp_nonce - lp_nonce;
+        // LP ownership key is intentionally stable per user for per-market LP accounting.
+        // Note: this field is public when passed into core.
+        let lp_owner_key: field = self.signer as field;
         let core_future: Final = veilmarkets_core_v10.aleo::fund_pool(
             market_id,
             amount,

@@ -161,7 +161,7 @@ export const useBuyQuoteQuery = (
   enabled = true,
 ) => {
   const { quoteBuyShares } = useAleoPrograms();
-  const amountMicro = Math.max(1_000_000, Math.floor(amountCredits * 1_000_000));
+  const amountMicro = Math.max(0, Math.floor(amountCredits * 1_000_000));
 
   return useQuery({
     queryKey: queryKeys.buyQuote(marketId ?? "", outcome ?? -1, amountMicro, slippageBps),

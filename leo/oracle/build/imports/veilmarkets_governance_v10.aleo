@@ -50,12 +50,12 @@ finalize create_proposal:
     assert.eq r9 true;
     gte r5 60u64 into r10;
     assert.eq r10 true;
-    branch.eq r4 false to end_then_0_18;
+    branch.eq r4 false to end_then_0_36;
     lte r3 255u64 into r11;
     assert.eq r11 true;
-    branch.eq true true to end_otherwise_0_19;
-    position end_then_0_18;
-    position end_otherwise_0_19;
+    branch.eq true true to end_otherwise_0_37;
+    position end_then_0_36;
+    position end_otherwise_0_37;
     contains proposals[r0] into r12;
     not r12 into r13;
     assert.eq r13 true;
@@ -76,8 +76,6 @@ finalize admin_set_voter_weight:
     input r1 as u64.public;
     input r2 as address.public;
     assert.eq r2 aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
-    gt r1 0u64 into r3;
-    assert.eq r3 true;
     set r1 into voter_weights[r0];
 
 function cast_vote:
@@ -96,7 +94,7 @@ finalize cast_vote:
     cast block.timestamp into r5 as u64;
     lt r5 r3.end_time into r6;
     assert.eq r6 true;
-    get.or_use voter_weights[r2] 1u64 into r7;
+    get.or_use voter_weights[r2] 0u64 into r7;
     gt r7 0u64 into r8;
     assert.eq r8 true;
     cast r2 into r9 as field;

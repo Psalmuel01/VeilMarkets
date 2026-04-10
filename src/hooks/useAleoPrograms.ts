@@ -205,6 +205,7 @@ const generateRandomField = (): string => {
 const USDCX_FREEZELIST_PROGRAM_ID = "test_usdcx_freezelist.aleo";
 const USAD_FREEZELIST_PROGRAM_ID = "test_usad_freezelist.aleo";
 const MIN_ORACLE_STAKE_MICROCREDITS = 30_000_000;
+const LP_FEE_INDEX_SCALE = 1_000_000_000_000n;
 
 const parseMappingU64 = (value: unknown): number => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -218,6 +219,28 @@ const parseMappingU64 = (value: unknown): number => {
     if (obj.value !== undefined) return parseMappingU64(obj.value);
   }
   return 0;
+};
+
+const parseMappingBigInt = (value: unknown): bigint => {
+  if (typeof value === "bigint") return value;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return BigInt(Math.max(0, Math.floor(value)));
+  }
+  if (typeof value === "string") {
+    const match = value.match(/-?\d+/);
+    if (!match) return 0n;
+    try {
+      const parsed = BigInt(match[0]);
+      return parsed < 0n ? 0n : parsed;
+    } catch {
+      return 0n;
+    }
+  }
+  if (typeof value === "object" && value !== null) {
+    const obj = value as Record<string, unknown>;
+    if (obj.value !== undefined) return parseMappingBigInt(obj.value);
+  }
+  return 0n;
 };
 
 const parseMappingString = (value: unknown): string | null => {
@@ -1593,10 +1616,19 @@ export const useAleoPrograms = () => {
           const lpOwnerField = formatField(helpers.toField(address));
           const lpBalanceKey = await deriveLpBalanceKey(marketField, lpOwnerField);
           if (lpBalanceKey) {
-            const [lpSharesRaw, poolRaw, feePoolRaw, surplusRaw] = await Promise.all([
+            const [
+              lpSharesRaw,
+              poolRaw,
+              lpPendingFeesRaw,
+              lpFeeIndexRaw,
+              lpFeeCheckpointRaw,
+              surplusRaw,
+            ] = await Promise.all([
               fetchMappingValue(PROGRAM_ID, "lp_balances", lpBalanceKey),
               fetchMappingValue(PROGRAM_ID, "pools", marketField),
-              fetchMappingValue(PROGRAM_ID, "market_fee_pool", marketField),
+              fetchMappingValue(PROGRAM_ID, "lp_pending_fees", lpBalanceKey),
+              fetchMappingValue(PROGRAM_ID, "lp_fee_index", marketField),
+              fetchMappingValue(PROGRAM_ID, "lp_fee_checkpoint", lpBalanceKey),
               fetchMappingValue(PROGRAM_ID, "market_lp_trading_surplus", marketField),
             ]);
             const mappedLpShares = parseMappingU64(lpSharesRaw);
@@ -1606,8 +1638,21 @@ export const useAleoPrograms = () => {
             }
             const poolInfo = poolRaw ? parsePoolInfo(poolRaw as string | object) : null;
             if (poolInfo && poolInfo.lp_supply > 0 && lpShares > 0) {
+              const pendingFees = parseMappingU64(lpPendingFeesRaw);
+              const feeIndex = parseMappingBigInt(lpFeeIndexRaw);
+              const feeCheckpoint = lpFeeCheckpointRaw
+                ? parseMappingBigInt(lpFeeCheckpointRaw)
+                : feeIndex;
+              const deltaIndex = feeIndex > feeCheckpoint ? feeIndex - feeCheckpoint : 0n;
+              const unsettledAccruedBig =
+                (BigInt(lpShares) * deltaIndex) / LP_FEE_INDEX_SCALE;
+              const unsettledAccrued =
+                unsettledAccruedBig > BigInt(Number.MAX_SAFE_INTEGER)
+                  ? Number.MAX_SAFE_INTEGER
+                  : Number(unsettledAccruedBig);
+
               lpCollateral = Math.floor((lpShares * poolInfo.lp_collateral) / poolInfo.lp_supply);
-              lpFeeAccrued = Math.floor((lpShares * parseMappingU64(feePoolRaw)) / poolInfo.lp_supply);
+              lpFeeAccrued = pendingFees + unsettledAccrued;
               const lpTradingSurplus = Math.floor(
                 (lpShares * parseMappingU64(surplusRaw)) / poolInfo.lp_supply,
               );
@@ -1798,7 +1843,14 @@ export const useAleoPrograms = () => {
         options?.slippageBps ?? 200,
       );
       if (!quote) {
-        toast.error("Unable to compute share quote for this market. Please retry.");
+        const protocol = await fetchCoreProtocolConfig().catch(() => null);
+        if (protocol && amountMicro < protocol.minTrade) {
+          toast.error(
+            `Trade too small. Minimum trade is ${(protocol.minTrade / 1_000_000).toFixed(6)} tokens.`,
+          );
+        } else {
+          toast.error("Unable to compute share quote for this market. Please retry.");
+        }
         return;
       }
 
@@ -1936,7 +1988,6 @@ export const useAleoPrograms = () => {
     setLoading(true);
     const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
     const amountMicro = toMicrocredits(amountCredits);
-    const lpNonce = generateRandomField();
 
     try {
       const tokenProgram = resolveTokenAdapterProgram(tokenId);
@@ -1990,7 +2041,6 @@ export const useAleoPrograms = () => {
             proof[1],
             cleanMarketId,
             formatU64(amountMicro),
-            lpNonce,
           ],
           fee: 1_500_000,
           privateFee: false,
@@ -2016,7 +2066,7 @@ export const useAleoPrograms = () => {
       const result = await executeAndPoll({
         program: tokenProgram,
         function: "fund_pool",
-        inputs: [creditsInput, cleanMarketId, formatU64(amountMicro), lpNonce],
+        inputs: [creditsInput, cleanMarketId, formatU64(amountMicro)],
         fee: 1_500_000,
         privateFee: false,
       }, tokenProgram, "fund_pool");

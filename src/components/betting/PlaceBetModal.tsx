@@ -18,7 +18,12 @@ import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { cn } from "@/lib/utils";
 import { resolveTokenDisplayName, resolveTokenTicker } from "@/lib/constants";
 import { getOutcomeLabel, getOutcomeLabels, getOutcomeTone, normalizeOutcomeCount } from "@/lib/outcomes";
-import { useBuyQuoteQuery, usePlaceBetMutation, useTokenBalanceQuery } from "@/hooks/useVeilQuery";
+import {
+  useBuyQuoteQuery,
+  usePlaceBetMutation,
+  useProtocolConfigQuery,
+  useTokenBalanceQuery,
+} from "@/hooks/useVeilQuery";
 
 interface PlaceBetModalProps {
   open: boolean;
@@ -53,6 +58,7 @@ export const PlaceBetModal = ({
   const [txId, setTxId] = useState<string | null>(null);
   const { publicKey } = useAleoPrograms();
   const placeBetMutation = usePlaceBetMutation();
+  const protocolConfigQuery = useProtocolConfigQuery();
   const quoteQuery = useBuyQuoteQuery(
     marketId,
     selectedOutcome,
@@ -69,8 +75,16 @@ export const PlaceBetModal = ({
   const resolvedOutcomeLabels = getOutcomeLabels(marketType, normalizedOutcomeCount, outcomeLabels);
   const availableRequiredBalance = balances ? balances.private : 0;
   const hasLowBalance = !!balances && availableRequiredBalance < wagerAmount;
+  const minTradeMicro = protocolConfigQuery.data?.minTrade ?? 1_000_000;
+  const isTradeTooSmall =
+    selectedOutcome !== null &&
+    Math.floor(wagerAmount * 1_000_000) > 0 &&
+    Math.floor(wagerAmount * 1_000_000) < minTradeMicro;
   const quoteUnavailable =
     selectedOutcome !== null && !quote && !quoteQuery.isFetching;
+  const quoteUnavailableMessage = isTradeTooSmall
+    ? `Trade too small. Minimum trade is ${(minTradeMicro / 1_000_000).toFixed(6)} ${tokenTicker}.`
+    : "Unable to load share quote for this market right now. Please retry.";
 
   const resetForm = () => {
     setStep("select");
@@ -252,7 +266,7 @@ export const PlaceBetModal = ({
 
                 {quoteUnavailable && (
                   <div className="px-1 text-xs text-warning">
-                    Unable to load share quote for this market right now. Please retry.
+                    {quoteUnavailableMessage}
                   </div>
                 )}
               </motion.div>

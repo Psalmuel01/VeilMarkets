@@ -52,19 +52,16 @@ function fund_pool:
     input r0 as credits.aleo/credits.record;
     input r1 as field.public;
     input r2 as u64.public;
-    input r3 as field.public;
-    gte r0.microcredits r2 into r4;
+    gte r0.microcredits r2 into r3;
+    assert.eq r3 true;
+    gte r2 1000000u64 into r4;
     assert.eq r4 true;
-    gte r2 1000000u64 into r5;
-    assert.eq r5 true;
-    call credits.aleo/transfer_private_to_public r0 veilmarkets_token_credits_v10.aleo r2 into r6 r7;
-    cast self.signer into r8 as field;
-    add r8 r3 into r9;
-    sub r9 r3 into r10;
-    call veilmarkets_core_v10.aleo/fund_pool r1 r2 r10 into r11;
-    async fund_pool r7 r11 into r12;
-    output r6 as credits.aleo/credits.record;
-    output r12 as veilmarkets_token_credits_v10.aleo/fund_pool.future;
+    call credits.aleo/transfer_private_to_public r0 veilmarkets_token_credits_v10.aleo r2 into r5 r6;
+    cast self.signer into r7 as field;
+    call veilmarkets_core_v10.aleo/fund_pool r1 r2 r7 into r8;
+    async fund_pool r6 r8 into r9;
+    output r5 as credits.aleo/credits.record;
+    output r9 as veilmarkets_token_credits_v10.aleo/fund_pool.future;
 
 finalize fund_pool:
     input r0 as credits.aleo/transfer_private_to_public.future;

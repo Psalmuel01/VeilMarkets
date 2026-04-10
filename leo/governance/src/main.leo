@@ -182,7 +182,7 @@ final fn finalize_cast_vote(
     let voter_weight: u64 = Mapping::get_or_use(
         voter_weights,
         voter,
-        1u64,
+        0u64,
     );
     assert(voter_weight > 0u64);
 
@@ -244,7 +244,6 @@ final fn finalize_execute(
 
 final fn finalize_admin_set_voter_weight(voter: address, weight: u64, caller: address) {
     assert_eq(caller, ADMIN);
-    assert(weight > 0u64);
     Mapping::set(voter_weights, voter, weight);
 }
 

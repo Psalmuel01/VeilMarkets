@@ -19,7 +19,7 @@ VeilMarkets lets users create markets, trade outcome shares, and claim payouts w
 
 ## Highlights (So Far)
 
-- v9 contract suite integrated end-to-end
+- v10 contract suite integrated end-to-end
 - Multi-token market creation and betting UX
 - Buy/sell shares flow in market detail (with sell quote + slippage guard)
 - Pool funding flow in market detail
@@ -29,17 +29,17 @@ VeilMarkets lets users create markets, trade outcome shares, and claim payouts w
 - Oracle registration + unstake flow in UI
 - Oracle status now reflects effective stake threshold (loses status when unstaked below minimum)
 - Governance contract executes param updates directly on core/oracle
-- Clean v9-only runtime (no v8 fallback paths in app/data flow)
+- Clean v10-only runtime (no v8/v9 fallback paths in app/data flow)
 
-## Contracts (v9)
+## Contracts (v10)
 
-- Core: `veilmarkets_core_v9.aleo`
-- Factory: `veilmarkets_factory_v9.aleo`
-- Oracle: `veilmarkets_oracle_v9.aleo`
-- Governance: `veilmarkets_governance_v9.aleo`
-- Credits adapter: `veilmarkets_token_credits_v9.aleo`
-- USDCx adapter: `veilmarkets_token_usdcx_v9.aleo`
-- USAD adapter: `veilmarkets_token_usad_v9.aleo`
+- Core: `veilmarkets_core_v10.aleo`
+- Factory: `veilmarkets_factory_v10.aleo`
+- Oracle: `veilmarkets_oracle_v10.aleo`
+- Governance: `veilmarkets_governance_v10.aleo`
+- Credits adapter: `veilmarkets_token_credits_v10.aleo`
+- USDCx adapter: `veilmarkets_token_usdcx_v10.aleo`
+- USAD adapter: `veilmarkets_token_usad_v10.aleo`
 
 ## Architecture Overview
 
@@ -85,17 +85,17 @@ VITE_USDCX_TOKEN_PROGRAM_ADDRESS=aleo1...
 VITE_USAD_TOKEN_PROGRAM_ADDRESS=aleo1...
 ```
 
-### 3) Deploy v9 Contracts
+### 3) Deploy v10 Contracts
 
 Suggested order:
 
-1. `veilmarkets_factory_v9`
-2. `veilmarkets_core_v9`
-3. `veilmarkets_oracle_v9`
-4. `veilmarkets_governance_v9`
-5. `veilmarkets_token_credits_v9`
-6. `veilmarkets_token_usdcx_v9`
-7. `veilmarkets_token_usad_v9`
+1. `veilmarkets_factory_v10`
+2. `veilmarkets_core_v10`
+3. `veilmarkets_oracle_v10`
+4. `veilmarkets_governance_v10`
+5. `veilmarkets_token_credits_v10`
+6. `veilmarkets_token_usdcx_v10`
+7. `veilmarkets_token_usad_v10`
 
 ### 4) Register Contracts in Factory
 
@@ -125,15 +125,16 @@ npm run dev
 
 ## Notes
 
-- Runtime data and contract routing are v9-only.
+- Runtime data and contract routing are v10-only.
 - Current payout flow remains claim-based via core `claim_winnings` + adapter `claim_payout`.
-- Core exposes quote transitions (`quote_buy`, `quote_sell`) plus canonical quote math used by execution paths.
+- Quotes are computed client-side with canonical on-chain math parity (no persistent quote mappings).
 - Claim semantics are fixed-share, not pari-mutuel:
   - resolved winner claim = `shares`
-  - cancelled market claim = original net collateral
+- Cancellation is pre-liquidity-only in v10, so cancelled markets have no trader claim path.
+- LP fee accrual uses market fee index + per-LP checkpoints to prevent late LP fee capture.
 - Stablecoin private spend paths rely on valid private records and proof inputs.
 - If currency filtering behaves differently in production, verify all `VITE_*_TOKEN_PROGRAM_ADDRESS` values were set correctly before build/deploy.
-- Outcome labels for categorical markets are metadata-driven and support up to 32 outcomes in v9 schema.
+- Outcome labels for categorical markets are metadata-driven and support up to 32 outcomes.
 
 ## Documentation
 

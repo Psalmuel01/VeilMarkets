@@ -68,24 +68,21 @@ function fund_pool:
     input r2 as TokenMerkleProof.private;
     input r3 as field.public;
     input r4 as u64.public;
-    input r5 as field.public;
-    cast r4 into r6 as u128;
-    gte r0.amount r6 into r7;
+    cast r4 into r5 as u128;
+    gte r0.amount r5 into r6;
+    assert.eq r6 true;
+    gte r4 1000000u64 into r7;
     assert.eq r7 true;
-    gte r4 1000000u64 into r8;
-    assert.eq r8 true;
-    cast r1.siblings r1.leaf_index into r9 as test_usad_stablecoin.aleo/MerkleProof;
-    cast r2.siblings r2.leaf_index into r10 as test_usad_stablecoin.aleo/MerkleProof;
-    cast r9 r10 into r11 as [test_usad_stablecoin.aleo/MerkleProof; 2u32];
-    call test_usad_stablecoin.aleo/transfer_private_to_public veilmarkets_token_usad_v10.aleo r6 r0 r11 into r12 r13 r14;
-    cast self.signer into r15 as field;
-    add r15 r5 into r16;
-    sub r16 r5 into r17;
-    call veilmarkets_core_v10.aleo/fund_pool r3 r4 r17 into r18;
-    async fund_pool r14 r18 into r19;
-    output r12 as test_usad_stablecoin.aleo/ComplianceRecord.record;
-    output r13 as test_usad_stablecoin.aleo/Token.record;
-    output r19 as veilmarkets_token_usad_v10.aleo/fund_pool.future;
+    cast r1.siblings r1.leaf_index into r8 as test_usad_stablecoin.aleo/MerkleProof;
+    cast r2.siblings r2.leaf_index into r9 as test_usad_stablecoin.aleo/MerkleProof;
+    cast r8 r9 into r10 as [test_usad_stablecoin.aleo/MerkleProof; 2u32];
+    call test_usad_stablecoin.aleo/transfer_private_to_public veilmarkets_token_usad_v10.aleo r5 r0 r10 into r11 r12 r13;
+    cast self.signer into r14 as field;
+    call veilmarkets_core_v10.aleo/fund_pool r3 r4 r14 into r15;
+    async fund_pool r13 r15 into r16;
+    output r11 as test_usad_stablecoin.aleo/ComplianceRecord.record;
+    output r12 as test_usad_stablecoin.aleo/Token.record;
+    output r16 as veilmarkets_token_usad_v10.aleo/fund_pool.future;
 
 finalize fund_pool:
     input r0 as test_usad_stablecoin.aleo/transfer_private_to_public.future;

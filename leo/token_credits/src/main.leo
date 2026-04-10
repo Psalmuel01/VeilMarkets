@@ -68,7 +68,6 @@ program veilmarkets_token_credits_v10.aleo {
         input_credits: credits.aleo::credits,
         public market_id: field,
         public amount: u64,
-        public lp_nonce: field,
     ) -> (credits.aleo::credits, Final) {
         assert(input_credits.microcredits >= amount);
         assert(amount >= MIN_BET);
@@ -80,8 +79,9 @@ program veilmarkets_token_credits_v10.aleo {
                 amount,
             );
 
-        // LP ownership key is stable per user; nonce is included for UX parity and ignored.
-        let lp_owner_key: field = self.signer as field + lp_nonce - lp_nonce;
+        // LP ownership key is intentionally stable per user for per-market LP accounting.
+        // Note: this field is public when passed into core.
+        let lp_owner_key: field = self.signer as field;
         let core_future: Final = veilmarkets_core_v10.aleo::fund_pool(
             market_id,
             amount,

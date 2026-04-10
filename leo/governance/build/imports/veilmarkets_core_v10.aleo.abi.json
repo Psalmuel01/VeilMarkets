@@ -516,6 +516,39 @@
       }
     },
     {
+      "name": "lp_fee_index",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U128"
+        }
+      }
+    },
+    {
+      "name": "lp_fee_checkpoint",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U128"
+        }
+      }
+    },
+    {
+      "name": "lp_pending_fees",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
       "name": "market_winner_supply_snapshot",
       "key": {
         "Primitive": "Field"
@@ -528,17 +561,6 @@
     },
     {
       "name": "market_winner_payout_remaining",
-      "key": {
-        "Primitive": "Field"
-      },
-      "value": {
-        "Primitive": {
-          "UInt": "U64"
-        }
-      }
-    },
-    {
-      "name": "market_cancel_payout_remaining",
       "key": {
         "Primitive": "Field"
       },

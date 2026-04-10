@@ -253,15 +253,6 @@
             }
           },
           "mode": "Public"
-        },
-        {
-          "name": "lp_nonce",
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Field"
-            }
-          },
-          "mode": "Public"
         }
       ],
       "outputs": [
