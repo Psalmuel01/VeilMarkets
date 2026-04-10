@@ -1,5 +1,6 @@
 import veilmarkets_factory_v10.aleo;
 import veilmarkets_core_v10.aleo;
+
 program veilmarkets_governance_v10.aleo;
 
 struct Proposal:
@@ -50,12 +51,12 @@ finalize create_proposal:
     assert.eq r9 true;
     gte r5 60u64 into r10;
     assert.eq r10 true;
-    branch.eq r4 false to end_then_0_36;
+    branch.eq r4 false to end_then_0_0;
     lte r3 255u64 into r11;
     assert.eq r11 true;
-    branch.eq true true to end_otherwise_0_37;
-    position end_then_0_36;
-    position end_otherwise_0_37;
+    branch.eq true true to end_otherwise_0_1;
+    position end_then_0_0;
+    position end_otherwise_0_1;
     contains proposals[r0] into r12;
     not r12 into r13;
     assert.eq r13 true;
