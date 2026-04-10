@@ -12,7 +12,12 @@ import { Input } from "@/components/ui/input";
 import { AlertTriangle, CheckCircle2, Shield, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import { useOracleStakeQuery, useRegisterOracleMutation, useUnstakeOracleMutation } from "@/hooks/useVeilQuery";
+import {
+  useOracleLockedStakeQuery,
+  useOracleStakeQuery,
+  useRegisterOracleMutation,
+  useUnstakeOracleMutation,
+} from "@/hooks/useVeilQuery";
 
 interface OracleRegistrationModalProps {
   isOpen: boolean;
@@ -30,11 +35,13 @@ export function OracleRegistrationModal({
   const registerMutation = useRegisterOracleMutation();
   const unstakeMutation = useUnstakeOracleMutation();
   const { data: oracleStakeData = 0, isLoading: oracleStatusLoading } = useOracleStakeQuery();
+  const { data: lockedStakeData = 0, isLoading: oracleLockLoading } = useOracleLockedStakeQuery();
   const loading = registerMutation.isPending || unstakeMutation.isPending;
   const [step, setStep] = useState<Step>("input");
   const [stakeAmount, setStakeAmount] = useState<string>("30");
   const [txId, setTxId] = useState<string | null>(null);
   const [oracleStakeMicro, setOracleStakeMicro] = useState<number>(0);
+  const [lockedStakeMicro, setLockedStakeMicro] = useState<number>(0);
   const [oracleActive, setOracleActive] = useState(false);
   const [lastAction, setLastAction] = useState<"register" | "unstake" | null>(null);
 
@@ -53,6 +60,10 @@ export function OracleRegistrationModal({
     setOracleStakeMicro(oracleStakeData);
     setOracleActive(oracleStakeData >= minStakeMicro);
   }, [oracleStakeData, minStakeMicro]);
+
+  useEffect(() => {
+    setLockedStakeMicro(lockedStakeData);
+  }, [lockedStakeData]);
 
   const handleRegister = async () => {
     const amount = parseFloat(stakeAmount);
@@ -128,7 +139,7 @@ export function OracleRegistrationModal({
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-6"
               >
-                {oracleStatusLoading ? (
+                {oracleStatusLoading || oracleLockLoading ? (
                   <div className="py-10 text-center space-y-3">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto text-amber-500" />
                     <p className="text-sm text-muted-foreground">Checking oracle stake status...</p>
@@ -143,17 +154,24 @@ export function OracleRegistrationModal({
                       <p className="text-xs text-muted-foreground">
                         Current stake: <strong>{(oracleStakeMicro / 1_000_000).toLocaleString()} Credits</strong>
                       </p>
+                      {lockedStakeMicro > 0 && (
+                        <p className="text-xs text-amber-500">
+                          Locked stake: <strong>{(lockedStakeMicro / 1_000_000).toLocaleString()} Credits</strong> until your proposed market is finalized.
+                        </p>
+                      )}
                       <p className="text-xs text-muted-foreground">
-                        Unstaking all credits will remove your oracle status immediately.
+                        {lockedStakeMicro > 0
+                          ? "Unstaking is disabled while stake is locked by an active proposal."
+                          : "Unstaking all credits will remove your oracle status immediately."}
                       </p>
                     </div>
 
                     <Button
                       className="w-full bg-destructive hover:bg-destructive/90 text-white"
                       onClick={handleUnstakeAll}
-                      disabled={loading || oracleStakeMicro <= 0}
+                      disabled={loading || oracleStakeMicro <= 0 || lockedStakeMicro > 0}
                     >
-                      Unstake All & Remove Oracle Status
+                      {lockedStakeMicro > 0 ? "Stake Locked Until Finalization" : "Unstake All & Remove Oracle Status"}
                     </Button>
                   </>
                 ) : (

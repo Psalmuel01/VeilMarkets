@@ -47,6 +47,7 @@ import {
   useOracleStatusQuery,
   useResolutionProposalQuery,
   useResolveMarketMutation,
+  useResolutionFinalizeRequirementsQuery,
   useUserBetsQuery,
 } from "@/hooks/useVeilQuery";
 import { normalizeMarketIdKey } from "@/lib/queryKeys";
@@ -95,6 +96,11 @@ export default function MarketDetailPage() {
   const foundMarket = useMemo(
     () => allMarkets.find((market) => normalizeMarketIdKey(market.id) === normalizedRouteId),
     [allMarkets, normalizedRouteId],
+  );
+  const { data: finalizeRequirements = null } = useResolutionFinalizeRequirementsQuery(
+    id,
+    foundMarket?.outcome_count ?? 2,
+    Boolean(foundMarket && proposal),
   );
   const normalizedOutcomeCount = normalizeOutcomeCount(foundMarket?.outcome_count ?? 2);
   const { data: outcomeTotalsData } = useOutcomeTotalsQuery(
@@ -209,7 +215,16 @@ export default function MarketDetailPage() {
   const isAdmin = publicKey
     ? publicKey.replace(/address/g, "").trim().toLowerCase() === ADMIN_ADDRESS.toLowerCase()
     : false;
-  const isFinalizable = proposal && (!proposal.is_disputed ? nowTs >= proposal.challenge_deadline : true);
+  const finalizationOutcome =
+    proposal?.is_disputed
+      ? (finalizeRequirements?.recommendedOutcome ?? null)
+      : (proposal?.proposed_outcome ?? null);
+  const isFinalizable = Boolean(
+    proposal &&
+      marketStatus !== "Settled" &&
+      finalizeRequirements?.canFinalize &&
+      finalizationOutcome !== null,
+  );
 
   // Countdown logic
   const secondsRemaining = market?.close_time && nowTs
@@ -231,12 +246,12 @@ export default function MarketDetailPage() {
   })();
 
   const handleFinalize = async () => {
-    if (!proposal || !market) return;
+    if (!proposal || !market || finalizationOutcome === null) return;
     setFinalizeStep("processing");
     try {
       const txId = await resolveMarketMutation.mutateAsync({
         marketId: market.id,
-        outcome: proposal.proposed_outcome,
+        outcome: finalizationOutcome,
       });
       setFinalizeTxId(txId);
       setFinalizeStep("success");
@@ -821,16 +836,43 @@ export default function MarketDetailPage() {
                   {isAdmin && (
                     <Button
                       onClick={() => {
-                        if (proposal) {
+                        if (proposal && finalizationOutcome !== null) {
                           setFinalizeStep("confirm");
                           setShowFinalizeModal(true);
                         }
                       }}
                       className="w-full btn-premium bg-gradient-to-r from-success/80 to-success hover:from-success hover:to-success/90 h-14 rounded-2xl"
-                      disabled={!proposal || !isFinalizable || proposal.is_disputed || marketStatus === "Settled"}
+                      disabled={!proposal || !isFinalizable || marketStatus === "Settled"}
                     >
                       Resolve Market
                     </Button>
+                  )}
+
+                  {proposal && marketStatus !== "Settled" && (
+                    <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/50">
+                        Finalization Requirements
+                      </p>
+                      {(finalizeRequirements?.blockers?.length ?? 0) > 0 ? (
+                        <>
+                          {finalizeRequirements?.blockers.map((blocker) => (
+                            <p key={blocker} className="text-xs text-amber-500 leading-relaxed">
+                              • {blocker}
+                            </p>
+                          ))}
+                        </>
+                      ) : (
+                        <p className="text-xs text-success">All requirements satisfied. Market can be finalized.</p>
+                      )}
+                      {proposal.is_disputed && finalizeRequirements && (
+                        <p className="text-[11px] text-muted-foreground">
+                          Quorum: {(finalizeRequirements.totalVoteWeightMicro / 1_000_000).toFixed(2)} /{" "}
+                          {(finalizeRequirements.quorumWeightMicro / 1_000_000).toFixed(2)} ALEO
+                          {" • "}
+                          Voters: {finalizeRequirements.voterCount}/{finalizeRequirements.minVoters}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -949,13 +991,23 @@ export default function MarketDetailPage() {
               </p>
               {proposal && (
                 <div className="p-3 rounded-lg bg-muted/20 border border-border/50 text-sm flex justify-between">
-                  <span className="text-muted-foreground">Proposed Outcome</span>
+                  <span className="text-muted-foreground">
+                    {proposal.is_disputed ? "Finalizing Outcome" : "Proposed Outcome"}
+                  </span>
                   <span
                     className={cn(
                       "font-bold",
-                      getOutcomeTone(market.market_type, normalizedOutcomeCount, proposal.proposed_outcome) === "yes"
+                      getOutcomeTone(
+                        market.market_type,
+                        normalizedOutcomeCount,
+                        finalizationOutcome ?? proposal.proposed_outcome,
+                      ) === "yes"
                         ? "text-success"
-                        : getOutcomeTone(market.market_type, normalizedOutcomeCount, proposal.proposed_outcome) === "no"
+                        : getOutcomeTone(
+                            market.market_type,
+                            normalizedOutcomeCount,
+                            finalizationOutcome ?? proposal.proposed_outcome,
+                          ) === "no"
                           ? "text-destructive"
                           : "text-primary",
                     )}
@@ -963,7 +1015,7 @@ export default function MarketDetailPage() {
                     {getOutcomeLabel(
                       market.market_type,
                       normalizedOutcomeCount,
-                      proposal.proposed_outcome,
+                      finalizationOutcome ?? proposal.proposed_outcome,
                       market.outcome_labels,
                     ).toUpperCase()}
                   </span>
@@ -974,7 +1026,16 @@ export default function MarketDetailPage() {
                   Challenge window active until {formatDateFriendly(proposal.challenge_deadline)}. Finalization may fail if submitted early.
                 </p>
               )}
-              <Button onClick={handleFinalize} className="w-full btn-glow-success" disabled={!proposal}>
+              {(finalizeRequirements?.blockers?.length ?? 0) > 0 && (
+                <div className="space-y-1">
+                  {finalizeRequirements?.blockers.map((blocker) => (
+                    <p key={blocker} className="text-xs text-amber-500">
+                      • {blocker}
+                    </p>
+                  ))}
+                </div>
+              )}
+              <Button onClick={handleFinalize} className="w-full btn-glow-success" disabled={!isFinalizable}>
                 Confirm Resolve
               </Button>
             </div>

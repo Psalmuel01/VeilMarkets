@@ -57,6 +57,7 @@ const invalidateCoreQueries = async (
     await invalidate({ queryKey: queryKeys.marketPool(marketId) });
     await invalidate({ queryKey: ["market", "user-position", normalizedMarketId] });
     await invalidate({ queryKey: queryKeys.marketProposal(marketId) });
+    await invalidate({ queryKey: ["market", "resolution-requirements", normalizedMarketId] });
     await invalidate({ queryKey: ["market", "outcomes", normalizedMarketId] });
     await invalidate({ queryKey: ["market", "quote", normalizedMarketId] });
     await invalidate({ queryKey: ["market", "sell-quote", normalizedMarketId] });
@@ -68,6 +69,7 @@ const invalidateCoreQueries = async (
     await invalidate({ queryKey: queryKeys.balancesUsad(address) });
     await invalidate({ queryKey: queryKeys.oracleStatus(address) });
     await invalidate({ queryKey: queryKeys.oracleStake(address) });
+    await invalidate({ queryKey: queryKeys.oracleLockedStake(address) });
   }
 };
 
@@ -274,6 +276,18 @@ export const useOracleStakeQuery = () => {
   });
 };
 
+export const useOracleLockedStakeQuery = () => {
+  const { fetchOracleLockedStake, publicKey } = useAleoPrograms();
+
+  return useQuery({
+    queryKey: queryKeys.oracleLockedStake(publicKey),
+    queryFn: fetchOracleLockedStake,
+    enabled: Boolean(publicKey),
+    staleTime: DEFAULT_STALE_MS,
+    refetchInterval: POLL_INTERVAL_MS,
+  });
+};
+
 export const useOracleStatusQuery = () => {
   const { publicKey } = useAleoPrograms();
   const stakeQuery = useOracleStakeQuery();
@@ -284,6 +298,23 @@ export const useOracleStatusQuery = () => {
     ...stakeQuery,
     data: isOracle,
   };
+};
+
+export const useResolutionFinalizeRequirementsQuery = (
+  marketId?: string,
+  outcomeCount = 2,
+  enabled = true,
+) => {
+  const { fetchResolutionFinalizeRequirements } = useAleoPrograms();
+
+  return useQuery({
+    queryKey: queryKeys.marketResolutionRequirements(marketId ?? "", outcomeCount),
+    queryFn: () => fetchResolutionFinalizeRequirements(marketId ?? "", outcomeCount),
+    enabled: Boolean(marketId) && enabled,
+    staleTime: DEFAULT_STALE_MS,
+    refetchInterval: POLL_INTERVAL_MS,
+    refetchOnWindowFocus: true,
+  });
 };
 
 export const usePlaceBetMutation = () => {
@@ -564,6 +595,26 @@ export const useUnstakeOracleMutation = () => {
       await invalidateCoreQueries(
         ({ queryKey }) => queryClient.invalidateQueries({ queryKey }),
         undefined,
+        publicKey,
+      );
+    },
+  });
+};
+
+export const useClaimOracleVoteRewardMutation = () => {
+  const queryClient = useQueryClient();
+  const { claimOracleVoteReward, publicKey } = useAleoPrograms();
+
+  return useMutation({
+    mutationFn: async (marketId: string) => {
+      const txId = await claimOracleVoteReward(marketId);
+      if (!txId) throw new Error("Claim oracle vote reward failed");
+      return txId;
+    },
+    onSettled: async (_data, _error, marketId) => {
+      await invalidateCoreQueries(
+        ({ queryKey }) => queryClient.invalidateQueries({ queryKey }),
+        marketId,
         publicKey,
       );
     },

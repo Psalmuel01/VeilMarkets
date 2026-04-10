@@ -18,6 +18,7 @@ import {
 } from "../lib/metadata";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRefresh } from "../context/RefreshContext";
+import { formatDateFriendly } from "@/lib/utils";
 
 type TxHistoryTransaction = TxHistoryResult["transactions"][number];
 
@@ -132,6 +133,27 @@ interface SellQuote {
   netPayoutMicro: number;
   minPayoutMicro: number;
   slippageBps: number;
+}
+
+export interface ResolutionFinalizeRequirements {
+  marketId: string;
+  proposal: {
+    proposed_outcome: number;
+    challenge_deadline: number;
+    is_disputed: boolean;
+    proposer: string;
+  } | null;
+  minVoters: number;
+  minStakeMicro: number;
+  quorumWeightMicro: number;
+  voterCount: number;
+  totalVoteWeightMicro: number;
+  selectedOutcomeVoteWeightMicro: number;
+  leadingOutcome: number | null;
+  leadingOutcomeVoteWeightMicro: number;
+  recommendedOutcome: number | null;
+  canFinalize: boolean;
+  blockers: string[];
 }
 
 const toObject = (value: unknown): Record<string, unknown> | null =>
@@ -430,6 +452,9 @@ const deriveOutcomeExposureKey = async (marketIdField: string, outcome: number):
   if (!helpers) return null;
   return helpers.hashOutcomeKey(marketIdField, outcome);
 };
+
+const deriveOutcomeVoteKey = async (marketIdField: string, outcome: number): Promise<string | null> =>
+  deriveOutcomeExposureKey(marketIdField, outcome);
 
 const deriveLpBalanceKey = async (marketIdField: string, lpOwnerField: string): Promise<string | null> => {
   const helpers = await getBhpHelpers();
@@ -2351,14 +2376,32 @@ export const useAleoPrograms = () => {
     }
   }, [publicKey]);
 
+  const fetchOracleLockedStake = useCallback(async (): Promise<number> => {
+    if (!publicKey) return 0;
+    try {
+      const raw = await fetchMappingValue(ORACLE_PROGRAM_ID, "oracle_locked_stake", publicKey);
+      return parseMappingU64(raw);
+    } catch (error) {
+      console.error("Failed to fetch oracle locked stake:", error);
+      return 0;
+    }
+  }, [publicKey]);
+
   const unstakeOracleCredits = async (amountCredits: number) => {
     if (!address) return null;
     const amountMicro = Math.max(1_000_000, Math.floor(amountCredits * 1_000_000));
 
     try {
-      const currentStake = await fetchOracleStake();
+      const [currentStake, lockedStake] = await Promise.all([
+        fetchOracleStake(),
+        fetchOracleLockedStake(),
+      ]);
       if (currentStake < amountMicro) {
         toast.error("Unstake amount exceeds your current oracle stake.");
+        return null;
+      }
+      if (lockedStake > 0) {
+        toast.error("Your oracle stake is locked by an active proposal. Unstake is available after finalization.");
         return null;
       }
 
@@ -2376,6 +2419,29 @@ export const useAleoPrograms = () => {
       return result ? result.transactionId : null;
     } catch (error) {
       console.error("Oracle unstake failed:", error);
+      return null;
+    }
+  };
+
+  const claimOracleVoteReward = async (marketId: string) => {
+    if (!address) return null;
+    const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+    try {
+      const result = await executeAndPoll({
+        program: ORACLE_PROGRAM_ID,
+        function: "claim_vote_reward",
+        inputs: [cleanMarketId],
+        fee: 500_000,
+        privateFee: false,
+      }, ORACLE_PROGRAM_ID, "claim_vote_reward");
+      if (result) {
+        toast.success("Oracle vote reward claimed.");
+        triggerRefresh();
+      }
+      return result ? result.transactionId : null;
+    } catch (error) {
+      console.error("Claim oracle vote reward failed:", error);
+      toast.error(`Vote reward claim failed: ${getErrorMessage(error)}`);
       return null;
     }
   };
@@ -2518,6 +2584,104 @@ export const useAleoPrograms = () => {
     }
   }, []);
 
+  const fetchResolutionFinalizeRequirements = useCallback(
+    async (marketId: string, outcomeCount: number): Promise<ResolutionFinalizeRequirements | null> => {
+      try {
+        const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+        const nowTs = Math.floor(Date.now() / 1000);
+        const [
+          proposalRaw,
+          minVotersRaw,
+          minStakeRaw,
+          voterCountRaw,
+          totalWeightRaw,
+        ] = await Promise.all([
+          fetchMappingValue(ORACLE_PROGRAM_ID, "proposals", cleanMarketId),
+          fetchMappingValue(ORACLE_PROGRAM_ID, "oracle_u8", "0u8"),
+          fetchMappingValue(ORACLE_PROGRAM_ID, "oracle_u64", "0u8"),
+          fetchMappingValue(ORACLE_PROGRAM_ID, "disputed_voter_counts", cleanMarketId),
+          fetchMappingValue(ORACLE_PROGRAM_ID, "vote_weight_totals", cleanMarketId),
+        ]);
+
+        const proposal = proposalRaw ? parseResolutionProposal(proposalRaw as string | object) : null;
+        const minVoters = Math.max(3, parseMappingU64(minVotersRaw) || 3);
+        const minStakeMicro = Math.max(MIN_ORACLE_STAKE_MICROCREDITS, parseMappingU64(minStakeRaw) || MIN_ORACLE_STAKE_MICROCREDITS);
+        const voterCount = parseMappingU64(voterCountRaw);
+        const totalVoteWeightMicro = parseMappingU64(totalWeightRaw);
+        const quorumWeightMicro = minVoters * minStakeMicro;
+
+        const blockers: string[] = [];
+        let selectedOutcomeVoteWeightMicro = 0;
+        let leadingOutcome: number | null = null;
+        let leadingOutcomeVoteWeightMicro = 0;
+        let recommendedOutcome: number | null = null;
+
+        if (!proposal) {
+          blockers.push("No resolution proposal has been submitted yet.");
+        } else if (!proposal.is_disputed) {
+          if (nowTs < proposal.challenge_deadline) {
+            blockers.push(
+              `Challenge window is still active until ${formatDateFriendly(proposal.challenge_deadline)}.`,
+            );
+          }
+          recommendedOutcome = proposal.proposed_outcome;
+        } else {
+          const normalizedCount = Math.max(2, Math.min(32, outcomeCount || 2));
+          const weights = await Promise.all(
+            Array.from({ length: normalizedCount }, async (_, index) => {
+              const voteKey = await deriveOutcomeVoteKey(cleanMarketId, index);
+              if (!voteKey) return 0;
+              const raw = await fetchMappingValue(ORACLE_PROGRAM_ID, "votes", voteKey);
+              return parseMappingU64(raw);
+            }),
+          );
+
+          for (let i = 0; i < weights.length; i += 1) {
+            if (weights[i] > leadingOutcomeVoteWeightMicro) {
+              leadingOutcomeVoteWeightMicro = weights[i];
+              leadingOutcome = i;
+            }
+          }
+
+          recommendedOutcome = leadingOutcome;
+          selectedOutcomeVoteWeightMicro = leadingOutcome !== null ? weights[leadingOutcome] : 0;
+
+          if (voterCount < minVoters) {
+            blockers.push(`Needs at least ${minVoters} unique dispute voters (currently ${voterCount}).`);
+          }
+          if (totalVoteWeightMicro < quorumWeightMicro) {
+            blockers.push(
+              `Needs quorum vote weight of ${(quorumWeightMicro / 1_000_000).toFixed(2)} ALEO (currently ${(totalVoteWeightMicro / 1_000_000).toFixed(2)} ALEO).`,
+            );
+          }
+          if (selectedOutcomeVoteWeightMicro <= 0) {
+            blockers.push("No vote weight found for the finalizing outcome yet.");
+          }
+        }
+
+        return {
+          marketId: cleanMarketId,
+          proposal,
+          minVoters,
+          minStakeMicro,
+          quorumWeightMicro,
+          voterCount,
+          totalVoteWeightMicro,
+          selectedOutcomeVoteWeightMicro,
+          leadingOutcome,
+          leadingOutcomeVoteWeightMicro,
+          recommendedOutcome,
+          canFinalize: blockers.length === 0 && Boolean(proposal),
+          blockers,
+        };
+      } catch (error) {
+        console.error("Failed to fetch resolution finalization requirements:", error);
+        return null;
+      }
+    },
+    [],
+  );
+
   return {
     createMarket,
     placeBet,
@@ -2529,8 +2693,11 @@ export const useAleoPrograms = () => {
     disputeResolution,
     registerAsOracle,
     unstakeOracleCredits,
+    claimOracleVoteReward,
     fetchOracleStake,
+    fetchOracleLockedStake,
     fetchResolutionProposal,
+    fetchResolutionFinalizeRequirements,
     claimWinnings,
     shieldCredits,
     fetchBalances,

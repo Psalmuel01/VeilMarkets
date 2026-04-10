@@ -15,7 +15,11 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { OracleRegistrationModal } from "@/components/resolution/OracleRegistrationModal";
 import { getOutcomeLabel, getOutcomeLabels, getOutcomeTone, normalizeOutcomeCount } from "@/lib/outcomes";
-import { useDisputeResolutionMutation, useProposeResolutionMutation } from "@/hooks/useVeilQuery";
+import {
+  useClaimOracleVoteRewardMutation,
+  useDisputeResolutionMutation,
+  useProposeResolutionMutation,
+} from "@/hooks/useVeilQuery";
 
 interface ResolutionModalProps {
   isOpen: boolean;
@@ -56,7 +60,8 @@ export function ResolutionModal({
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
   const proposeMutation = useProposeResolutionMutation();
   const disputeMutation = useDisputeResolutionMutation();
-  const loading = proposeMutation.isPending || disputeMutation.isPending;
+  const claimVoterRewardMutation = useClaimOracleVoteRewardMutation();
+  const loading = proposeMutation.isPending || disputeMutation.isPending || claimVoterRewardMutation.isPending;
   const normalizedOutcomeCount = normalizeOutcomeCount(market.outcome_count);
   const outcomeLabels = getOutcomeLabels(market.market_type, normalizedOutcomeCount, market.outcome_labels);
 
@@ -100,6 +105,10 @@ export function ResolutionModal({
     await handleAction(() =>
       disputeMutation.mutateAsync({ marketId: market.id, amountCredits: DISPUTE_BOND_CREDITS }),
     );
+  };
+
+  const handleClaimVoteReward = async () => {
+    await handleAction(() => claimVoterRewardMutation.mutateAsync(market.id));
   };
 
   const isResolved = market.is_resolved;
@@ -332,6 +341,22 @@ export function ResolutionModal({
                         )}
                         <p className="text-[10px] text-center text-muted-foreground">
                           Disputes require a {DISPUTE_BOND_CREDITS} Credit bond during the challenge window.
+                        </p>
+                      </div>
+                    )}
+
+                    {proposal?.is_disputed && isResolved && isOracle && (
+                      <div className="space-y-3">
+                        <Button
+                          variant="outline"
+                          className="w-full border-success/30 hover:bg-success/10 text-success"
+                          onClick={handleClaimVoteReward}
+                          disabled={loading}
+                        >
+                          Claim Dispute Vote Reward
+                        </Button>
+                        <p className="text-[10px] text-center text-muted-foreground">
+                          Winning-side dispute voters can claim rewards credited to oracle stake.
                         </p>
                       </div>
                     )}

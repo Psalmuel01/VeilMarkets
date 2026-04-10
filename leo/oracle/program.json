@@ -16,6 +16,11 @@
       "path": "../core"
     },
     {
+      "name": "veilmarkets_governance_v10.aleo",
+      "location": "local",
+      "path": "../governance"
+    },
+    {
       "name": "credits.aleo",
       "location": "network",
       "path": null

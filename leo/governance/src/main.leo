@@ -1,4 +1,5 @@
 import veilmarkets_core_v10.aleo;
+import veilmarkets_factory_v10.aleo;
 
 program veilmarkets_governance_v10.aleo {
     struct Proposal {
@@ -19,6 +20,8 @@ program veilmarkets_governance_v10.aleo {
     mapping voter_weights: address => u64;
 
     const TARGET_CORE: u8 = 0u8;
+    const TARGET_ORACLE: u8 = 1u8;
+    const ORACLE_CONTRACT_TYPE: u8 = 2u8;
     const MIN_VOTE_WINDOW: u64 = 60u64;
     const EXECUTION_TIMELOCK: u64 = 86400u64; // 24h
     const ADMIN: address = aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
@@ -91,6 +94,44 @@ program veilmarkets_governance_v10.aleo {
         };
     }
 
+    fn consume_oracle_u64(
+        public proposal_id: field,
+        public param_key: u8,
+        public value: u64,
+    ) -> Final {
+        let caller: address = self.caller;
+        let oracle_auth: Final = veilmarkets_factory_v10.aleo::verify_is_registered(
+            ORACLE_CONTRACT_TYPE,
+            caller,
+        );
+        return final {
+            oracle_auth.run();
+            finalize_consume_execute(proposal_id, TARGET_ORACLE, param_key, value, false);
+        };
+    }
+
+    fn consume_oracle_u8(
+        public proposal_id: field,
+        public param_key: u8,
+        public value: u8,
+    ) -> Final {
+        let caller: address = self.caller;
+        let oracle_auth: Final = veilmarkets_factory_v10.aleo::verify_is_registered(
+            ORACLE_CONTRACT_TYPE,
+            caller,
+        );
+        return final {
+            oracle_auth.run();
+            finalize_consume_execute(
+                proposal_id,
+                TARGET_ORACLE,
+                param_key,
+                value as u64,
+                true,
+            );
+        };
+    }
+
 }
 
 fn vote_key(proposal_id: field, voter: address) -> field {
@@ -106,7 +147,7 @@ final fn finalize_create_proposal(
     voting_window: u64,
     proposer: address,
 ) {
-    assert(target == TARGET_CORE);
+    assert(target == TARGET_CORE || target == TARGET_ORACLE);
     assert(voting_window >= MIN_VOTE_WINDOW);
     if (as_u8) {
         assert(value <= 255u64);
@@ -205,4 +246,37 @@ final fn finalize_admin_set_voter_weight(voter: address, weight: u64, caller: ad
     assert_eq(caller, ADMIN);
     assert(weight > 0u64);
     Mapping::set(voter_weights, voter, weight);
+}
+
+final fn finalize_consume_execute(
+    proposal_id: field,
+    expected_target: u8,
+    expected_param_key: u8,
+    expected_value: u64,
+    expected_as_u8: bool,
+) {
+    let proposal: Proposal = Mapping::get(proposals, proposal_id);
+    assert(!proposal.executed);
+    assert(block.timestamp as u64 >= proposal.end_time);
+    assert(block.timestamp as u64 >= proposal.execute_after);
+    assert(proposal.yes_votes > proposal.no_votes);
+
+    assert_eq(proposal.target, expected_target);
+    assert_eq(proposal.param_key, expected_param_key);
+    assert_eq(proposal.param_value, expected_value);
+    assert_eq(proposal.as_u8, expected_as_u8);
+
+    let executed: Proposal = Proposal {
+        proposer: proposal.proposer,
+        target: proposal.target,
+        param_key: proposal.param_key,
+        param_value: proposal.param_value,
+        as_u8: proposal.as_u8,
+        end_time: proposal.end_time,
+        execute_after: proposal.execute_after,
+        yes_votes: proposal.yes_votes,
+        no_votes: proposal.no_votes,
+        executed: true,
+    };
+    Mapping::set(proposals, proposal_id, executed);
 }

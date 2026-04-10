@@ -204,6 +204,37 @@
       }
     },
     {
+      "name": "vote_outcomes",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U8"
+        }
+      }
+    },
+    {
+      "name": "vote_weights",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "vote_reward_claimed",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": "Boolean"
+      }
+    },
+    {
       "name": "disputes",
       "key": {
         "Primitive": "Field"
@@ -253,6 +284,39 @@
       "value": {
         "Primitive": {
           "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "market_voter_reward_pool",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "market_winning_vote_weight",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "resolved_outcomes",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U8"
         }
       }
     }
@@ -612,6 +676,27 @@
       ]
     },
     {
+      "name": "claim_vote_reward",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "market_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
       "name": "withdraw_platform_fees",
       "is_final": true,
       "inputs": [
@@ -680,6 +765,15 @@
       "is_final": true,
       "inputs": [
         {
+          "name": "proposal_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
+        },
+        {
           "name": "param_key",
           "ty": {
             "Plaintext": {
@@ -713,6 +807,15 @@
       "name": "set_protocol_u8",
       "is_final": true,
       "inputs": [
+        {
+          "name": "proposal_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
+        },
         {
           "name": "param_key",
           "ty": {
