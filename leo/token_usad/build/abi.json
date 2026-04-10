@@ -1,47 +1,6 @@
 {
-  "program": "veilmarkets_token_usad_v9.aleo",
+  "program": "veilmarkets_token_usad_v10.aleo",
   "structs": [
-    {
-      "path": [
-        "EscrowInfo"
-      ],
-      "fields": [
-        {
-          "name": "holder_commitment",
-          "ty": {
-            "Primitive": "Field"
-          }
-        },
-        {
-          "name": "market_id",
-          "ty": {
-            "Primitive": "Field"
-          }
-        },
-        {
-          "name": "amount",
-          "ty": {
-            "Primitive": {
-              "UInt": "U64"
-            }
-          }
-        },
-        {
-          "name": "outcome",
-          "ty": {
-            "Primitive": {
-              "UInt": "U8"
-            }
-          }
-        },
-        {
-          "name": "escrow_id",
-          "ty": {
-            "Primitive": "Field"
-          }
-        }
-      ]
-    },
     {
       "path": [
         "TokenMerkleProof"
@@ -69,237 +28,10 @@
       ]
     }
   ],
-  "records": [
-    {
-      "path": [
-        "EscrowedBet"
-      ],
-      "fields": [
-        {
-          "name": "owner",
-          "ty": {
-            "Primitive": "Address"
-          },
-          "mode": "None"
-        },
-        {
-          "name": "market_id",
-          "ty": {
-            "Primitive": "Field"
-          },
-          "mode": "None"
-        },
-        {
-          "name": "amount",
-          "ty": {
-            "Primitive": {
-              "UInt": "U64"
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "name": "outcome",
-          "ty": {
-            "Primitive": {
-              "UInt": "U8"
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "name": "escrow_id",
-          "ty": {
-            "Primitive": "Field"
-          },
-          "mode": "None"
-        },
-        {
-          "name": "nonce",
-          "ty": {
-            "Primitive": "Group"
-          },
-          "mode": "None"
-        }
-      ]
-    }
-  ],
-  "mappings": [
-    {
-      "name": "market_escrow",
-      "key": {
-        "Primitive": "Field"
-      },
-      "value": {
-        "Primitive": {
-          "UInt": "U64"
-        }
-      }
-    },
-    {
-      "name": "escrow_details",
-      "key": {
-        "Primitive": "Field"
-      },
-      "value": {
-        "Struct": {
-          "path": [
-            "EscrowInfo"
-          ],
-          "program": "veilmarkets_token_usad_v9.aleo"
-        }
-      }
-    },
-    {
-      "name": "spent_escrow",
-      "key": {
-        "Primitive": "Field"
-      },
-      "value": {
-        "Primitive": "Boolean"
-      }
-    },
-    {
-      "name": "platform_fees",
-      "key": {
-        "Primitive": {
-          "UInt": "U8"
-        }
-      },
-      "value": {
-        "Primitive": {
-          "UInt": "U64"
-        }
-      }
-    }
-  ],
+  "records": [],
+  "mappings": [],
   "storage_variables": [],
   "functions": [
-    {
-      "name": "place_bet",
-      "is_final": true,
-      "inputs": [
-        {
-          "name": "input_token",
-          "ty": {
-            "Record": {
-              "path": [
-                "Token"
-              ],
-              "program": "test_usad_stablecoin.aleo"
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "name": "token_proof_0",
-          "ty": {
-            "Plaintext": {
-              "Struct": {
-                "path": [
-                  "TokenMerkleProof"
-                ],
-                "program": "veilmarkets_token_usad_v9.aleo"
-              }
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "name": "token_proof_1",
-          "ty": {
-            "Plaintext": {
-              "Struct": {
-                "path": [
-                  "TokenMerkleProof"
-                ],
-                "program": "veilmarkets_token_usad_v9.aleo"
-              }
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "name": "market_id",
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Field"
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "name": "outcome",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U8"
-              }
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "name": "bet_amount",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U64"
-              }
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "name": "bet_nonce",
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Field"
-            }
-          },
-          "mode": "None"
-        }
-      ],
-      "outputs": [
-        {
-          "ty": {
-            "Record": {
-              "path": [
-                "ComplianceRecord"
-              ],
-              "program": "test_usad_stablecoin.aleo"
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "ty": {
-            "Record": {
-              "path": [
-                "Token"
-              ],
-              "program": "test_usad_stablecoin.aleo"
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "ty": {
-            "Record": {
-              "path": [
-                "EscrowedBet"
-              ],
-              "program": "veilmarkets_token_usad_v9.aleo"
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "ty": "Final",
-          "mode": "None"
-        }
-      ]
-    },
     {
       "name": "buy_shares",
       "is_final": true,
@@ -324,7 +56,7 @@
                 "path": [
                   "TokenMerkleProof"
                 ],
-                "program": "veilmarkets_token_usad_v9.aleo"
+                "program": "veilmarkets_token_usad_v10.aleo"
               }
             }
           },
@@ -338,7 +70,7 @@
                 "path": [
                   "TokenMerkleProof"
                 ],
-                "program": "veilmarkets_token_usad_v9.aleo"
+                "program": "veilmarkets_token_usad_v10.aleo"
               }
             }
           },
@@ -351,7 +83,7 @@
               "Primitive": "Field"
             }
           },
-          "mode": "None"
+          "mode": "Public"
         },
         {
           "name": "outcome",
@@ -362,10 +94,10 @@
               }
             }
           },
-          "mode": "None"
+          "mode": "Public"
         },
         {
-          "name": "bet_amount",
+          "name": "collateral_in",
           "ty": {
             "Plaintext": {
               "Primitive": {
@@ -373,7 +105,7 @@
               }
             }
           },
-          "mode": "None"
+          "mode": "Public"
         },
         {
           "name": "min_shares_out",
@@ -384,16 +116,38 @@
               }
             }
           },
-          "mode": "None"
+          "mode": "Public"
         },
         {
-          "name": "bet_nonce",
+          "name": "expected_net_collateral_in",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "expected_shares_out",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "position_nonce",
           "ty": {
             "Plaintext": {
               "Primitive": "Field"
             }
           },
-          "mode": "None"
+          "mode": "Public"
         }
       ],
       "outputs": [
@@ -423,9 +177,9 @@
           "ty": {
             "Record": {
               "path": [
-                "EscrowedBet"
+                "BetPosition"
               ],
-              "program": "veilmarkets_token_usad_v9.aleo"
+              "program": "veilmarkets_core_v10.aleo"
             }
           },
           "mode": "None"
@@ -460,7 +214,7 @@
                 "path": [
                   "TokenMerkleProof"
                 ],
-                "program": "veilmarkets_token_usad_v9.aleo"
+                "program": "veilmarkets_token_usad_v10.aleo"
               }
             }
           },
@@ -474,7 +228,7 @@
                 "path": [
                   "TokenMerkleProof"
                 ],
-                "program": "veilmarkets_token_usad_v9.aleo"
+                "program": "veilmarkets_token_usad_v10.aleo"
               }
             }
           },
@@ -487,7 +241,7 @@
               "Primitive": "Field"
             }
           },
-          "mode": "None"
+          "mode": "Public"
         },
         {
           "name": "amount",
@@ -498,7 +252,7 @@
               }
             }
           },
-          "mode": "None"
+          "mode": "Public"
         },
         {
           "name": "lp_nonce",
@@ -507,7 +261,7 @@
               "Primitive": "Field"
             }
           },
-          "mode": "None"
+          "mode": "Public"
         }
       ],
       "outputs": [
@@ -594,11 +348,22 @@
       ]
     },
     {
-      "name": "refund_bet",
+      "name": "withdraw_protocol_fees",
       "is_final": true,
       "inputs": [
         {
-          "name": "escrow_id",
+          "name": "amount",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "authorization_id",
           "ty": {
             "Plaintext": {
               "Primitive": "Field"
@@ -607,12 +372,10 @@
           "mode": "Public"
         },
         {
-          "name": "amount",
+          "name": "recipient",
           "ty": {
             "Plaintext": {
-              "Primitive": {
-                "UInt": "U64"
-              }
+              "Primitive": "Address"
             }
           },
           "mode": "Public"

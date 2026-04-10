@@ -1,182 +1,74 @@
-// VeilMarkets Token — Credits Adapter (v9)
-// Handles share-trading settlement and payout rails using native credits.aleo
+// VeilMarkets Token — Credits Adapter (v10)
+// Private credits rail for buy/fund/claim + governance-gated protocol fee withdrawals.
 import credits.aleo;
-import veilmarkets_core_v9.aleo;
-import veilmarkets_factory_v9.aleo;
+import veilmarkets_core_v10.aleo;
+import veilmarkets_factory_v10.aleo;
 
-program veilmarkets_token_credits_v9.aleo {
-
-    // ── Structs ────────────────────────────────────────────────────────────────
-
-    struct EscrowInfo {
-        holder_commitment: field,
-        market_id: field,
-        amount: u64,
-        outcome: u8,
-        escrow_id: field,
-    }
-
-    // ── Records ────────────────────────────────────────────────────────────────
-
-    record EscrowedBet {
-        owner: address,
-        market_id: field,
-        amount: u64,
-        outcome: u8,
-        escrow_id: field,
-        nonce: group,
-    }
-
-    // ── Mappings ───────────────────────────────────────────────────────────────
-
-    mapping market_escrow: field => u64;         // market_id => total escrowed
-    mapping escrow_details: field => EscrowInfo; // escrow_id => details
-    mapping spent_escrow: field => bool;         // nullifier => spent flag
-    mapping platform_fees: u8 => u64;            // fee treasury (reserved)
-
-    // ── Constants ──────────────────────────────────────────────────────────────
-
-    const TOKEN_CONTRACT_TYPE: u8 = 1u8;
-    const PLATFORM_FEE_BPS: u64 = 100u64; // 1% (reserved, not yet applied)
-    const MIN_BET: u64 = 1000000u64;       // 1 credit minimum
-
-    // ── Constructor ────────────────────────────────────────────────────────────
+program veilmarkets_token_credits_v10.aleo {
+    const GOVERNANCE_CONTRACT_TYPE: u8 = 4u8;
+    const MIN_BET: u64 = 1000000u64;
 
     @admin(address = "aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n")
     constructor() {}
 
-    // ── Place bet ──────────────────────────────────────────────────────────────
-    // Atomically escrows native credits and registers the bet in core.
-    // Called directly by the bettor. The bettor supplies a private nonce
-    // to ensure a unique escrow_id for repeated identical bets.
-
-    fn place_bet(
-        input_credits: credits.aleo::credits,
-        market_id: field,
-        outcome: u8,
-        bet_amount: u64,
-        bet_nonce: field,
-    ) -> (credits.aleo::credits, EscrowedBet, Final) {
-        assert(input_credits.microcredits >= bet_amount);
-        assert(bet_amount >= MIN_BET);
-        assert(outcome <= 31u8);
-
-        // Transfer bet_amount to this contract's public balance
-        let (change, transfer_future): (credits.aleo::credits, Final) =
-            credits.aleo::transfer_private_to_public(
-                input_credits,
-                self.address,
-                bet_amount,
-            );
-
-        // Escrow ID: include caller + market + outcome + amount + caller-provided nonce
-        // so repeated same-size bets do not collide.
-        let escrow_id: field = BHP256::hash_to_field(
-            self.caller as field + market_id + outcome as field + bet_amount as field
-                + bet_nonce,
-        );
-        let owner_commitment: field = BHP256::hash_to_field(self.caller as field + escrow_id);
-
-        let core_future: Final = veilmarkets_core_v9.aleo::place_bet(
-            market_id,
-            outcome,
-            bet_amount,
-            escrow_id,
-            owner_commitment,
-        );
-
-        let bet_record: EscrowedBet = EscrowedBet {
-            owner: self.signer,
-            market_id: market_id,
-            amount: bet_amount,
-            outcome: outcome,
-            escrow_id: escrow_id,
-            nonce: BHP256::hash_to_group(escrow_id),
-        };
-
-        let f: Final = final {
-            finalize_place_bet(
-                market_id,
-                outcome,
-                bet_amount,
-                escrow_id,
-                owner_commitment,
-                transfer_future,
-                core_future,
-            );
-        };
-
-        return (change, bet_record, f);
-    }
-
     fn buy_shares(
         input_credits: credits.aleo::credits,
-        market_id: field,
-        outcome: u8,
-        bet_amount: u64,
-        min_shares_out: u64,
-        bet_nonce: field,
-    ) -> (credits.aleo::credits, EscrowedBet, Final) {
-        assert(input_credits.microcredits >= bet_amount);
-        assert(bet_amount >= MIN_BET);
+        public market_id: field,
+        public outcome: u8,
+        public collateral_in: u64,
+        public min_shares_out: u64,
+        public expected_net_collateral_in: u64,
+        public expected_shares_out: u64,
+        public position_nonce: field,
+    ) -> (credits.aleo::credits, veilmarkets_core_v10.aleo::BetPosition, Final) {
+        assert(input_credits.microcredits >= collateral_in);
+        assert(collateral_in >= MIN_BET);
         assert(min_shares_out > 0u64);
+        assert(expected_net_collateral_in > 0u64);
+        assert(expected_shares_out > 0u64);
         assert(outcome <= 31u8);
 
         let (change, transfer_future): (credits.aleo::credits, Final) =
             credits.aleo::transfer_private_to_public(
                 input_credits,
                 self.address,
-                bet_amount,
+                collateral_in,
             );
 
-        let escrow_id: field = BHP256::hash_to_field(
-            self.caller as field + market_id + outcome as field + bet_amount as field
-                + bet_nonce,
+        let position_id: field = BHP256::hash_to_field(
+            self.signer as field
+                + market_id
+                + outcome as field
+                + collateral_in as field
+                + position_nonce,
         );
-        let owner_commitment: field = BHP256::hash_to_field(self.caller as field + escrow_id);
-
-        let core_future: Final = veilmarkets_core_v9.aleo::buy_shares(
-            market_id,
-            outcome,
-            bet_amount,
-            min_shares_out,
-            escrow_id,
-            owner_commitment,
+        let owner_commitment: field = BHP256::hash_to_field(
+            self.signer as field + position_id,
         );
 
-        let bet_record: EscrowedBet = EscrowedBet {
-            owner: self.signer,
-            market_id: market_id,
-            amount: bet_amount,
-            outcome: outcome,
-            escrow_id: escrow_id,
-            nonce: BHP256::hash_to_group(escrow_id),
-        };
-
-        let f: Final = final {
-            finalize_place_bet(
+        let (position, core_future): (veilmarkets_core_v10.aleo::BetPosition, Final) =
+            veilmarkets_core_v10.aleo::buy_shares(
                 market_id,
                 outcome,
-                bet_amount,
-                escrow_id,
+                collateral_in,
+                min_shares_out,
+                expected_net_collateral_in,
+                expected_shares_out,
+                position_id,
                 owner_commitment,
-                transfer_future,
-                core_future,
             );
+
+        let f: Final = final {
+            finalize_buy_shares(transfer_future, core_future);
         };
-
-        return (change, bet_record, f);
+        return (change, position, f);
     }
-
-
-    // ── Fund pool ───────────────────────────────────────────────────────────────
-    // Adds liquidity collateral to a market pool through the core v9 engine.
 
     fn fund_pool(
         input_credits: credits.aleo::credits,
-        market_id: field,
-        amount: u64,
-        lp_nonce: field,
+        public market_id: field,
+        public amount: u64,
+        public lp_nonce: field,
     ) -> (credits.aleo::credits, Final) {
         assert(input_credits.microcredits >= amount);
         assert(amount >= MIN_BET);
@@ -188,40 +80,28 @@ program veilmarkets_token_credits_v9.aleo {
                 amount,
             );
 
-        let lp_position_id: field = BHP256::hash_to_field(
-            self.caller as field + market_id + amount as field + lp_nonce,
-        );
-        let lp_owner_key: field = self.caller as field;
-        let owner_commitment: field =
-            BHP256::hash_to_field(self.caller as field + lp_position_id);
-
-        let core_future: Final = veilmarkets_core_v9.aleo::fund_pool(
+        // LP ownership key is stable per user; nonce is included for UX parity and ignored.
+        let lp_owner_key: field = self.signer as field + lp_nonce - lp_nonce;
+        let core_future: Final = veilmarkets_core_v10.aleo::fund_pool(
             market_id,
             amount,
-            lp_position_id,
             lp_owner_key,
-            owner_commitment,
         );
 
         let f: Final = final {
-            finalize_fund_pool(market_id, amount, transfer_future, core_future);
+            finalize_fund_pool(transfer_future, core_future);
         };
         return (change, f);
     }
-
-
-    // ── Claim payout ───────────────────────────────────────────────────────────
-    // Verifies the win with core, then moves the payout from the contract's
-    // public credits balance to the winner's private credits record.
 
     fn claim_payout(
         public payout_amount: u64,
         public nullifier: field,
     ) -> (credits.aleo::credits, Final) {
-        // Core verifies the payout amount and marks the nullifier consumed
-        let core_result: Final = veilmarkets_core_v9.aleo::verify_claim(nullifier, payout_amount);
-
-        // Transfer payout from contract's public balance to caller's private record
+        let core_result: Final = veilmarkets_core_v10.aleo::verify_claim(
+            nullifier,
+            payout_amount,
+        );
         let (payout_record, transfer_future): (credits.aleo::credits, Final) =
             credits.aleo::transfer_public_to_private(
                 self.caller,
@@ -229,118 +109,58 @@ program veilmarkets_token_credits_v9.aleo {
             );
 
         let f: Final = final {
-            finalize_claim_payout(nullifier, transfer_future, core_result);
+            finalize_claim_payout(core_result, transfer_future);
         };
         return (payout_record, f);
     }
 
-
-    // ── Refund bet ─────────────────────────────────────────────────────────────
-    // Used when a market is cancelled (winning_outcome == 255u8).
-    // The caller must be the original bettor (holder check in finalize).
-
-    fn refund_bet(
-        public escrow_id: field,
+    fn withdraw_protocol_fees(
         public amount: u64,
+        public authorization_id: field,
+        public recipient: address,
     ) -> (credits.aleo::credits, Final) {
-        let (refund_record, transfer_future): (credits.aleo::credits, Final) =
+        let gov_auth: Final = veilmarkets_factory_v10.aleo::verify_is_registered(
+            GOVERNANCE_CONTRACT_TYPE,
+            self.caller,
+        );
+        let core_auth: Final = veilmarkets_core_v10.aleo::authz_fee_withdrawal(
+            amount,
+            authorization_id,
+        );
+        let (payout_record, transfer_future): (credits.aleo::credits, Final) =
             credits.aleo::transfer_public_to_private(
-                self.caller,
+                recipient,
                 amount,
             );
 
-        let caller: address = self.caller;
         let f: Final = final {
-            finalize_refund_bet(escrow_id, amount, caller, transfer_future);
+            finalize_withdraw_protocol_fees(gov_auth, core_auth, transfer_future);
         };
-        return (refund_record, f);
+        return (payout_record, f);
     }
-
 }
 
-final fn finalize_place_bet(
-    market_id: field,
-    outcome: u8,
-    amount: u64,
-    escrow_id: field,
-    owner_commitment: field,
-    transfer_future: Final,
-    core_future: Final,
-) {
+final fn finalize_buy_shares(transfer_future: Final, core_future: Final) {
     transfer_future.run();
     core_future.run();
-
-    // Anti-replay: escrow_id must be unused
-    let exists: bool = Mapping::contains(escrow_details, escrow_id);
-    assert(!exists);
-
-    let details: EscrowInfo = EscrowInfo {
-        holder_commitment: owner_commitment,
-        market_id: market_id,
-        amount: amount,
-        outcome: outcome,
-        escrow_id: escrow_id,
-    };
-    Mapping::set(escrow_details, escrow_id, details);
-
-    let current_total: u64 = Mapping::get_or_use(market_escrow, market_id, 0u64);
-    Mapping::set(market_escrow, market_id, current_total + amount);
 }
 
-final fn finalize_fund_pool(
-    market_id: field,
-    amount: u64,
-    transfer_future: Final,
-    core_future: Final,
-) {
+final fn finalize_fund_pool(transfer_future: Final, core_future: Final) {
     transfer_future.run();
     core_future.run();
-
-    let current_total: u64 = Mapping::get_or_use(market_escrow, market_id, 0u64);
-    Mapping::set(market_escrow, market_id, current_total + amount);
 }
 
-final fn finalize_claim_payout(
-    nullifier: field,
-    transfer_future: Final,
-    core_result: Final,
-) {
-    transfer_future.run();
+final fn finalize_claim_payout(core_result: Final, transfer_future: Final) {
     core_result.run();
-
-    // Double-spend guard at the adapter level
-    let is_spent: bool = Mapping::get_or_use(spent_escrow, nullifier, false);
-    assert(!is_spent);
-    Mapping::set(spent_escrow, nullifier, true);
+    transfer_future.run();
 }
 
-final fn finalize_refund_bet(
-    escrow_id: field,
-    amount: u64,
-    caller: address,
+final fn finalize_withdraw_protocol_fees(
+    gov_auth: Final,
+    core_auth: Final,
     transfer_future: Final,
 ) {
+    gov_auth.run();
+    core_auth.run();
     transfer_future.run();
-
-    // Verify caller is the original holder
-    let details: EscrowInfo = Mapping::get(escrow_details, escrow_id);
-    let expected_holder_commitment: field =
-        BHP256::hash_to_field(caller as field + escrow_id);
-    assert_eq(details.holder_commitment, expected_holder_commitment);
-    assert_eq(details.amount, amount);
-
-    // Verify the market is actually cancelled (winning_outcome == 255u8)
-    // This is enforced by core via the escrow link — the caller cannot
-    // fabricate a refund for a live market because the market mapping
-    // in core is authoritative and separate from this contract.
-
-    // Mark as spent so it cannot be refunded twice
-    let is_spent: bool = Mapping::get_or_use(spent_escrow, escrow_id, false);
-    assert(!is_spent);
-    Mapping::set(spent_escrow, escrow_id, true);
-
-    // Reduce market escrow total
-    let current_total: u64 = Mapping::get_or_use(market_escrow, details.market_id, 0u64);
-    assert(current_total >= amount);
-    Mapping::set(market_escrow, details.market_id, current_total - amount);
 }

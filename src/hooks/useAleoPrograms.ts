@@ -383,27 +383,58 @@ const normalizeField = (value: unknown): string => {
 const normalizeFieldId = (marketId: string): string =>
   marketId.includes("field") ? marketId.replace(/\s+/g, "") : `${marketId.replace(/\s+/g, "")}field`;
 
-const parseFieldBigInt = (value: string): bigint | null => {
+let cachedBhpHelpers:
+  | {
+      hashOutcomeKey: (marketIdField: string, outcome: number) => string | null;
+      hashLpKey: (marketIdField: string, lpOwnerField: string) => string | null;
+    }
+  | null = null;
+
+const getBhpHelpers = async (): Promise<{
+  hashOutcomeKey: (marketIdField: string, outcome: number) => string | null;
+  hashLpKey: (marketIdField: string, lpOwnerField: string) => string | null;
+} | null> => {
+  if (cachedBhpHelpers) return cachedBhpHelpers;
   try {
-    const cleaned = value.replace(/field$/i, "").trim();
-    if (!/^\d+$/.test(cleaned)) return null;
-    return BigInt(cleaned);
-  } catch {
+    const wasm = await import("@provablehq/wasm");
+    const bhp = new wasm.BHP256();
+    cachedBhpHelpers = {
+      hashOutcomeKey: (marketIdField: string, outcome: number) => {
+        try {
+          const marketField = wasm.Field.fromString(normalizeField(marketIdField)).toPlaintext();
+          const outcomeU8 = wasm.U8.fromString(`${Math.max(0, Math.floor(outcome))}u8`).toPlaintext();
+          return bhp.hash([marketField, outcomeU8]).toString();
+        } catch {
+          return null;
+        }
+      },
+      hashLpKey: (marketIdField: string, lpOwnerField: string) => {
+        try {
+          const marketField = wasm.Field.fromString(normalizeField(marketIdField)).toPlaintext();
+          const ownerField = wasm.Field.fromString(normalizeField(lpOwnerField)).toPlaintext();
+          return bhp.hash([marketField, ownerField]).toString();
+        } catch {
+          return null;
+        }
+      },
+    };
+    return cachedBhpHelpers;
+  } catch (error) {
+    console.warn("[BHP256] Unable to initialize hashed key helpers:", error);
     return null;
   }
 };
 
-const deriveOutcomeExposureKey = (marketIdField: string, outcome: number): string | null => {
-  const base = parseFieldBigInt(marketIdField);
-  if (base === null) return null;
-  return `${base + BigInt(Math.max(0, outcome))}field`;
+const deriveOutcomeExposureKey = async (marketIdField: string, outcome: number): Promise<string | null> => {
+  const helpers = await getBhpHelpers();
+  if (!helpers) return null;
+  return helpers.hashOutcomeKey(marketIdField, outcome);
 };
 
-const deriveLpBalanceKey = (marketIdField: string, lpOwnerField: string): string | null => {
-  const marketBase = parseFieldBigInt(marketIdField);
-  const ownerBase = parseFieldBigInt(lpOwnerField);
-  if (marketBase === null || ownerBase === null) return null;
-  return `${marketBase + ownerBase}field`;
+const deriveLpBalanceKey = async (marketIdField: string, lpOwnerField: string): Promise<string | null> => {
+  const helpers = await getBhpHelpers();
+  if (!helpers) return null;
+  return helpers.hashLpKey(marketIdField, lpOwnerField);
 };
 
 let cachedAddressFieldHelpers:
@@ -928,7 +959,7 @@ export const useAleoPrograms = () => {
       const indices = Array.from({ length: normalizedCount }, (_, index) => index);
       const totals = await Promise.all(
         indices.map(async (index) => {
-          const exposureKey = deriveOutcomeExposureKey(cleanMarketId, index);
+          const exposureKey = await deriveOutcomeExposureKey(cleanMarketId, index);
           if (!exposureKey) return 0;
           const raw = await fetchMappingValue(PROGRAM_ID, "outcome_exposure", exposureKey);
           return parseMappingU64(raw);
@@ -969,7 +1000,7 @@ export const useAleoPrograms = () => {
 
   const fetchOutcomeExposure = useCallback(
     async (marketIdField: string, outcome: number): Promise<number> => {
-      const exposureKey = deriveOutcomeExposureKey(marketIdField, outcome);
+      const exposureKey = await deriveOutcomeExposureKey(marketIdField, outcome);
       if (!exposureKey) return 0;
       const exposureRaw = await fetchMappingValue(PROGRAM_ID, "outcome_exposure", exposureKey);
       return parseMappingU64(exposureRaw);
@@ -979,7 +1010,7 @@ export const useAleoPrograms = () => {
 
   const fetchOutcomeShareSupply = useCallback(
     async (marketIdField: string, outcome: number): Promise<number> => {
-      const exposureKey = deriveOutcomeExposureKey(marketIdField, outcome);
+      const exposureKey = await deriveOutcomeExposureKey(marketIdField, outcome);
       if (!exposureKey) return 0;
       const supplyRaw = await fetchMappingValue(PROGRAM_ID, "outcome_share_supply", exposureKey);
       return parseMappingU64(supplyRaw);
@@ -1334,7 +1365,7 @@ export const useAleoPrograms = () => {
           } catch (metadataError) {
             const maybeError = metadataError as { code?: string; message?: string };
             if (maybeError?.code === "42501") {
-              toast.warning("Market created on-chain, but metadata save was blocked by Supabase RLS for markets_v9.");
+              toast.warning("Market created on-chain, but metadata save was blocked by Supabase RLS for markets_v10.");
             } else {
               toast.warning("Market created on-chain, but metadata save failed.");
             }
@@ -1500,18 +1531,15 @@ export const useAleoPrograms = () => {
         let lpFeeAccrued = 0;
         let lpWithdrawable = 0;
         let lpPositionCount = 0;
-        const seenPositionIds = new Set<string>();
 
         for (const record of unspent) {
           const recordMarketId = parseRecordField(record, "market_id");
           if (recordMarketId !== cleanMarketId) continue;
 
           const recordOutcome = Number.parseInt(parseRecordField(record, "outcome"), 10);
-          const recordPositionId = parseRecordField(record, "position_id") || parseRecordField(record, "escrow_id");
           const shares = Number.parseInt(parseRecordField(record, "shares"), 10);
           const collateral = Number.parseInt(parseRecordField(record, "collateral_in"), 10);
           if (!Number.isFinite(shares) || shares <= 0) continue;
-          if (recordPositionId) seenPositionIds.add(formatField(recordPositionId));
 
           if (recordOutcome === 255) {
             lpPositionCount += 1;
@@ -1534,44 +1562,11 @@ export const useAleoPrograms = () => {
           }
         }
 
-        const escrowRecords = await fetchEscrowedBetRecords(cleanMarketId);
-        for (const escrow of escrowRecords) {
-          const positionId = formatField(escrow.escrowId);
-          if (seenPositionIds.has(positionId)) continue;
-
-          const pending = await fetchPendingPositionSnapshot(positionId);
-          if (!pending) continue;
-          if (normalizeField(pending.marketId) !== normalizeField(`${cleanMarketId}field`)) continue;
-          if (pending.shares <= 0) continue;
-
-          if (pending.outcome === 255) {
-            seenPositionIds.add(positionId);
-            lpPositionCount += 1;
-            lpShares += pending.shares;
-            lpCollateral += pending.collateralIn;
-            continue;
-          }
-
-          seenPositionIds.add(positionId);
-          tradePositionCount += 1;
-          outcomeShares[pending.outcome] = (outcomeShares[pending.outcome] ?? 0) + pending.shares;
-          outcomeMaxPositionShares[pending.outcome] = Math.max(
-            outcomeMaxPositionShares[pending.outcome] ?? 0,
-            pending.shares,
-          );
-          if (typeof outcome === "number" && pending.outcome === outcome) {
-            if (pending.shares > sellableShares) {
-              sellableShares = pending.shares;
-              sellableCollateral = pending.collateralIn;
-            }
-          }
-        }
-
         const marketField = `${cleanMarketId}field`;
         const helpers = await getAddressFieldHelpers();
         if (helpers) {
           const lpOwnerField = formatField(helpers.toField(address));
-          const lpBalanceKey = deriveLpBalanceKey(marketField, lpOwnerField);
+          const lpBalanceKey = await deriveLpBalanceKey(marketField, lpOwnerField);
           if (lpBalanceKey) {
             const [lpSharesRaw, poolRaw, feePoolRaw, surplusRaw] = await Promise.all([
               fetchMappingValue(PROGRAM_ID, "lp_balances", lpBalanceKey),
@@ -1747,44 +1742,6 @@ export const useAleoPrograms = () => {
     return 0;
   };
 
-  const fetchPendingPositionSnapshot = useCallback(
-    async (
-      positionId: string,
-    ): Promise<{
-      positionId: string;
-      marketId: string;
-      outcome: number;
-      collateralIn: number;
-      shares: number;
-    } | null> => {
-      const cleanPositionId = formatField(positionId.replace(/field$/i, "").trim());
-
-      const [marketRaw, outcomeRaw, collateralRaw, sharesRaw] = await Promise.all([
-        fetchMappingValue(PROGRAM_ID, "pending_position_market", cleanPositionId),
-        fetchMappingValue(PROGRAM_ID, "pending_position_outcome", cleanPositionId),
-        fetchMappingValue(PROGRAM_ID, "pending_position_collateral", cleanPositionId),
-        fetchMappingValue(PROGRAM_ID, "pending_position_shares", cleanPositionId),
-      ]);
-
-      const marketId = parseMappingString(marketRaw);
-      if (!marketId) return null;
-
-      const outcome = parseMappingU64(outcomeRaw);
-      const collateralIn = parseMappingU64(collateralRaw);
-      const shares = parseMappingU64(sharesRaw);
-      if (collateralIn <= 0 || shares <= 0) return null;
-
-      return {
-        positionId: cleanPositionId,
-        marketId: formatField(marketId.replace(/field$/i, "").trim()),
-        outcome: Math.max(0, Math.floor(outcome)),
-        collateralIn: Math.max(0, Math.floor(collateralIn)),
-        shares: Math.max(0, Math.floor(shares)),
-      };
-    },
-    [],
-  );
-
   const placeBet = async (
     marketId: string,
     outcome: number,
@@ -1803,9 +1760,9 @@ export const useAleoPrograms = () => {
     const betNonce = generateRandomField();
 
     try {
-      const v9Market = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
-      if (!v9Market) {
-        toast.error("Market not found on v9.");
+      const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
+      if (!marketRaw) {
+        toast.error("Market not found on v10.");
         return;
       }
 
@@ -1868,7 +1825,7 @@ export const useAleoPrograms = () => {
 
         if (proofCandidates.length === 0) {
           toast.error(`Missing private ${tokenLabel} proof inputs. Reconnect wallet and try again.`);
-          console.warn(`[${tokenLabel}] Unable to prepare private inputs for place_bet`, {
+          console.warn(`[${tokenLabel}] Unable to prepare private inputs for buy_shares`, {
             recordKeys: Object.keys(tokenRecord ?? {}),
             dataKeys: Object.keys(toObject(tokenRecord?.data) ?? {}),
           });
@@ -1887,6 +1844,8 @@ export const useAleoPrograms = () => {
               formatU8(outcome),
               formatU64(amountMicro),
               formatU64(quote.minSharesOut),
+              formatU64(quote.netCollateralMicro),
+              formatU64(quote.sharesOut),
               betNonce,
             ],
             fee: 1_500_000,
@@ -1924,6 +1883,8 @@ export const useAleoPrograms = () => {
             formatU8(outcome),
             formatU64(amountMicro),
             formatU64(quote.minSharesOut),
+            formatU64(quote.netCollateralMicro),
+            formatU64(quote.sharesOut),
             betNonce,
           ],
           fee: 1_500_000,
@@ -1962,9 +1923,9 @@ export const useAleoPrograms = () => {
         return null;
       }
 
-      const v9Market = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
-      if (!v9Market) {
-        toast.error("Pool funding is only available for v9 markets.");
+      const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
+      if (!marketRaw) {
+        toast.error("Pool funding is only available for deployed v10 markets.");
         return null;
       }
 
@@ -2064,7 +2025,7 @@ export const useAleoPrograms = () => {
 
       const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
       if (!marketRaw) {
-        toast.error("Market not found on v9.");
+        toast.error("Market not found on v10.");
         return null;
       }
       const marketInfo = parseMarketInfo(marketRaw as string | object, cleanMarketId);
@@ -2161,7 +2122,7 @@ export const useAleoPrograms = () => {
       const cleanMarketId = normalizeFieldId(marketId);
       const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
       if (!marketRaw) {
-        toast.error("Market not found on v9.");
+        toast.error("Market not found on v10.");
         return null;
       }
       const marketInfo = parseMarketInfo(marketRaw as string | object, cleanMarketId);
@@ -2175,53 +2136,6 @@ export const useAleoPrograms = () => {
       let positionRecord = await findClaimablePositionRecord(cleanMarketId, {
         outcome: options?.outcome,
       });
-      if (!positionRecord) {
-        const escrowCandidates = await fetchEscrowedBetRecords(cleanMarketId, {
-          outcome: options?.outcome,
-        });
-        let chosen:
-          | {
-              positionId: string;
-              marketId: string;
-              outcome: number;
-              collateralIn: number;
-              shares: number;
-            }
-          | null = null;
-
-        for (const escrow of escrowCandidates) {
-          const pending = await fetchPendingPositionSnapshot(escrow.escrowId);
-          if (!pending) continue;
-          if (pending.shares <= 0) continue;
-          if (typeof options?.outcome === "number" && pending.outcome !== options.outcome) continue;
-
-          if (pending.shares >= Math.max(1, Math.floor(sharesToSell))) {
-            chosen = pending;
-            break;
-          }
-          if (!chosen || pending.shares > chosen.shares) chosen = pending;
-        }
-
-        if (chosen) {
-          toast.info("Preparing sellable position record...");
-          await executeAndPoll({
-            program: PROGRAM_ID,
-            function: "mint_share_record",
-            inputs: [
-              chosen.positionId,
-              chosen.marketId,
-              formatU8(chosen.outcome),
-              formatU64(chosen.collateralIn),
-              formatU64(chosen.shares),
-            ],
-            fee: 500_000,
-            privateFee: false,
-          }, PROGRAM_ID, "mint_share_record");
-          positionRecord = await waitForPositionRecord(cleanMarketId, {
-            outcome: chosen.outcome,
-          });
-        }
-      }
       if (!positionRecord) {
         toast.error("No sellable position record found for this market/outcome.");
         return null;
@@ -2501,7 +2415,7 @@ export const useAleoPrograms = () => {
       const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
       const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
       if (!marketRaw) {
-        toast.error("Market not found on v9.");
+        toast.error("Market not found on v10.");
         return null;
       }
       const marketInfo = marketRaw ? parseMarketInfo(marketRaw as string | object, cleanMarketId) : null;
@@ -2516,46 +2430,9 @@ export const useAleoPrograms = () => {
       // Step 1: Call core contract claim_winnings with BetPosition record
       let positionRecord = await findClaimablePositionRecord(marketId);
       if (!positionRecord) {
-        const escrowedBet = await findEscrowedBetRecord(marketId, payoutTokenProgram);
-        if (!escrowedBet) {
-          await logProgramRecordSummary(payoutTokenProgram, "EscrowedBet");
-          toast.error(`No claimable bet record found for this market in your wallet. Ensure you placed the bet with this wallet and that your wallet allows ${payoutTokenProgram} records.`);
-          return;
-        }
-
-        const escrowIdRaw = parseRecordField(escrowedBet, "escrow_id");
-
-        if (!escrowIdRaw) {
-          toast.error("Unable to read escrowed bet details to mint position.");
-          return;
-        }
-
-        const pendingSnapshot = await fetchPendingPositionSnapshot(escrowIdRaw);
-        if (!pendingSnapshot) {
-          toast.error("Pending share state not found yet. Please wait a few seconds and retry claim.");
-          return;
-        }
-
-        toast.info("Preparing claim record...");
-        await executeAndPoll({
-          program: PROGRAM_ID,
-          function: "mint_share_record",
-          inputs: [
-            pendingSnapshot.positionId,
-            pendingSnapshot.marketId,
-            formatU8(pendingSnapshot.outcome),
-            formatU64(pendingSnapshot.collateralIn),
-            formatU64(pendingSnapshot.shares),
-          ],
-          fee: 500_000,
-          privateFee: false,
-        }, PROGRAM_ID, "mint_share_record");
-
-        positionRecord = await waitForPositionRecord(marketId);
-        if (!positionRecord) {
-          toast.error("Claim record not found after minting. Please retry.");
-          return;
-        }
+        await logProgramRecordSummary(PROGRAM_ID, "BetPosition");
+        toast.error("No claimable position record found yet. Wait for wallet sync and retry.");
+        return null;
       }
 
       toast.info("Step 1/2: Claiming winnings from core contract...");

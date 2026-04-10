@@ -1,8 +1,8 @@
-// VeilMarkets Core (v9)
-// Share-based pricing engine with dynamic outcomes and governance-bound params.
-import veilmarkets_factory_v9.aleo;
+// VeilMarkets Core (v10)
+// Privacy-hardened share-trading engine with governance-bound risk controls.
+import veilmarkets_factory_v10.aleo;
 
-program veilmarkets_core_v9.aleo {
+program veilmarkets_core_v10.aleo {
     const OUTCOME_UNRESOLVED: u8 = 254u8;
     const OUTCOME_CANCELLED: u8 = 255u8;
 
@@ -10,21 +10,29 @@ program veilmarkets_core_v9.aleo {
     const ORACLE_CONTRACT_TYPE: u8 = 2u8;
     const GOVERNANCE_CONTRACT_TYPE: u8 = 4u8;
 
+    // protocol_u8 keys
     const PARAM_MAX_OUTCOMES: u8 = 0u8;
+    const PARAM_PROTOCOL_PAUSED: u8 = 1u8; // 0 = unpaused, 1 = paused
+
+    // protocol_u64 keys
     const PARAM_FEE_BPS: u8 = 1u8;
     const PARAM_MIN_TRADE: u8 = 2u8;
     const PARAM_MIN_LIQUIDITY: u8 = 3u8;
     const PARAM_VIRTUAL_LIQ: u8 = 4u8;
     const PARAM_LP_FEE_SHARE_BPS: u8 = 5u8;
-
-    const FEE_TREASURY_KEY: u8 = 0u8;
+    const PARAM_MAX_MARKET_COLLATERAL: u8 = 6u8;
 
     const DEFAULT_MAX_OUTCOMES: u8 = 32u8;
+    const DEFAULT_PROTOCOL_PAUSED: u8 = 0u8;
     const DEFAULT_FEE_BPS: u64 = 100u64; // 1%
     const DEFAULT_MIN_TRADE: u64 = 1000000u64;
     const DEFAULT_MIN_LIQUIDITY: u64 = 1000000u64;
     const DEFAULT_VIRTUAL_LIQ: u64 = 10000000u64;
     const DEFAULT_LP_FEE_SHARE_BPS: u64 = 8000u64;
+    // 100,000 tokens with 6-decimal rails by default.
+    const DEFAULT_MAX_MARKET_COLLATERAL: u64 = 100000000000u64;
+
+    const ADMIN: address = aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
 
     struct MarketInfo {
         creator: address,
@@ -40,9 +48,8 @@ program veilmarkets_core_v9.aleo {
         token_id: address,
     }
 
-    // Compatibility cache for fast reads in existing UI paths.
-    // This does NOT cap markets to 8 outcomes; authoritative per-outcome state is in
-    // `outcome_exposure` / `outcome_share_supply` mappings for all 0..31 indices.
+    // Compatibility cache for older UI readers.
+    // Authoritative per-outcome values are in `outcome_exposure` and `outcome_share_supply`.
     struct PoolState {
         total_outcome_0: u64,
         total_outcome_1: u64,
@@ -63,14 +70,13 @@ program veilmarkets_core_v9.aleo {
         cumulative_volume: u64,
     }
 
-    // Compatibility record name retained for existing frontend flows.
     record BetPosition {
         owner: address,
         position_id: field,
         market_id: field,
         outcome: u8,
-        amount: u64, // mirrors collateral_in for compatibility
-        escrow_id: field, // mirrors position_id for compatibility
+        amount: u64,
+        escrow_id: field,
         shares: u64,
         collateral_in: u64,
         nonce: group,
@@ -115,55 +121,31 @@ program veilmarkets_core_v9.aleo {
     mapping pools: field => PoolState;
 
     // Dynamic market state.
-    mapping outcome_exposure: field => u64; // key = hash(market_id + outcome_idx)
-    mapping outcome_share_supply: field => u64; // key = hash(market_id + outcome_idx)
+    mapping outcome_exposure: field => u64; // key = BHP256::hash_to_field(market_id + outcome_idx)
+    mapping outcome_share_supply: field => u64; // key = BHP256::hash_to_field(market_id + outcome_idx)
 
-    // Mint + position ownership/state.
-    mapping position_to_escrow: field => field; // key = position_id => escrow_id
-    mapping position_owner_commitments: field => field; // key = position_id => hash(owner + position_id)
-    mapping minted_positions: field => bool; // key = position_id
+    // Positions and ownership.
     mapping positions: field => PositionState; // key = position_id
-    mapping pending_position_market: field => field; // key = position_id => market_id
-    mapping pending_position_outcome: field => u8; // key = position_id => outcome
-    mapping pending_position_collateral: field => u64; // key = position_id => collateral_in
-    mapping pending_position_shares: field => u64; // key = position_id => shares
 
-    // LP ownership accounting (privacy-preserving owner key provided by adapter).
-    mapping lp_balances: field => u64; // lp_owner_key => lp_shares
-    mapping market_fee_pool: field => u64; // market_id => accrued trading fees
-    mapping market_winner_supply_snapshot: field => u64; // market_id => winner share supply at resolution
+    // LP accounting.
+    mapping lp_balances: field => u64; // key = hash(market_id + lp_owner_key)
+    mapping market_fee_pool: field => u64; // market_id => accrued LP fees
+    mapping market_winner_supply_snapshot: field => u64; // market_id => winner supply at resolution
     mapping market_winner_payout_remaining: field => u64; // market_id => remaining winner payouts
     mapping market_cancel_payout_remaining: field => u64; // market_id => remaining cancel refunds
     mapping market_lp_trading_surplus: field => u64; // market_id => loser collateral distributable to LPs
 
     // Claims.
     mapping spent_nullifiers: field => bool;
-    mapping pending_payouts: field => PayoutClaim; // nullifier => payout/token contract
-
-    // Public quote cache written by quote transitions.
-    // key is caller-supplied quote_id.
-    mapping quote_buy_shares_out: field => u64;
-    mapping quote_buy_fee: field => u64;
-    mapping quote_buy_net_collateral: field => u64;
-    mapping quote_sell_gross_payout: field => u64;
-    mapping quote_sell_fee: field => u64;
-    mapping quote_sell_net_payout: field => u64;
+    mapping pending_payouts: field => PayoutClaim; // nullifier/authorization_id => payout/token contract
 
     // Protocol params + treasury accounting.
     mapping protocol_u8: u8 => u8;
     mapping protocol_u64: u8 => u64;
-    mapping protocol_fees: u8 => u64;
+    mapping protocol_fees: address => u64; // token adapter address => accrued protocol fees
 
     @admin(address = "aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n")
     constructor() {}
-
-
-
-
-
-
-
-
 
     fn create_market(
         public title_hash: field,
@@ -174,7 +156,7 @@ program veilmarkets_core_v9.aleo {
         public resolution_time: u64,
         public token_id: address,
     ) -> Final {
-        let auth_future: Final = veilmarkets_factory_v9.aleo::verify_is_registered(
+        let auth_future: Final = veilmarkets_factory_v10.aleo::verify_is_registered(
             TOKEN_CONTRACT_TYPE,
             token_id,
         );
@@ -182,64 +164,17 @@ program veilmarkets_core_v9.aleo {
         let market_id: field = BHP256::hash_to_field(title_hash + caller as field);
         return final {
             finalize_create_market(
-            market_id,
-            caller,
-            title_hash,
-            category,
-            market_type,
-            outcome_count,
-            close_time,
-            resolution_time,
-            token_id,
-            auth_future,
-        );
-        };
-    }
-
-
-    fn quote_buy(
-        public quote_id: field,
-        public market_id: field,
-        public outcome: u8,
-        public collateral_in: u64,
-    ) -> Final {
-        return final {
-            finalize_quote_buy(quote_id, market_id, outcome, collateral_in);
-        };
-    }
-
-
-    fn quote_sell(
-        public quote_id: field,
-        public market_id: field,
-        public outcome: u8,
-        public shares_to_sell: u64,
-    ) -> Final {
-        return final {
-            finalize_quote_sell(quote_id, market_id, outcome, shares_to_sell);
-        };
-    }
-
-
-    // Compatibility entrypoint retained; internally routes to share engine.
-    fn place_bet(
-        market_id: field,
-        outcome: u8,
-        amount: u64,
-        escrow_id: field,
-        owner_commitment: field,
-    ) -> Final {
-        let caller: address = self.caller;
-        return final {
-            finalize_buy_shares(
-            market_id,
-            outcome,
-            amount,
-            1u64,
-            escrow_id,
-            owner_commitment,
-            caller,
-        );
+                market_id,
+                caller,
+                title_hash,
+                category,
+                market_type,
+                outcome_count,
+                close_time,
+                resolution_time,
+                token_id,
+                auth_future,
+            );
         };
     }
 
@@ -248,44 +183,61 @@ program veilmarkets_core_v9.aleo {
         public outcome: u8,
         public collateral_in: u64,
         public min_shares_out: u64,
-        public share_commitment: field,
+        public expected_net_collateral_in: u64,
+        public expected_shares_out: u64,
+        public position_id: field,
         public owner_commitment: field,
-    ) -> Final {
-        let caller: address = self.caller;
-        return final {
-            finalize_buy_shares(
-            market_id,
-            outcome,
-            collateral_in,
-            min_shares_out,
-            share_commitment,
-            owner_commitment,
-            caller,
-        );
-        };
-    }
+    ) -> (BetPosition, Final) {
+        assert(min_shares_out > 0u64);
+        assert(expected_net_collateral_in > 0u64);
+        assert(expected_shares_out > 0u64);
 
+        let position: BetPosition = BetPosition {
+            owner: self.signer,
+            position_id: position_id,
+            market_id: market_id,
+            outcome: outcome,
+            amount: expected_net_collateral_in,
+            escrow_id: position_id,
+            shares: expected_shares_out,
+            collateral_in: expected_net_collateral_in,
+            nonce: BHP256::hash_to_group(position_id),
+        };
+
+        let caller: address = self.caller;
+        let owner: address = self.signer;
+        let f: Final = final {
+            finalize_buy_shares(
+                market_id,
+                outcome,
+                collateral_in,
+                min_shares_out,
+                expected_net_collateral_in,
+                expected_shares_out,
+                position_id,
+                owner_commitment,
+                owner,
+                caller,
+            );
+        };
+        return (position, f);
+    }
 
     fn fund_pool(
         public market_id: field,
         public amount: u64,
-        public lp_position_id: field,
         public lp_owner_key: field,
-        public owner_commitment: field,
     ) -> Final {
         let caller: address = self.caller;
         return final {
             finalize_fund_pool(
-            market_id,
-            amount,
-            lp_position_id,
-            lp_owner_key,
-            owner_commitment,
-            caller,
-        );
+                market_id,
+                amount,
+                lp_owner_key,
+                caller,
+            );
         };
     }
-
 
     fn withdraw_liquidity(
         public market_id: field,
@@ -310,87 +262,16 @@ program veilmarkets_core_v9.aleo {
         let caller: address = self.caller;
         let f: Final = final {
             finalize_withdraw_liquidity(
-            market_id,
-            lp_shares,
-            lp_owner_key,
-            min_payout,
-            nullifier,
-            caller,
-        );
+                market_id,
+                lp_shares,
+                lp_owner_key,
+                min_payout,
+                nullifier,
+                caller,
+            );
         };
         return (claim, f);
     }
-
-
-    // Compatibility mint function kept for existing frontend flow.
-    fn mint_position_record(
-        market_id: field,
-        outcome: u8,
-        collateral_in: u64,
-        shares: u64,
-        escrow_id: field,
-    ) -> (BetPosition, Final) {
-        let caller: address = self.caller;
-        // Canonical share + collateral values are enforced from pending mappings in finalize.
-        let position: BetPosition = BetPosition {
-            owner: self.signer,
-            position_id: escrow_id,
-            market_id: market_id,
-            outcome: outcome,
-            amount: collateral_in,
-            escrow_id: escrow_id,
-            shares: shares,
-            collateral_in: collateral_in,
-            nonce: BHP256::hash_to_group(escrow_id),
-        };
-
-        let f: Final = final {
-            finalize_mint_position_record(
-            escrow_id,
-            market_id,
-            outcome,
-            collateral_in,
-            shares,
-            caller,
-        );
-        };
-        return (position, f);
-    }
-
-    fn mint_share_record(
-        public share_commitment: field,
-        public market_id: field,
-        public outcome: u8,
-        public collateral_in: u64,
-        public shares: u64,
-    ) -> (BetPosition, Final) {
-        let caller: address = self.caller;
-        // Finalize reads authoritative pending position state and enforces both values.
-        let position: BetPosition = BetPosition {
-            owner: self.signer,
-            position_id: share_commitment,
-            market_id: market_id,
-            outcome: outcome,
-            amount: collateral_in,
-            escrow_id: share_commitment,
-            shares: shares,
-            collateral_in: collateral_in,
-            nonce: BHP256::hash_to_group(share_commitment),
-        };
-
-        let f: Final = final {
-            finalize_mint_position_record(
-            share_commitment,
-            market_id,
-            outcome,
-            collateral_in,
-            shares,
-            caller,
-        );
-        };
-        return (position, f);
-    }
-
 
     fn sell_shares(
         private position: BetPosition,
@@ -434,29 +315,29 @@ program veilmarkets_core_v9.aleo {
 
         let caller: address = self.caller;
         let position_id: field = position.position_id;
-        let position_market_id: field = position.market_id;
-        let position_outcome: u8 = position.outcome;
-        let position_shares: u64 = position.shares;
-        let position_collateral_in: u64 = position.collateral_in;
+        let market_id: field = position.market_id;
+        let outcome: u8 = position.outcome;
+        let shares_before: u64 = position.shares;
+        let collateral_before: u64 = position.collateral_in;
+
         let f: Final = final {
             finalize_sell_shares(
-            position_id,
-            position_market_id,
-            position_outcome,
-            position_shares,
-            position_collateral_in,
-            shares_to_sell,
-            min_payout,
-            remaining_shares,
-            remaining_collateral,
-            nullifier,
-            caller,
-        );
+                position_id,
+                market_id,
+                outcome,
+                shares_before,
+                collateral_before,
+                shares_to_sell,
+                min_payout,
+                remaining_shares,
+                remaining_collateral,
+                nullifier,
+                caller,
+            );
         };
 
         return (updated_position, claim, f);
     }
-
 
     fn claim_winnings(private position: BetPosition) -> (WinningsClaim, Final) {
         let owner_hash: field = BHP256::hash_to_field(position.owner);
@@ -474,24 +355,24 @@ program veilmarkets_core_v9.aleo {
 
         let caller: address = self.caller;
         let position_id: field = position.position_id;
-        let position_market_id: field = position.market_id;
-        let position_outcome: u8 = position.outcome;
-        let position_shares: u64 = position.shares;
-        let position_collateral_in: u64 = position.collateral_in;
+        let market_id: field = position.market_id;
+        let outcome: u8 = position.outcome;
+        let shares: u64 = position.shares;
+        let collateral_in: u64 = position.collateral_in;
+
         let f: Final = final {
             finalize_claim_winnings(
-            position_id,
-            position_market_id,
-            position_outcome,
-            position_shares,
-            position_collateral_in,
-            nullifier,
-            caller,
-        );
+                position_id,
+                market_id,
+                outcome,
+                shares,
+                collateral_in,
+                nullifier,
+                caller,
+            );
         };
         return (claim, f);
     }
-
 
     fn verify_claim(public nullifier: field, public payout_amount: u64) -> Final {
         let caller: address = self.caller;
@@ -500,6 +381,24 @@ program veilmarkets_core_v9.aleo {
         };
     }
 
+    fn authz_fee_withdrawal(
+        public amount: u64,
+        public authorization_id: field,
+    ) -> Final {
+        let caller: address = self.caller;
+        let auth_future: Final = veilmarkets_factory_v10.aleo::verify_is_registered(
+            TOKEN_CONTRACT_TYPE,
+            caller,
+        );
+        return final {
+            finalize_authz_fee_withdrawal(
+                amount,
+                authorization_id,
+                caller,
+                auth_future,
+            );
+        };
+    }
 
     fn resolve_market(
         public market_id: field,
@@ -508,7 +407,7 @@ program veilmarkets_core_v9.aleo {
     ) -> Final {
         assert(resolver != self.address);
         let caller: address = self.caller;
-        let auth_future: Final = veilmarkets_factory_v9.aleo::verify_is_registered(
+        let auth_future: Final = veilmarkets_factory_v10.aleo::verify_is_registered(
             ORACLE_CONTRACT_TYPE,
             caller,
         );
@@ -517,7 +416,6 @@ program veilmarkets_core_v9.aleo {
         };
     }
 
-
     fn cancel_market(public market_id: field) -> Final {
         let caller: address = self.caller;
         return final {
@@ -525,10 +423,16 @@ program veilmarkets_core_v9.aleo {
         };
     }
 
+    fn admin_set_pause(public paused: bool) -> Final {
+        let caller: address = self.caller;
+        return final {
+            finalize_admin_set_pause(paused, caller);
+        };
+    }
 
     fn set_protocol_u64(public param_key: u8, public value: u64) -> Final {
         let caller: address = self.caller;
-        let auth: Final = veilmarkets_factory_v9.aleo::verify_is_registered(
+        let auth: Final = veilmarkets_factory_v10.aleo::verify_is_registered(
             GOVERNANCE_CONTRACT_TYPE,
             caller,
         );
@@ -537,10 +441,9 @@ program veilmarkets_core_v9.aleo {
         };
     }
 
-
     fn set_protocol_u8(public param_key: u8, public value: u8) -> Final {
         let caller: address = self.caller;
-        let auth: Final = veilmarkets_factory_v9.aleo::verify_is_registered(
+        let auth: Final = veilmarkets_factory_v10.aleo::verify_is_registered(
             GOVERNANCE_CONTRACT_TYPE,
             caller,
         );
@@ -548,17 +451,14 @@ program veilmarkets_core_v9.aleo {
             finalize_set_protocol_u8(param_key, value, auth);
         };
     }
-
 }
 
 fn outcome_key(market_id: field, outcome: u8) -> field {
-    // Keep key derivation arithmetic so the frontend can fetch dynamic mappings
-    // for outcomes > 8 without requiring an off-chain BHP helper.
-    return market_id + outcome as field;
+    return BHP256::hash_to_field(market_id + outcome as field);
 }
 
 fn lp_balance_key(market_id: field, lp_owner_key: field) -> field {
-    return market_id + lp_owner_key;
+    return BHP256::hash_to_field(market_id + lp_owner_key);
 }
 
 fn mul_div_u64(a: u64, b: u64, denom: u64) -> u64 {
@@ -689,9 +589,10 @@ final fn finalize_create_market(
     auth_future: Final,
 ) {
     auth_future.run();
+    assert_protocol_not_paused();
+
     let exists: bool = Mapping::contains(markets, market_id);
     assert(!exists);
-
     assert(category <= 6u8);
     assert(market_type <= 1u8);
 
@@ -704,7 +605,6 @@ final fn finalize_create_market(
     assert(max_outcomes <= 32u8);
     assert(outcome_count >= 2u8);
     assert(outcome_count <= max_outcomes);
-
     if (market_type == 0u8) {
         assert_eq(outcome_count, 2u8);
     }
@@ -750,115 +650,20 @@ final fn finalize_create_market(
     Mapping::set(pools, market_id, pool);
 }
 
-final fn finalize_quote_buy(
-    quote_id: field,
-    market_id: field,
-    outcome: u8,
-    collateral_in: u64,
-) {
-    let market: MarketInfo = Mapping::get(markets, market_id);
-    assert(!market.is_resolved);
-    assert(block.timestamp as u64 < market.close_time);
-    assert(outcome < market.outcome_count);
-
-    let min_trade: u64 = Mapping::get_or_use(
-        protocol_u64,
-        PARAM_MIN_TRADE,
-        DEFAULT_MIN_TRADE,
-    );
-    assert(collateral_in >= min_trade);
-
-    let pool: PoolState = Mapping::get(pools, market_id);
-    assert(!pool.locked);
-
-    let exposure_key: field = outcome_key(market_id, outcome);
-    let current_exposure: u64 = Mapping::get_or_use(outcome_exposure, exposure_key, 0u64);
-
-    let virtual_liq: u64 = Mapping::get_or_use(
-        protocol_u64,
-        PARAM_VIRTUAL_LIQ,
-        DEFAULT_VIRTUAL_LIQ,
-    );
-    assert(virtual_liq > 0u64);
-
-    let fee_bps: u64 = Mapping::get_or_use(
-        protocol_u64,
-        PARAM_FEE_BPS,
-        DEFAULT_FEE_BPS,
-    );
-    let quote: BuyQuoteComputation = compute_buy_quote(
-        pool.trading_collateral,
-        market.outcome_count,
-        virtual_liq,
-        current_exposure,
-        collateral_in,
-        fee_bps,
-    );
-    assert(quote.shares_out > 0u64);
-
-    Mapping::set(quote_buy_shares_out, quote_id, quote.shares_out);
-    Mapping::set(quote_buy_fee, quote_id, quote.fee);
-    Mapping::set(quote_buy_net_collateral, quote_id, quote.net_collateral_in);
-}
-
-final fn finalize_quote_sell(
-    quote_id: field,
-    market_id: field,
-    outcome: u8,
-    shares_to_sell: u64,
-) {
-    assert(shares_to_sell > 0u64);
-    let market: MarketInfo = Mapping::get(markets, market_id);
-    assert(!market.is_resolved);
-    assert(block.timestamp as u64 < market.close_time);
-    assert(outcome < market.outcome_count);
-
-    let pool: PoolState = Mapping::get(pools, market_id);
-    assert(!pool.locked);
-
-    let exposure_key: field = outcome_key(market_id, outcome);
-    let current_exposure: u64 = Mapping::get_or_use(outcome_exposure, exposure_key, 0u64);
-    let current_supply: u64 = Mapping::get_or_use(outcome_share_supply, exposure_key, 0u64);
-    assert(current_supply >= shares_to_sell);
-
-    let virtual_liq: u64 = Mapping::get_or_use(
-        protocol_u64,
-        PARAM_VIRTUAL_LIQ,
-        DEFAULT_VIRTUAL_LIQ,
-    );
-    assert(virtual_liq > 0u64);
-
-    let fee_bps: u64 = Mapping::get_or_use(
-        protocol_u64,
-        PARAM_FEE_BPS,
-        DEFAULT_FEE_BPS,
-    );
-    let quote: SellQuoteComputation = compute_sell_quote(
-        pool.trading_collateral,
-        market.outcome_count,
-        virtual_liq,
-        current_exposure,
-        shares_to_sell,
-        fee_bps,
-    );
-    assert(quote.gross_payout > 0u64);
-    assert(current_exposure >= quote.gross_payout);
-    assert(pool.trading_collateral >= quote.gross_payout);
-
-    Mapping::set(quote_sell_gross_payout, quote_id, quote.gross_payout);
-    Mapping::set(quote_sell_fee, quote_id, quote.fee);
-    Mapping::set(quote_sell_net_payout, quote_id, quote.net_payout);
-}
-
 final fn finalize_buy_shares(
     market_id: field,
     outcome: u8,
     collateral_in: u64,
     min_shares_out: u64,
-    share_commitment: field,
+    expected_net_collateral_in: u64,
+    expected_shares_out: u64,
+    position_id: field,
     owner_commitment: field,
+    owner: address,
     caller: address,
 ) {
+    assert_protocol_not_paused();
+
     let market: MarketInfo = Mapping::get(markets, market_id);
     assert_eq(market.token_id, caller);
     assert(!market.is_resolved);
@@ -885,7 +690,6 @@ final fn finalize_buy_shares(
         DEFAULT_VIRTUAL_LIQ,
     );
     assert(virtual_liq > 0u64);
-
     let fee_bps: u64 = Mapping::get_or_use(
         protocol_u64,
         PARAM_FEE_BPS,
@@ -904,16 +708,27 @@ final fn finalize_buy_shares(
     let fee: u64 = quote.fee;
     assert(shares_out > 0u64);
     assert(shares_out >= min_shares_out);
-    let already_linked: bool = Mapping::contains(position_to_escrow, share_commitment);
-    assert(!already_linked);
-    let already_minted: bool = Mapping::get_or_use(minted_positions, share_commitment, false);
-    assert(!already_minted);
+    assert_eq(expected_net_collateral_in, net_collateral_in);
+    assert_eq(expected_shares_out, shares_out);
+
+    let expected_owner_commitment: field =
+        BHP256::hash_to_field(owner as field + position_id);
+    assert_eq(owner_commitment, expected_owner_commitment);
+    let already_exists: bool = Mapping::contains(positions, position_id);
+    assert(!already_exists);
+
+    let max_market_collateral: u64 = Mapping::get_or_use(
+        protocol_u64,
+        PARAM_MAX_MARKET_COLLATERAL,
+        DEFAULT_MAX_MARKET_COLLATERAL,
+    );
+    assert(max_market_collateral > 0u64);
+    assert(pool.total_collateral + net_collateral_in <= max_market_collateral);
 
     let new_trading_collateral: u64 = pool.trading_collateral + net_collateral_in;
     let new_exposure: u64 = current_exposure + net_collateral_in;
     let new_supply: u64 = current_supply + shares_out;
-    // Fixed 1-unit winner redemption requires winner-side supply to stay solvent
-    // against trader-funded collateral.
+    // Fixed 1-unit winner redemption requires winner-side supply solvency.
     assert(new_supply <= new_trading_collateral);
     Mapping::set(outcome_exposure, exposure_key, new_exposure);
     Mapping::set(outcome_share_supply, exposure_key, new_supply);
@@ -966,24 +781,29 @@ final fn finalize_buy_shares(
     let protocol_fee_share: u64 = fee - lp_fee_share;
     let accrued_lp_fee: u64 = Mapping::get_or_use(market_fee_pool, market_id, 0u64);
     Mapping::set(market_fee_pool, market_id, accrued_lp_fee + lp_fee_share);
-    let accrued_protocol_fee: u64 = Mapping::get_or_use(protocol_fees, FEE_TREASURY_KEY, 0u64);
-    Mapping::set(protocol_fees, FEE_TREASURY_KEY, accrued_protocol_fee + protocol_fee_share);
-    Mapping::set(position_to_escrow, share_commitment, share_commitment);
-    Mapping::set(position_owner_commitments, share_commitment, owner_commitment);
-    Mapping::set(pending_position_market, share_commitment, market_id);
-    Mapping::set(pending_position_outcome, share_commitment, outcome);
-    Mapping::set(pending_position_collateral, share_commitment, net_collateral_in);
-    Mapping::set(pending_position_shares, share_commitment, shares_out);
+    let accrued_protocol_fee: u64 = Mapping::get_or_use(protocol_fees, caller, 0u64);
+    Mapping::set(protocol_fees, caller, accrued_protocol_fee + protocol_fee_share);
+
+    let state: PositionState = PositionState {
+        holder_commitment: owner_commitment,
+        market_id: market_id,
+        outcome: outcome,
+        shares: shares_out,
+        collateral_in: net_collateral_in,
+        token_id: market.token_id,
+        is_closed: false,
+    };
+    Mapping::set(positions, position_id, state);
 }
 
 final fn finalize_fund_pool(
     market_id: field,
     amount: u64,
-    lp_position_id: field,
     lp_owner_key: field,
-    owner_commitment: field,
     caller: address,
 ) {
+    assert_protocol_not_paused();
+
     let market: MarketInfo = Mapping::get(markets, market_id);
     assert_eq(market.token_id, caller);
     assert(!market.is_resolved);
@@ -996,13 +816,17 @@ final fn finalize_fund_pool(
     );
     assert(amount >= min_liquidity);
 
-    let already_minted: bool = Mapping::get_or_use(minted_positions, lp_position_id, false);
-    assert(!already_minted);
-    let already_linked: bool = Mapping::contains(position_to_escrow, lp_position_id);
-    assert(!already_linked);
-
     let pool: PoolState = Mapping::get(pools, market_id);
     assert(!pool.locked);
+
+    let max_market_collateral: u64 = Mapping::get_or_use(
+        protocol_u64,
+        PARAM_MAX_MARKET_COLLATERAL,
+        DEFAULT_MAX_MARKET_COLLATERAL,
+    );
+    assert(max_market_collateral > 0u64);
+    assert(pool.total_collateral + amount <= max_market_collateral);
+
     let new_lp_collateral: u64 = pool.lp_collateral + amount;
     let updated_pool: PoolState = PoolState {
         total_outcome_0: pool.total_outcome_0,
@@ -1024,59 +848,10 @@ final fn finalize_fund_pool(
         cumulative_volume: pool.cumulative_volume,
     };
     Mapping::set(pools, market_id, updated_pool);
+
     let balance_key: field = lp_balance_key(market_id, lp_owner_key);
     let current_lp_balance: u64 = Mapping::get_or_use(lp_balances, balance_key, 0u64);
     Mapping::set(lp_balances, balance_key, current_lp_balance + amount);
-    Mapping::set(position_to_escrow, lp_position_id, lp_position_id);
-    Mapping::set(position_owner_commitments, lp_position_id, owner_commitment);
-    Mapping::set(pending_position_market, lp_position_id, market_id);
-    Mapping::set(pending_position_outcome, lp_position_id, OUTCOME_CANCELLED);
-    Mapping::set(pending_position_collateral, lp_position_id, amount);
-    Mapping::set(pending_position_shares, lp_position_id, amount);
-}
-
-final fn finalize_mint_position_record(
-    position_id: field,
-    market_id: field,
-    outcome: u8,
-    collateral_in: u64,
-    shares: u64,
-    caller: address,
-) {
-    let stored_escrow: field = Mapping::get(position_to_escrow, position_id);
-    assert_eq(stored_escrow, position_id);
-    let stored_owner_commitment: field = Mapping::get(position_owner_commitments, position_id);
-    let expected_owner_commitment: field =
-        BHP256::hash_to_field(caller as field + position_id);
-    assert_eq(stored_owner_commitment, expected_owner_commitment);
-
-    let pending_market_id: field = Mapping::get(pending_position_market, position_id);
-    let pending_outcome: u8 = Mapping::get(pending_position_outcome, position_id);
-    let pending_collateral: u64 = Mapping::get(pending_position_collateral, position_id);
-    let pending_shares: u64 = Mapping::get(pending_position_shares, position_id);
-    assert_eq(pending_market_id, market_id);
-    assert_eq(pending_outcome, outcome);
-    assert_eq(pending_collateral, collateral_in);
-    assert_eq(pending_shares, shares);
-
-    let market: MarketInfo = Mapping::get(markets, market_id);
-    assert(outcome < market.outcome_count || outcome == OUTCOME_CANCELLED);
-
-    let already_minted: bool = Mapping::get_or_use(minted_positions, position_id, false);
-    assert(!already_minted);
-    Mapping::set(minted_positions, position_id, true);
-
-    let holder_commitment: field = BHP256::hash_to_field(caller as field + position_id);
-    let state: PositionState = PositionState {
-        holder_commitment: holder_commitment,
-        market_id: market_id,
-        outcome: outcome,
-        shares: pending_shares,
-        collateral_in: pending_collateral,
-        token_id: market.token_id,
-        is_closed: false,
-    };
-    Mapping::set(positions, position_id, state);
 }
 
 final fn finalize_sell_shares(
@@ -1092,6 +867,8 @@ final fn finalize_sell_shares(
     nullifier: field,
     caller: address,
 ) {
+    assert_protocol_not_paused();
+
     let spent: bool = Mapping::get_or_use(spent_nullifiers, nullifier, false);
     assert(!spent);
     Mapping::set(spent_nullifiers, nullifier, true);
@@ -1205,8 +982,8 @@ final fn finalize_sell_shares(
     let protocol_fee_share: u64 = fee - lp_fee_share;
     let accrued_lp_fee: u64 = Mapping::get_or_use(market_fee_pool, market_id, 0u64);
     Mapping::set(market_fee_pool, market_id, accrued_lp_fee + lp_fee_share);
-    let accrued_protocol_fee: u64 = Mapping::get_or_use(protocol_fees, FEE_TREASURY_KEY, 0u64);
-    Mapping::set(protocol_fees, FEE_TREASURY_KEY, accrued_protocol_fee + protocol_fee_share);
+    let accrued_protocol_fee: u64 = Mapping::get_or_use(protocol_fees, market.token_id, 0u64);
+    Mapping::set(protocol_fees, market.token_id, accrued_protocol_fee + protocol_fee_share);
 
     let sold_collateral: u64 = mul_div_u64(
         state.collateral_in,
@@ -1396,6 +1173,27 @@ final fn finalize_verify_claim(nullifier: field, payout_amount: u64, caller: add
     Mapping::set(pending_payouts, nullifier, consumed);
 }
 
+final fn finalize_authz_fee_withdrawal(
+    amount: u64,
+    authorization_id: field,
+    token_adapter: address,
+    auth_future: Final,
+) {
+    auth_future.run();
+    assert(amount > 0u64);
+    let current_fee_balance: u64 = Mapping::get_or_use(protocol_fees, token_adapter, 0u64);
+    assert(current_fee_balance >= amount);
+    Mapping::set(protocol_fees, token_adapter, current_fee_balance - amount);
+
+    let exists: bool = Mapping::contains(pending_payouts, authorization_id);
+    assert(!exists);
+    let claim: PayoutClaim = PayoutClaim {
+        amount: amount,
+        token_id: token_adapter,
+    };
+    Mapping::set(pending_payouts, authorization_id, claim);
+}
+
 final fn finalize_resolve_market(
     market_id: field,
     winning_outcome: u8,
@@ -1416,9 +1214,9 @@ final fn finalize_resolve_market(
     let winner_key: field = outcome_key(market_id, winning_outcome);
     let winner_supply_snapshot: u64 = Mapping::get_or_use(outcome_share_supply, winner_key, 0u64);
     assert(winner_supply_snapshot > 0u64);
-    // Fixed 1-unit redemption solvency guard.
     assert(winner_supply_snapshot <= pool.trading_collateral);
     let lp_trading_surplus: u64 = pool.trading_collateral - winner_supply_snapshot;
+
     Mapping::set(market_winner_supply_snapshot, market_id, winner_supply_snapshot);
     Mapping::set(market_winner_payout_remaining, market_id, winner_supply_snapshot);
     Mapping::set(market_cancel_payout_remaining, market_id, 0u64);
@@ -1447,21 +1245,30 @@ final fn finalize_resolve_market(
 }
 
 final fn finalize_cancel_market(market_id: field, caller: address) {
+    assert_protocol_not_paused();
+
     let market: MarketInfo = Mapping::get(markets, market_id);
     assert_eq(market.creator, caller);
     assert(!market.is_resolved);
     assert(block.timestamp as u64 < market.close_time);
+
+    // Strict anti-rug rule for v10:
+    // creator cancellation is only allowed before any liquidity/trading enters.
+    let pool: PoolState = Mapping::get(pools, market_id);
+    assert_eq(pool.trading_collateral, 0u64);
+    assert_eq(pool.lp_collateral, 0u64);
+    assert_eq(pool.total_shares, 0u64);
 
     market.is_resolved = true;
     market.winning_outcome = OUTCOME_CANCELLED;
     market.resolved_by_oracle = false;
     Mapping::set(markets, market_id, market);
 
-    let pool: PoolState = Mapping::get(pools, market_id);
     Mapping::set(market_winner_supply_snapshot, market_id, 0u64);
     Mapping::set(market_winner_payout_remaining, market_id, 0u64);
-    Mapping::set(market_cancel_payout_remaining, market_id, pool.trading_collateral);
+    Mapping::set(market_cancel_payout_remaining, market_id, 0u64);
     Mapping::set(market_lp_trading_surplus, market_id, 0u64);
+
     let updated_pool: PoolState = PoolState {
         total_outcome_0: pool.total_outcome_0,
         total_outcome_1: pool.total_outcome_1,
@@ -1484,6 +1291,12 @@ final fn finalize_cancel_market(market_id: field, caller: address) {
     Mapping::set(pools, market_id, updated_pool);
 }
 
+final fn finalize_admin_set_pause(paused: bool, caller: address) {
+    assert_eq(caller, ADMIN);
+    let paused_flag: u8 = paused ? 1u8 : 0u8;
+    Mapping::set(protocol_u8, PARAM_PROTOCOL_PAUSED, paused_flag);
+}
+
 final fn finalize_set_protocol_u64(param_key: u8, value: u64, auth: Final) {
     auth.run();
     if (param_key == PARAM_FEE_BPS) {
@@ -1498,6 +1311,9 @@ final fn finalize_set_protocol_u64(param_key: u8, value: u64, auth: Final) {
     if (param_key == PARAM_LP_FEE_SHARE_BPS) {
         assert(value <= 10000u64);
     }
+    if (param_key == PARAM_MAX_MARKET_COLLATERAL) {
+        assert(value > 0u64);
+    }
     Mapping::set(protocol_u64, param_key, value);
 }
 
@@ -1507,5 +1323,17 @@ final fn finalize_set_protocol_u8(param_key: u8, value: u8, auth: Final) {
         assert(value >= 2u8);
         assert(value <= 32u8);
     }
+    if (param_key == PARAM_PROTOCOL_PAUSED) {
+        assert(value <= 1u8);
+    }
     Mapping::set(protocol_u8, param_key, value);
+}
+
+final fn assert_protocol_not_paused() {
+    let paused_flag: u8 = Mapping::get_or_use(
+        protocol_u8,
+        PARAM_PROTOCOL_PAUSED,
+        DEFAULT_PROTOCOL_PAUSED,
+    );
+    assert(paused_flag == 0u8);
 }
