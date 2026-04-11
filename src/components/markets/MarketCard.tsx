@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { Badge } from "@/components/ui/badge";
 import { getOutcomeTone, normalizeOutcomeCount } from "@/lib/outcomes";
+import { useMarketPoolQuery } from "@/hooks/useVeilQuery";
 
 export interface Market {
   id: string;
@@ -42,6 +43,9 @@ export function MarketCard({ market }: MarketCardProps) {
   const outcomeTone = typeof market.winningOutcome === "number"
     ? getOutcomeTone(market.marketType, normalizeOutcomeCount(market.outcomeCount), market.winningOutcome)
     : "neutral";
+
+  const { data: pool } = useMarketPoolQuery(market.id);
+    
 
   return (
     <Link
@@ -116,7 +120,7 @@ export function MarketCard({ market }: MarketCardProps) {
               <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60 mb-0.5">Traders</span>
               <div className="flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-primary" />
-                <span className="text-sm font-bold font-mono text-white">{market.betsPlaced}</span>
+                <span className="text-sm font-bold font-mono text-white">{pool?.trader_count  || 0}</span>
               </div>
             </div>
             <div className="flex flex-col">

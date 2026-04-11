@@ -52,7 +52,6 @@ import {
 } from "@/hooks/useVeilQuery";
 import { normalizeMarketIdKey } from "@/lib/queryKeys";
 
-
 const categoryStyles: Record<string, string> = {
   Sports: "text-blue-400 bg-blue-400/10 border-blue-400/20",
   Finance: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
@@ -577,7 +576,7 @@ export default function MarketDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="p-5 rounded-3xl bg-white/[0.02] border border-white/5 flex flex-col gap-1">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">Traders</span>
-                  <span className="text-2xl font-bold text-white font-mono">{market.betsPlaced}</span>
+                  <span className="text-2xl font-bold text-white font-mono">{pool?.trader_count || 0}</span>
                 </div>
                 <div className="p-5 rounded-3xl bg-white/[0.02] border border-white/5 flex flex-col gap-1">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">TVL</span>
