@@ -95,8 +95,8 @@ Suggested order:
 
 1. `veilmarkets_factory_build_v11`
 2. `veilmarkets_core_build_v11`
-3. `veilmarkets_oracle_build_v11`
 4. `veilmarkets_gov_build_v11`
+3. `veilmarkets_oracle_build_v11`
 5. `veilmarkets_credits_build_v11`
 6. `veilmarkets_usdcx_build_v11`
 7. `veilmarkets_usad_build_v11`

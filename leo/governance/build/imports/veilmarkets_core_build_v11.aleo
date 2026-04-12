@@ -1,4 +1,5 @@
 import veilmarkets_factory_build_v11.aleo;
+
 program veilmarkets_core_build_v11.aleo;
 
 record BetPosition:
@@ -174,7 +175,7 @@ finalize create_market:
     cast block.timestamp into r20 as u64;
     gt r6 r20 into r21;
     assert.eq r21 true;
-    gt r7 r6 into r22;
+    gte r7 r6 into r22;
     assert.eq r22 true;
     cast r1 r2 r3 r4 r5 r6 r7 false 254u8 false r8 into r23 as MarketInfo;
     cast 0u64 0u64 false 0u64 0u64 0u64 0u64 into r24 as PoolState;
