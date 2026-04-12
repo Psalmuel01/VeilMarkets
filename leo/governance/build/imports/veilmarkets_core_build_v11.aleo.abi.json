@@ -1,5 +1,5 @@
 {
-  "program": "veilmarkets_core_v9.aleo",
+  "program": "veilmarkets_core_build_v11.aleo",
   "structs": [
     {
       "path": [
@@ -92,7 +92,7 @@
       ],
       "fields": [
         {
-          "name": "total_outcome_0",
+          "name": "trader_count",
           "ty": {
             "Primitive": {
               "UInt": "U64"
@@ -100,63 +100,7 @@
           }
         },
         {
-          "name": "total_outcome_1",
-          "ty": {
-            "Primitive": {
-              "UInt": "U64"
-            }
-          }
-        },
-        {
-          "name": "total_outcome_2",
-          "ty": {
-            "Primitive": {
-              "UInt": "U64"
-            }
-          }
-        },
-        {
-          "name": "total_outcome_3",
-          "ty": {
-            "Primitive": {
-              "UInt": "U64"
-            }
-          }
-        },
-        {
-          "name": "total_outcome_4",
-          "ty": {
-            "Primitive": {
-              "UInt": "U64"
-            }
-          }
-        },
-        {
-          "name": "total_outcome_5",
-          "ty": {
-            "Primitive": {
-              "UInt": "U64"
-            }
-          }
-        },
-        {
-          "name": "total_outcome_6",
-          "ty": {
-            "Primitive": {
-              "UInt": "U64"
-            }
-          }
-        },
-        {
-          "name": "total_outcome_7",
-          "ty": {
-            "Primitive": {
-              "UInt": "U64"
-            }
-          }
-        },
-        {
-          "name": "participant_count",
+          "name": "lp_count",
           "ty": {
             "Primitive": {
               "UInt": "U64"
@@ -178,7 +122,7 @@
           }
         },
         {
-          "name": "total_shares",
+          "name": "lp_collateral",
           "ty": {
             "Primitive": {
               "UInt": "U64"
@@ -187,6 +131,14 @@
         },
         {
           "name": "lp_supply",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "cumulative_volume",
           "ty": {
             "Primitive": {
               "UInt": "U64"
@@ -309,22 +261,6 @@
           "mode": "None"
         },
         {
-          "name": "amount",
-          "ty": {
-            "Primitive": {
-              "UInt": "U64"
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "name": "escrow_id",
-          "ty": {
-            "Primitive": "Field"
-          },
-          "mode": "None"
-        },
-        {
           "name": "shares",
           "ty": {
             "Primitive": {
@@ -407,7 +343,7 @@
           "path": [
             "MarketInfo"
           ],
-          "program": "veilmarkets_core_v9.aleo"
+          "program": "veilmarkets_core_build_v11.aleo"
         }
       }
     },
@@ -421,12 +357,12 @@
           "path": [
             "PoolState"
           ],
-          "program": "veilmarkets_core_v9.aleo"
+          "program": "veilmarkets_core_build_v11.aleo"
         }
       }
     },
     {
-      "name": "outcome_exposure",
+      "name": "outcome_token_qty",
       "key": {
         "Primitive": "Field"
       },
@@ -437,7 +373,7 @@
       }
     },
     {
-      "name": "outcome_share_supply",
+      "name": "outcome_token_supply",
       "key": {
         "Primitive": "Field"
       },
@@ -445,33 +381,6 @@
         "Primitive": {
           "UInt": "U64"
         }
-      }
-    },
-    {
-      "name": "position_to_escrow",
-      "key": {
-        "Primitive": "Field"
-      },
-      "value": {
-        "Primitive": "Field"
-      }
-    },
-    {
-      "name": "position_owner_commitments",
-      "key": {
-        "Primitive": "Field"
-      },
-      "value": {
-        "Primitive": "Field"
-      }
-    },
-    {
-      "name": "minted_positions",
-      "key": {
-        "Primitive": "Field"
-      },
-      "value": {
-        "Primitive": "Boolean"
       }
     },
     {
@@ -484,32 +393,12 @@
           "path": [
             "PositionState"
           ],
-          "program": "veilmarkets_core_v9.aleo"
+          "program": "veilmarkets_core_build_v11.aleo"
         }
       }
     },
     {
-      "name": "pending_position_market",
-      "key": {
-        "Primitive": "Field"
-      },
-      "value": {
-        "Primitive": "Field"
-      }
-    },
-    {
-      "name": "pending_position_outcome",
-      "key": {
-        "Primitive": "Field"
-      },
-      "value": {
-        "Primitive": {
-          "UInt": "U8"
-        }
-      }
-    },
-    {
-      "name": "pending_position_collateral",
+      "name": "lp_balances",
       "key": {
         "Primitive": "Field"
       },
@@ -520,7 +409,29 @@
       }
     },
     {
-      "name": "pending_position_shares",
+      "name": "market_fee_pool",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "market_winner_payout_pool",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "market_lp_return_pool",
       "key": {
         "Primitive": "Field"
       },
@@ -540,6 +451,15 @@
       }
     },
     {
+      "name": "spent_auth_ids",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": "Boolean"
+      }
+    },
+    {
       "name": "pending_payouts",
       "key": {
         "Primitive": "Field"
@@ -549,73 +469,7 @@
           "path": [
             "PayoutClaim"
           ],
-          "program": "veilmarkets_core_v9.aleo"
-        }
-      }
-    },
-    {
-      "name": "quote_buy_shares_out",
-      "key": {
-        "Primitive": "Field"
-      },
-      "value": {
-        "Primitive": {
-          "UInt": "U64"
-        }
-      }
-    },
-    {
-      "name": "quote_buy_fee",
-      "key": {
-        "Primitive": "Field"
-      },
-      "value": {
-        "Primitive": {
-          "UInt": "U64"
-        }
-      }
-    },
-    {
-      "name": "quote_buy_net_collateral",
-      "key": {
-        "Primitive": "Field"
-      },
-      "value": {
-        "Primitive": {
-          "UInt": "U64"
-        }
-      }
-    },
-    {
-      "name": "quote_sell_gross_payout",
-      "key": {
-        "Primitive": "Field"
-      },
-      "value": {
-        "Primitive": {
-          "UInt": "U64"
-        }
-      }
-    },
-    {
-      "name": "quote_sell_fee",
-      "key": {
-        "Primitive": "Field"
-      },
-      "value": {
-        "Primitive": {
-          "UInt": "U64"
-        }
-      }
-    },
-    {
-      "name": "quote_sell_net_payout",
-      "key": {
-        "Primitive": "Field"
-      },
-      "value": {
-        "Primitive": {
-          "UInt": "U64"
+          "program": "veilmarkets_core_build_v11.aleo"
         }
       }
     },
@@ -648,9 +502,7 @@
     {
       "name": "protocol_fees",
       "key": {
-        "Primitive": {
-          "UInt": "U8"
-        }
+        "Primitive": "Address"
       },
       "value": {
         "Primitive": {
@@ -747,171 +599,6 @@
       ]
     },
     {
-      "name": "quote_buy",
-      "is_final": true,
-      "inputs": [
-        {
-          "name": "quote_id",
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Field"
-            }
-          },
-          "mode": "Public"
-        },
-        {
-          "name": "market_id",
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Field"
-            }
-          },
-          "mode": "Public"
-        },
-        {
-          "name": "outcome",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U8"
-              }
-            }
-          },
-          "mode": "Public"
-        },
-        {
-          "name": "collateral_in",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U64"
-              }
-            }
-          },
-          "mode": "Public"
-        }
-      ],
-      "outputs": [
-        {
-          "ty": "Final",
-          "mode": "None"
-        }
-      ]
-    },
-    {
-      "name": "quote_sell",
-      "is_final": true,
-      "inputs": [
-        {
-          "name": "quote_id",
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Field"
-            }
-          },
-          "mode": "Public"
-        },
-        {
-          "name": "market_id",
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Field"
-            }
-          },
-          "mode": "Public"
-        },
-        {
-          "name": "outcome",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U8"
-              }
-            }
-          },
-          "mode": "Public"
-        },
-        {
-          "name": "shares_to_sell",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U64"
-              }
-            }
-          },
-          "mode": "Public"
-        }
-      ],
-      "outputs": [
-        {
-          "ty": "Final",
-          "mode": "None"
-        }
-      ]
-    },
-    {
-      "name": "place_bet",
-      "is_final": true,
-      "inputs": [
-        {
-          "name": "market_id",
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Field"
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "name": "outcome",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U8"
-              }
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "name": "amount",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U64"
-              }
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "name": "escrow_id",
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Field"
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "name": "owner_commitment",
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Field"
-            }
-          },
-          "mode": "None"
-        }
-      ],
-      "outputs": [
-        {
-          "ty": "Final",
-          "mode": "None"
-        }
-      ]
-    },
-    {
       "name": "buy_shares",
       "is_final": true,
       "inputs": [
@@ -958,7 +645,18 @@
           "mode": "Public"
         },
         {
-          "name": "share_commitment",
+          "name": "expected_shares_out",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "position_id",
           "ty": {
             "Plaintext": {
               "Primitive": "Field"
@@ -977,6 +675,17 @@
         }
       ],
       "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "BetPosition"
+              ],
+              "program": "veilmarkets_core_build_v11.aleo"
+            }
+          },
+          "mode": "None"
+        },
         {
           "ty": "Final",
           "mode": "None"
@@ -1008,16 +717,7 @@
           "mode": "Public"
         },
         {
-          "name": "lp_position_id",
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Field"
-            }
-          },
-          "mode": "Public"
-        },
-        {
-          "name": "owner_commitment",
+          "name": "lp_owner_key",
           "ty": {
             "Plaintext": {
               "Primitive": "Field"
@@ -1027,154 +727,6 @@
         }
       ],
       "outputs": [
-        {
-          "ty": "Final",
-          "mode": "None"
-        }
-      ]
-    },
-    {
-      "name": "mint_position_record",
-      "is_final": true,
-      "inputs": [
-        {
-          "name": "market_id",
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Field"
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "name": "outcome",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U8"
-              }
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "name": "collateral_in",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U64"
-              }
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "name": "shares",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U64"
-              }
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "name": "escrow_id",
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Field"
-            }
-          },
-          "mode": "None"
-        }
-      ],
-      "outputs": [
-        {
-          "ty": {
-            "Record": {
-              "path": [
-                "BetPosition"
-              ],
-              "program": "veilmarkets_core_v9.aleo"
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "ty": "Final",
-          "mode": "None"
-        }
-      ]
-    },
-    {
-      "name": "mint_share_record",
-      "is_final": true,
-      "inputs": [
-        {
-          "name": "share_commitment",
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Field"
-            }
-          },
-          "mode": "Public"
-        },
-        {
-          "name": "market_id",
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Field"
-            }
-          },
-          "mode": "Public"
-        },
-        {
-          "name": "outcome",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U8"
-              }
-            }
-          },
-          "mode": "Public"
-        },
-        {
-          "name": "collateral_in",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U64"
-              }
-            }
-          },
-          "mode": "Public"
-        },
-        {
-          "name": "shares",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U64"
-              }
-            }
-          },
-          "mode": "Public"
-        }
-      ],
-      "outputs": [
-        {
-          "ty": {
-            "Record": {
-              "path": [
-                "BetPosition"
-              ],
-              "program": "veilmarkets_core_v9.aleo"
-            }
-          },
-          "mode": "None"
-        },
         {
           "ty": "Final",
           "mode": "None"
@@ -1192,7 +744,7 @@
               "path": [
                 "BetPosition"
               ],
-              "program": "veilmarkets_core_v9.aleo"
+              "program": "veilmarkets_core_build_v11.aleo"
             }
           },
           "mode": "Private"
@@ -1236,7 +788,7 @@
               "path": [
                 "BetPosition"
               ],
-              "program": "veilmarkets_core_v9.aleo"
+              "program": "veilmarkets_core_build_v11.aleo"
             }
           },
           "mode": "None"
@@ -1247,7 +799,7 @@
               "path": [
                 "WinningsClaim"
               ],
-              "program": "veilmarkets_core_v9.aleo"
+              "program": "veilmarkets_core_build_v11.aleo"
             }
           },
           "mode": "None"
@@ -1269,7 +821,7 @@
               "path": [
                 "BetPosition"
               ],
-              "program": "veilmarkets_core_v9.aleo"
+              "program": "veilmarkets_core_build_v11.aleo"
             }
           },
           "mode": "Private"
@@ -1282,7 +834,70 @@
               "path": [
                 "WinningsClaim"
               ],
-              "program": "veilmarkets_core_v9.aleo"
+              "program": "veilmarkets_core_build_v11.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_liquidity",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "market_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "lp_shares",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "min_payout",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "withdraw_nonce",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "WinningsClaim"
+              ],
+              "program": "veilmarkets_core_build_v11.aleo"
             }
           },
           "mode": "None"
@@ -1313,6 +928,38 @@
               "Primitive": {
                 "UInt": "U64"
               }
+            }
+          },
+          "mode": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "authz_fee_withdrawal",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "amount",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "authorization_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
             }
           },
           "mode": "Public"
@@ -1375,6 +1022,27 @@
           "ty": {
             "Plaintext": {
               "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "admin_set_pause",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "paused",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Boolean"
             }
           },
           "mode": "Public"

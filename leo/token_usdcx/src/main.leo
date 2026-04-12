@@ -1,10 +1,10 @@
-// VeilMarkets Token — USDCx Adapter (v10)
+// VeilMarkets Token — USDCx Adapter (v11 buildathon)
 // Private stablecoin rail for buy/fund/claim + governance-gated protocol fee withdrawals.
 import test_usdcx_stablecoin.aleo;
-import veilmarkets_core_v10.aleo;
-import veilmarkets_factory_v10.aleo;
+import veilmarkets_core_build_v11.aleo;
+import veilmarkets_factory_build_v11.aleo;
 
-program veilmarkets_token_usdcx_v10.aleo {
+program veilmarkets_usdcx_build_v11.aleo {
     struct TokenMerkleProof {
         siblings: [field; 16u32],
         leaf_index: u32,
@@ -29,7 +29,7 @@ program veilmarkets_token_usdcx_v10.aleo {
     ) -> (
         test_usdcx_stablecoin.aleo::ComplianceRecord,
         test_usdcx_stablecoin.aleo::Token,
-        veilmarkets_core_v10.aleo::BetPosition,
+        veilmarkets_core_build_v11.aleo::BetPosition,
         Final,
     ) {
         let collateral_in_u128: u128 = collateral_in as u128;
@@ -74,8 +74,8 @@ program veilmarkets_token_usdcx_v10.aleo {
             self.signer as field + position_id,
         );
 
-        let (position, core_future): (veilmarkets_core_v10.aleo::BetPosition, Final) =
-            veilmarkets_core_v10.aleo::buy_shares(
+        let (position, core_future): (veilmarkets_core_build_v11.aleo::BetPosition, Final) =
+            veilmarkets_core_build_v11.aleo::buy_shares(
                 market_id,
                 outcome,
                 collateral_in,
@@ -133,7 +133,7 @@ program veilmarkets_token_usdcx_v10.aleo {
         // LP ownership key is intentionally stable per user for per-market LP accounting.
         // Note: this field is public when passed into core.
         let lp_owner_key: field = self.signer as field;
-        let core_future: Final = veilmarkets_core_v10.aleo::fund_pool(
+        let core_future: Final = veilmarkets_core_build_v11.aleo::fund_pool(
             market_id,
             amount,
             lp_owner_key,
@@ -154,7 +154,7 @@ program veilmarkets_token_usdcx_v10.aleo {
         Final,
     ) {
         let payout_amount_u128: u128 = payout_amount as u128;
-        let core_result: Final = veilmarkets_core_v10.aleo::verify_claim(
+        let core_result: Final = veilmarkets_core_build_v11.aleo::verify_claim(
             nullifier,
             payout_amount,
         );
@@ -183,11 +183,11 @@ program veilmarkets_token_usdcx_v10.aleo {
         Final,
     ) {
         let amount_u128: u128 = amount as u128;
-        let gov_auth: Final = veilmarkets_factory_v10.aleo::verify_is_registered(
+        let gov_auth: Final = veilmarkets_factory_build_v11.aleo::verify_is_registered(
             GOVERNANCE_CONTRACT_TYPE,
             self.caller,
         );
-        let core_auth: Final = veilmarkets_core_v10.aleo::authz_fee_withdrawal(
+        let core_auth: Final = veilmarkets_core_build_v11.aleo::authz_fee_withdrawal(
             amount,
             authorization_id,
         );

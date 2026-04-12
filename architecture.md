@@ -11,7 +11,7 @@ VeilMarkets v9 is a modular prediction market stack on Aleo with:
 
 ## Contract modules
 
-## 1) Factory (`veilmarkets_factory_v9.aleo`)
+## 1) Factory (`veilmarkets_factory_build_v11.aleo`)
 
 - Registry and trust anchor for cross-program authorization.
 - Registered contract types:
@@ -20,7 +20,7 @@ VeilMarkets v9 is a modular prediction market stack on Aleo with:
   - `3` core
   - `4` governance
 
-## 2) Core (`veilmarkets_core_v9.aleo`)
+## 2) Core (`veilmarkets_core_build_v11.aleo`)
 
 Source of truth for:
 
@@ -36,7 +36,7 @@ Core enforces quote/execution math and fixed-share settlement semantics:
 - loser payout = `0`
 - cancellation refund = position collateral
 
-## 3) Oracle (`veilmarkets_oracle_v9.aleo`)
+## 3) Oracle (`veilmarkets_oracle_build_v11.aleo`)
 
 Implements optimistic proposal + dispute flow:
 
@@ -48,15 +48,15 @@ Implements optimistic proposal + dispute flow:
 
 Also handles dispute economics (slash/reward/platform split) and oracle stake tracking.
 
-## 4) Governance (`veilmarkets_governance_v9.aleo`)
+## 4) Governance (`veilmarkets_gov_build_v11.aleo`)
 
 Governance proposals execute parameter updates directly on core/oracle through registered authorization.
 
 ## 5) Token adapters
 
-- `veilmarkets_token_credits_v9.aleo`
-- `veilmarkets_token_usdcx_v9.aleo`
-- `veilmarkets_token_usad_v9.aleo`
+- `veilmarkets_credits_build_v11.aleo`
+- `veilmarkets_usdcx_build_v11.aleo`
+- `veilmarkets_usad_build_v11.aleo`
 
 Responsibilities:
 

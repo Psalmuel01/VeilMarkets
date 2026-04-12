@@ -1,5 +1,5 @@
 {
-  "program": "veilmarkets_core_v10.aleo",
+  "program": "veilmarkets_core_build_v11.aleo",
   "structs": [
     {
       "path": [
@@ -343,7 +343,7 @@
           "path": [
             "MarketInfo"
           ],
-          "program": "veilmarkets_core_v10.aleo"
+          "program": "veilmarkets_core_build_v11.aleo"
         }
       }
     },
@@ -357,7 +357,7 @@
           "path": [
             "PoolState"
           ],
-          "program": "veilmarkets_core_v10.aleo"
+          "program": "veilmarkets_core_build_v11.aleo"
         }
       }
     },
@@ -393,7 +393,7 @@
           "path": [
             "PositionState"
           ],
-          "program": "veilmarkets_core_v10.aleo"
+          "program": "veilmarkets_core_build_v11.aleo"
         }
       }
     },
@@ -451,6 +451,15 @@
       }
     },
     {
+      "name": "spent_auth_ids",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": "Boolean"
+      }
+    },
+    {
       "name": "pending_payouts",
       "key": {
         "Primitive": "Field"
@@ -460,7 +469,7 @@
           "path": [
             "PayoutClaim"
           ],
-          "program": "veilmarkets_core_v10.aleo"
+          "program": "veilmarkets_core_build_v11.aleo"
         }
       }
     },
@@ -672,7 +681,7 @@
               "path": [
                 "BetPosition"
               ],
-              "program": "veilmarkets_core_v10.aleo"
+              "program": "veilmarkets_core_build_v11.aleo"
             }
           },
           "mode": "None"
@@ -735,7 +744,7 @@
               "path": [
                 "BetPosition"
               ],
-              "program": "veilmarkets_core_v10.aleo"
+              "program": "veilmarkets_core_build_v11.aleo"
             }
           },
           "mode": "Private"
@@ -779,7 +788,7 @@
               "path": [
                 "BetPosition"
               ],
-              "program": "veilmarkets_core_v10.aleo"
+              "program": "veilmarkets_core_build_v11.aleo"
             }
           },
           "mode": "None"
@@ -790,7 +799,7 @@
               "path": [
                 "WinningsClaim"
               ],
-              "program": "veilmarkets_core_v10.aleo"
+              "program": "veilmarkets_core_build_v11.aleo"
             }
           },
           "mode": "None"
@@ -812,7 +821,7 @@
               "path": [
                 "BetPosition"
               ],
-              "program": "veilmarkets_core_v10.aleo"
+              "program": "veilmarkets_core_build_v11.aleo"
             }
           },
           "mode": "Private"
@@ -825,7 +834,7 @@
               "path": [
                 "WinningsClaim"
               ],
-              "program": "veilmarkets_core_v10.aleo"
+              "program": "veilmarkets_core_build_v11.aleo"
             }
           },
           "mode": "None"
@@ -888,7 +897,7 @@
               "path": [
                 "WinningsClaim"
               ],
-              "program": "veilmarkets_core_v10.aleo"
+              "program": "veilmarkets_core_build_v11.aleo"
             }
           },
           "mode": "None"

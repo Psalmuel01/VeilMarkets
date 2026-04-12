@@ -1,11 +1,11 @@
-// VeilMarkets Oracle (v10)
+// VeilMarkets Oracle (v11 buildathon)
 // Quorum-aware optimistic resolution with proposer stake locks, dispute slashing, and pause controls.
 import credits.aleo;
-import veilmarkets_core_v10.aleo;
-import veilmarkets_factory_v10.aleo;
-import veilmarkets_governance_v10.aleo;
+import veilmarkets_core_build_v11.aleo;
+import veilmarkets_factory_build_v11.aleo;
+import veilmarkets_gov_build_v11.aleo;
 
-program veilmarkets_oracle_v10.aleo {
+program veilmarkets_oracle_build_v11.aleo {
     struct ResolutionProposal {
         market_id: field,
         proposed_outcome: u8,
@@ -155,7 +155,7 @@ program veilmarkets_oracle_v10.aleo {
 
     fn execute_quorum_resolution(public market_id: field, public outcome: u8) -> Final {
         assert(outcome <= 7u8);
-        let f_core: Final = veilmarkets_core_v10.aleo::resolve_market(
+        let f_core: Final = veilmarkets_core_build_v11.aleo::resolve_market(
             market_id,
             outcome,
             self.address,
@@ -167,7 +167,7 @@ program veilmarkets_oracle_v10.aleo {
 
     fn resolve_on_core(public market_id: field, public outcome: u8) -> Final {
         assert(outcome <= 7u8);
-        let f_core: Final = veilmarkets_core_v10.aleo::resolve_market(
+        let f_core: Final = veilmarkets_core_build_v11.aleo::resolve_market(
             market_id,
             outcome,
             self.address,
@@ -201,7 +201,7 @@ program veilmarkets_oracle_v10.aleo {
         public amount: u64,
         public recipient: address,
     ) -> (credits.aleo::credits, Final) {
-        let gov_auth: Final = veilmarkets_factory_v10.aleo::verify_is_registered(
+        let gov_auth: Final = veilmarkets_factory_build_v11.aleo::verify_is_registered(
             GOVERNANCE_CONTRACT_TYPE,
             self.caller,
         );
@@ -224,7 +224,7 @@ program veilmarkets_oracle_v10.aleo {
     }
 
     fn set_protocol_u64(public proposal_id: field, public param_key: u8, public value: u64) -> Final {
-        let auth: Final = veilmarkets_governance_v10.aleo::consume_oracle_u64(
+        let auth: Final = veilmarkets_gov_build_v11.aleo::consume_oracle_u64(
             proposal_id,
             param_key,
             value,
@@ -235,7 +235,7 @@ program veilmarkets_oracle_v10.aleo {
     }
 
     fn set_protocol_u8(public proposal_id: field, public param_key: u8, public value: u8) -> Final {
-        let auth: Final = veilmarkets_governance_v10.aleo::consume_oracle_u8(
+        let auth: Final = veilmarkets_gov_build_v11.aleo::consume_oracle_u8(
             proposal_id,
             param_key,
             value,

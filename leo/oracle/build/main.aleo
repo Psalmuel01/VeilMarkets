@@ -1,8 +1,8 @@
-import veilmarkets_factory_v10.aleo;
-import veilmarkets_core_v10.aleo;
-import veilmarkets_governance_v10.aleo;
+import veilmarkets_factory_build_v11.aleo;
+import veilmarkets_core_build_v11.aleo;
+import veilmarkets_gov_build_v11.aleo;
 import credits.aleo;
-program veilmarkets_oracle_v10.aleo;
+program veilmarkets_oracle_build_v11.aleo;
 
 record OracleCredential:
     owner as address.private;
@@ -97,14 +97,14 @@ mapping resolved_outcomes:
 function register_oracle:
     input r0 as credits.aleo/credits.record;
     input r1 as u64.public;
-    call credits.aleo/transfer_private_to_public r0 veilmarkets_oracle_v10.aleo r1 into r2 r3;
+    call credits.aleo/transfer_private_to_public r0 veilmarkets_oracle_build_v11.aleo r1 into r2 r3;
     cast self.signer into r4 as field;
     hash.bhp256 r4 into r5 as group;
     cast self.signer r1 100u64 r5 into r6 as OracleCredential.record;
     async register_oracle self.caller r1 r3 into r7;
     output r2 as credits.aleo/credits.record;
     output r6 as OracleCredential.record;
-    output r7 as veilmarkets_oracle_v10.aleo/register_oracle.future;
+    output r7 as veilmarkets_oracle_build_v11.aleo/register_oracle.future;
 
 finalize register_oracle:
     input r0 as address.public;
@@ -127,7 +127,7 @@ function propose_resolution:
     lte r1 7u8 into r2;
     assert.eq r2 true;
     async propose_resolution r0 r1 self.caller into r3;
-    output r3 as veilmarkets_oracle_v10.aleo/propose_resolution.future;
+    output r3 as veilmarkets_oracle_build_v11.aleo/propose_resolution.future;
 
 finalize propose_resolution:
     input r0 as field.public;
@@ -160,10 +160,10 @@ function dispute_resolution:
     input r0 as credits.aleo/credits.record;
     input r1 as field.public;
     input r2 as u64.public;
-    call credits.aleo/transfer_private_to_public r0 veilmarkets_oracle_v10.aleo r2 into r3 r4;
+    call credits.aleo/transfer_private_to_public r0 veilmarkets_oracle_build_v11.aleo r2 into r3 r4;
     async dispute_resolution r1 self.caller r2 r4 into r5;
     output r3 as credits.aleo/credits.record;
-    output r5 as veilmarkets_oracle_v10.aleo/dispute_resolution.future;
+    output r5 as veilmarkets_oracle_build_v11.aleo/dispute_resolution.future;
 
 finalize dispute_resolution:
     input r0 as field.public;
@@ -200,7 +200,7 @@ function submit_quorum_vote:
     cast r0.owner r0.staked_amount r0.reputation_score r5 into r6 as OracleCredential.record;
     async submit_quorum_vote r1 r2 self.caller into r7;
     output r6 as OracleCredential.record;
-    output r7 as veilmarkets_oracle_v10.aleo/submit_quorum_vote.future;
+    output r7 as veilmarkets_oracle_build_v11.aleo/submit_quorum_vote.future;
 
 finalize submit_quorum_vote:
     input r0 as field.public;
@@ -250,7 +250,7 @@ function vote_on_resolution:
     cast r0.owner r0.staked_amount r0.reputation_score r5 into r6 as OracleCredential.record;
     async vote_on_resolution r1 r2 self.caller into r7;
     output r6 as OracleCredential.record;
-    output r7 as veilmarkets_oracle_v10.aleo/vote_on_resolution.future;
+    output r7 as veilmarkets_oracle_build_v11.aleo/vote_on_resolution.future;
 
 finalize vote_on_resolution:
     input r0 as field.public;
@@ -293,14 +293,14 @@ function execute_quorum_resolution:
     input r1 as u8.public;
     lte r1 7u8 into r2;
     assert.eq r2 true;
-    call veilmarkets_core_v10.aleo/resolve_market r0 r1 veilmarkets_oracle_v10.aleo into r3;
+    call veilmarkets_core_build_v11.aleo/resolve_market r0 r1 veilmarkets_oracle_build_v11.aleo into r3;
     async execute_quorum_resolution r0 r1 r3 into r4;
-    output r4 as veilmarkets_oracle_v10.aleo/execute_quorum_resolution.future;
+    output r4 as veilmarkets_oracle_build_v11.aleo/execute_quorum_resolution.future;
 
 finalize execute_quorum_resolution:
     input r0 as field.public;
     input r1 as u8.public;
-    input r2 as veilmarkets_core_v10.aleo/resolve_market.future;
+    input r2 as veilmarkets_core_build_v11.aleo/resolve_market.future;
     get.or_use oracle_u8[1u8] 0u8 into r3;
     is.eq r3 0u8 into r4;
     assert.eq r4 true;
@@ -311,7 +311,7 @@ finalize execute_quorum_resolution:
     get.or_use oracle_locked_stake[r5.proposer] 0u64 into r8;
     gte r8 r6 into r9;
     assert.eq r9 true;
-    branch.eq r5.is_disputed false to end_then_0_50;
+    branch.eq r5.is_disputed false to end_then_0_52;
     cast r1 into r10 as field;
     add r0 r10 into r11;
     hash.bhp256 r11 into r12 as field;
@@ -329,16 +329,16 @@ finalize execute_quorum_resolution:
     assert.eq r22 true;
     gt r13 0u64 into r23;
     assert.eq r23 true;
-    branch.eq true true to end_otherwise_0_51;
-    position end_then_0_50;
+    branch.eq true true to end_otherwise_0_53;
+    position end_then_0_52;
     cast block.timestamp into r24 as u64;
     gte r24 r5.challenge_deadline into r25;
     assert.eq r25 true;
     assert.eq r1 r5.proposed_outcome;
-    position end_otherwise_0_51;
+    position end_otherwise_0_53;
     await r2;
     set r1 into resolved_outcomes[r0];
-    branch.eq r5.is_disputed false to end_then_0_52;
+    branch.eq r5.is_disputed false to end_then_0_54;
     get disputes[r0] into r26;
     cast r1 into r27 as field;
     add r0 r27 into r28;
@@ -347,7 +347,7 @@ finalize execute_quorum_resolution:
     gt r30 0u64 into r31;
     assert.eq r31 true;
     is.neq r1 r5.proposed_outcome into r32;
-    branch.eq r32 false to end_then_1_54;
+    branch.eq r32 false to end_then_1_56;
     get active_oracles[r5.proposer] into r33;
     gte r33 r6 into r34;
     assert.eq r34 true;
@@ -366,8 +366,8 @@ finalize execute_quorum_resolution:
     set r44 into platform_fee_pool[0u8];
     set r37 into market_voter_reward_pool[r0];
     set r30 into market_winning_vote_weight[r0];
-    branch.eq true true to end_otherwise_1_55;
-    position end_then_1_54;
+    branch.eq true true to end_otherwise_1_57;
+    position end_then_1_56;
     div r26.stake 10u64 into r45;
     div r26.stake 5u64 into r46;
     sub r26.stake r45 into r47;
@@ -380,12 +380,12 @@ finalize execute_quorum_resolution:
     set r52 into platform_fee_pool[0u8];
     set r46 into market_voter_reward_pool[r0];
     set r30 into market_winning_vote_weight[r0];
-    position end_otherwise_1_55;
-    branch.eq true true to end_otherwise_0_53;
-    position end_then_0_52;
+    position end_otherwise_1_57;
+    branch.eq true true to end_otherwise_0_55;
+    position end_then_0_54;
     set 0u64 into market_voter_reward_pool[r0];
     set 0u64 into market_winning_vote_weight[r0];
-    position end_otherwise_0_53;
+    position end_otherwise_0_55;
     sub r8 r6 into r53;
     set r53 into oracle_locked_stake[r5.proposer];
     set 0u64 into proposal_locked_bond[r0];
@@ -395,14 +395,14 @@ function resolve_on_core:
     input r1 as u8.public;
     lte r1 7u8 into r2;
     assert.eq r2 true;
-    call veilmarkets_core_v10.aleo/resolve_market r0 r1 veilmarkets_oracle_v10.aleo into r3;
+    call veilmarkets_core_build_v11.aleo/resolve_market r0 r1 veilmarkets_oracle_build_v11.aleo into r3;
     async resolve_on_core r0 r1 r3 into r4;
-    output r4 as veilmarkets_oracle_v10.aleo/resolve_on_core.future;
+    output r4 as veilmarkets_oracle_build_v11.aleo/resolve_on_core.future;
 
 finalize resolve_on_core:
     input r0 as field.public;
     input r1 as u8.public;
-    input r2 as veilmarkets_core_v10.aleo/resolve_market.future;
+    input r2 as veilmarkets_core_build_v11.aleo/resolve_market.future;
     get.or_use oracle_u8[1u8] 0u8 into r3;
     is.eq r3 0u8 into r4;
     assert.eq r4 true;
@@ -413,7 +413,7 @@ finalize resolve_on_core:
     get.or_use oracle_locked_stake[r5.proposer] 0u64 into r8;
     gte r8 r6 into r9;
     assert.eq r9 true;
-    branch.eq r5.is_disputed false to end_then_0_56;
+    branch.eq r5.is_disputed false to end_then_0_58;
     cast r1 into r10 as field;
     add r0 r10 into r11;
     hash.bhp256 r11 into r12 as field;
@@ -431,16 +431,16 @@ finalize resolve_on_core:
     assert.eq r22 true;
     gt r13 0u64 into r23;
     assert.eq r23 true;
-    branch.eq true true to end_otherwise_0_57;
-    position end_then_0_56;
+    branch.eq true true to end_otherwise_0_59;
+    position end_then_0_58;
     cast block.timestamp into r24 as u64;
     gte r24 r5.challenge_deadline into r25;
     assert.eq r25 true;
     assert.eq r1 r5.proposed_outcome;
-    position end_otherwise_0_57;
+    position end_otherwise_0_59;
     await r2;
     set r1 into resolved_outcomes[r0];
-    branch.eq r5.is_disputed false to end_then_0_58;
+    branch.eq r5.is_disputed false to end_then_0_60;
     get disputes[r0] into r26;
     cast r1 into r27 as field;
     add r0 r27 into r28;
@@ -449,7 +449,7 @@ finalize resolve_on_core:
     gt r30 0u64 into r31;
     assert.eq r31 true;
     is.neq r1 r5.proposed_outcome into r32;
-    branch.eq r32 false to end_then_1_60;
+    branch.eq r32 false to end_then_1_62;
     get active_oracles[r5.proposer] into r33;
     gte r33 r6 into r34;
     assert.eq r34 true;
@@ -468,8 +468,8 @@ finalize resolve_on_core:
     set r44 into platform_fee_pool[0u8];
     set r37 into market_voter_reward_pool[r0];
     set r30 into market_winning_vote_weight[r0];
-    branch.eq true true to end_otherwise_1_61;
-    position end_then_1_60;
+    branch.eq true true to end_otherwise_1_63;
+    position end_then_1_62;
     div r26.stake 10u64 into r45;
     div r26.stake 5u64 into r46;
     sub r26.stake r45 into r47;
@@ -482,12 +482,12 @@ finalize resolve_on_core:
     set r52 into platform_fee_pool[0u8];
     set r46 into market_voter_reward_pool[r0];
     set r30 into market_winning_vote_weight[r0];
-    position end_otherwise_1_61;
-    branch.eq true true to end_otherwise_0_59;
-    position end_then_0_58;
+    position end_otherwise_1_63;
+    branch.eq true true to end_otherwise_0_61;
+    position end_then_0_60;
     set 0u64 into market_voter_reward_pool[r0];
     set 0u64 into market_winning_vote_weight[r0];
-    position end_otherwise_0_59;
+    position end_otherwise_0_61;
     sub r8 r6 into r53;
     set r53 into oracle_locked_stake[r5.proposer];
     set 0u64 into proposal_locked_bond[r0];
@@ -497,7 +497,7 @@ function unstake_credits:
     call credits.aleo/transfer_public_to_private self.caller r0 into r1 r2;
     async unstake_credits self.caller r0 r2 into r3;
     output r1 as credits.aleo/credits.record;
-    output r3 as veilmarkets_oracle_v10.aleo/unstake_credits.future;
+    output r3 as veilmarkets_oracle_build_v11.aleo/unstake_credits.future;
 
 finalize unstake_credits:
     input r0 as address.public;
@@ -522,7 +522,7 @@ finalize unstake_credits:
 function claim_vote_reward:
     input r0 as field.public;
     async claim_vote_reward r0 self.caller into r1;
-    output r1 as veilmarkets_oracle_v10.aleo/claim_vote_reward.future;
+    output r1 as veilmarkets_oracle_build_v11.aleo/claim_vote_reward.future;
 
 finalize claim_vote_reward:
     input r0 as field.public;
@@ -566,26 +566,26 @@ finalize claim_vote_reward:
     set r26 into market_winning_vote_weight[r0];
     set true into vote_reward_claimed[r11];
     gt r24 0u64 into r27;
-    branch.eq r27 false to end_then_0_62;
+    branch.eq r27 false to end_then_0_64;
     get.or_use active_oracles[r1] 0u64 into r28;
     add r28 r24 into r29;
     set r29 into active_oracles[r1];
-    branch.eq true true to end_otherwise_0_63;
-    position end_then_0_62;
-    position end_otherwise_0_63;
+    branch.eq true true to end_otherwise_0_65;
+    position end_then_0_64;
+    position end_otherwise_0_65;
 
 function withdraw_platform_fees:
     input r0 as u64.public;
     input r1 as address.public;
-    call veilmarkets_factory_v10.aleo/verify_is_registered 4u8 self.caller into r2;
+    call veilmarkets_factory_build_v11.aleo/verify_is_registered 4u8 self.caller into r2;
     call credits.aleo/transfer_public_to_private r1 r0 into r3 r4;
     async withdraw_platform_fees r0 r2 r4 into r5;
     output r3 as credits.aleo/credits.record;
-    output r5 as veilmarkets_oracle_v10.aleo/withdraw_platform_fees.future;
+    output r5 as veilmarkets_oracle_build_v11.aleo/withdraw_platform_fees.future;
 
 finalize withdraw_platform_fees:
     input r0 as u64.public;
-    input r1 as veilmarkets_factory_v10.aleo/verify_is_registered.future;
+    input r1 as veilmarkets_factory_build_v11.aleo/verify_is_registered.future;
     input r2 as credits.aleo/transfer_public_to_private.future;
     await r1;
     gt r0 0u64 into r3;
@@ -600,7 +600,7 @@ finalize withdraw_platform_fees:
 function admin_set_pause:
     input r0 as boolean.public;
     async admin_set_pause r0 self.caller into r1;
-    output r1 as veilmarkets_oracle_v10.aleo/admin_set_pause.future;
+    output r1 as veilmarkets_oracle_build_v11.aleo/admin_set_pause.future;
 
 finalize admin_set_pause:
     input r0 as boolean.public;
@@ -613,60 +613,60 @@ function set_protocol_u64:
     input r0 as field.public;
     input r1 as u8.public;
     input r2 as u64.public;
-    call veilmarkets_governance_v10.aleo/consume_oracle_u64 r0 r1 r2 into r3;
+    call veilmarkets_gov_build_v11.aleo/consume_oracle_u64 r0 r1 r2 into r3;
     async set_protocol_u64 r1 r2 r3 into r4;
-    output r4 as veilmarkets_oracle_v10.aleo/set_protocol_u64.future;
+    output r4 as veilmarkets_oracle_build_v11.aleo/set_protocol_u64.future;
 
 finalize set_protocol_u64:
     input r0 as u8.public;
     input r1 as u64.public;
-    input r2 as veilmarkets_governance_v10.aleo/consume_oracle_u64.future;
+    input r2 as veilmarkets_gov_build_v11.aleo/consume_oracle_u64.future;
     await r2;
     is.eq r0 0u8 into r3;
-    branch.eq r3 false to end_then_0_64;
+    branch.eq r3 false to end_then_0_66;
     gt r1 0u64 into r4;
     assert.eq r4 true;
-    branch.eq true true to end_otherwise_0_65;
-    position end_then_0_64;
-    position end_otherwise_0_65;
-    is.eq r0 1u8 into r5;
-    branch.eq r5 false to end_then_0_66;
-    gte r1 60u64 into r6;
-    assert.eq r6 true;
     branch.eq true true to end_otherwise_0_67;
     position end_then_0_66;
     position end_otherwise_0_67;
+    is.eq r0 1u8 into r5;
+    branch.eq r5 false to end_then_0_68;
+    gte r1 60u64 into r6;
+    assert.eq r6 true;
+    branch.eq true true to end_otherwise_0_69;
+    position end_then_0_68;
+    position end_otherwise_0_69;
     set r1 into oracle_u64[r0];
 
 function set_protocol_u8:
     input r0 as field.public;
     input r1 as u8.public;
     input r2 as u8.public;
-    call veilmarkets_governance_v10.aleo/consume_oracle_u8 r0 r1 r2 into r3;
+    call veilmarkets_gov_build_v11.aleo/consume_oracle_u8 r0 r1 r2 into r3;
     async set_protocol_u8 r1 r2 r3 into r4;
-    output r4 as veilmarkets_oracle_v10.aleo/set_protocol_u8.future;
+    output r4 as veilmarkets_oracle_build_v11.aleo/set_protocol_u8.future;
 
 finalize set_protocol_u8:
     input r0 as u8.public;
     input r1 as u8.public;
-    input r2 as veilmarkets_governance_v10.aleo/consume_oracle_u8.future;
+    input r2 as veilmarkets_gov_build_v11.aleo/consume_oracle_u8.future;
     await r2;
     is.eq r0 0u8 into r3;
-    branch.eq r3 false to end_then_0_68;
+    branch.eq r3 false to end_then_0_70;
     gte r1 3u8 into r4;
     assert.eq r4 true;
     lte r1 8u8 into r5;
     assert.eq r5 true;
-    branch.eq true true to end_otherwise_0_69;
-    position end_then_0_68;
-    position end_otherwise_0_69;
-    is.eq r0 1u8 into r6;
-    branch.eq r6 false to end_then_0_70;
-    lte r1 1u8 into r7;
-    assert.eq r7 true;
     branch.eq true true to end_otherwise_0_71;
     position end_then_0_70;
     position end_otherwise_0_71;
+    is.eq r0 1u8 into r6;
+    branch.eq r6 false to end_then_0_72;
+    lte r1 1u8 into r7;
+    assert.eq r7 true;
+    branch.eq true true to end_otherwise_0_73;
+    position end_then_0_72;
+    position end_otherwise_0_73;
     set r1 into oracle_u8[r0];
 
 constructor:

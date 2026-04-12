@@ -1,7 +1,7 @@
-import veilmarkets_core_v10.aleo;
-import veilmarkets_factory_v10.aleo;
+import veilmarkets_core_build_v11.aleo;
+import veilmarkets_factory_build_v11.aleo;
 
-program veilmarkets_governance_v10.aleo {
+program veilmarkets_gov_build_v11.aleo {
     struct Proposal {
         proposer: address,
         target: u8, // 0 = core, 1 = oracle
@@ -70,7 +70,7 @@ program veilmarkets_governance_v10.aleo {
         public param_key: u8,
         public value: u64,
     ) -> Final {
-        let f_target: Final = veilmarkets_core_v10.aleo::set_protocol_u64(param_key, value);
+        let f_target: Final = veilmarkets_core_build_v11.aleo::set_protocol_u64(param_key, value);
         return final {
             finalize_execute(proposal_id, TARGET_CORE, param_key, value, false, f_target);
         };
@@ -81,7 +81,7 @@ program veilmarkets_governance_v10.aleo {
         public param_key: u8,
         public value: u8,
     ) -> Final {
-        let f_target: Final = veilmarkets_core_v10.aleo::set_protocol_u8(param_key, value);
+        let f_target: Final = veilmarkets_core_build_v11.aleo::set_protocol_u8(param_key, value);
         return final {
             finalize_execute(
                 proposal_id,
@@ -100,7 +100,7 @@ program veilmarkets_governance_v10.aleo {
         public value: u64,
     ) -> Final {
         let caller: address = self.caller;
-        let oracle_auth: Final = veilmarkets_factory_v10.aleo::verify_is_registered(
+        let oracle_auth: Final = veilmarkets_factory_build_v11.aleo::verify_is_registered(
             ORACLE_CONTRACT_TYPE,
             caller,
         );
@@ -116,7 +116,7 @@ program veilmarkets_governance_v10.aleo {
         public value: u8,
     ) -> Final {
         let caller: address = self.caller;
-        let oracle_auth: Final = veilmarkets_factory_v10.aleo::verify_is_registered(
+        let oracle_auth: Final = veilmarkets_factory_build_v11.aleo::verify_is_registered(
             ORACLE_CONTRACT_TYPE,
             caller,
         );

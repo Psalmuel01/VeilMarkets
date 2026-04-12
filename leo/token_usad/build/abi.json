@@ -1,5 +1,5 @@
 {
-  "program": "veilmarkets_token_usad_v10.aleo",
+  "program": "veilmarkets_usad_build_v11.aleo",
   "structs": [
     {
       "path": [
@@ -56,7 +56,7 @@
                 "path": [
                   "TokenMerkleProof"
                 ],
-                "program": "veilmarkets_token_usad_v10.aleo"
+                "program": "veilmarkets_usad_build_v11.aleo"
               }
             }
           },
@@ -70,7 +70,7 @@
                 "path": [
                   "TokenMerkleProof"
                 ],
-                "program": "veilmarkets_token_usad_v10.aleo"
+                "program": "veilmarkets_usad_build_v11.aleo"
               }
             }
           },
@@ -168,7 +168,7 @@
               "path": [
                 "BetPosition"
               ],
-              "program": "veilmarkets_core_v10.aleo"
+              "program": "veilmarkets_core_build_v11.aleo"
             }
           },
           "mode": "None"
@@ -203,7 +203,7 @@
                 "path": [
                   "TokenMerkleProof"
                 ],
-                "program": "veilmarkets_token_usad_v10.aleo"
+                "program": "veilmarkets_usad_build_v11.aleo"
               }
             }
           },
@@ -217,7 +217,7 @@
                 "path": [
                   "TokenMerkleProof"
                 ],
-                "program": "veilmarkets_token_usad_v10.aleo"
+                "program": "veilmarkets_usad_build_v11.aleo"
               }
             }
           },

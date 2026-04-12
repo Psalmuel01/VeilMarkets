@@ -1,7 +1,7 @@
 import { supabase } from "./supabase";
 import { PROGRAM_ID } from "./constants";
 
-const MARKETS_TABLE_V10 = "markets_v10";
+const MARKETS_TABLE_V11 = "markets_v11";
 
 export interface MarketMetadata {
   title: string;
@@ -50,7 +50,7 @@ export const saveMarketMetadata = async (payload: SaveMarketMetadataInput) => {
     .filter((label) => label.length > 0);
 
   const { data, error } = await supabase
-    .from(MARKETS_TABLE_V10)
+    .from(MARKETS_TABLE_V11)
     .insert([
       {
         program_id: PROGRAM_ID,
@@ -81,18 +81,18 @@ export const saveMarketMetadata = async (payload: SaveMarketMetadataInput) => {
 
 export const getAllMarketMetadata = async (): Promise<MarketMetadataRow[]> => {
   try {
-    const v10Result = await supabase
-      .from(MARKETS_TABLE_V10)
+    const v11Result = await supabase
+      .from(MARKETS_TABLE_V11)
       .select(
         "program_id, market_id, transaction_id, title, description, source, category, market_type, outcome_count, outcome_labels, token_id, close_time, resolution_time, created_by, created_at, expiry_time",
       )
       .order("created_at", { ascending: false });
 
-    if (v10Result.error && v10Result.error.code !== "42P01") {
-      console.error("[getAllMarketMetadata] v10 Error:", v10Result.error.message);
+    if (v11Result.error && v11Result.error.code !== "42P01") {
+      console.error("[getAllMarketMetadata] v11 Error:", v11Result.error.message);
     }
 
-    const v10Rows = (v10Result.data ?? []).map((row) => ({
+    const v11Rows = (v11Result.data ?? []).map((row) => ({
       program_id: String(row.program_id ?? PROGRAM_ID),
       market_id: row.market_id,
       transaction_id: row.transaction_id,
@@ -114,7 +114,7 @@ export const getAllMarketMetadata = async (): Promise<MarketMetadataRow[]> => {
     }));
 
     const deduped = new Map<string, MarketMetadataRow>();
-    v10Rows.forEach((row) => {
+    v11Rows.forEach((row) => {
       const key = `${row.program_id ?? PROGRAM_ID}:${row.market_id}`;
       if (!deduped.has(key)) deduped.set(key, row);
     });
@@ -133,7 +133,7 @@ export const getAllMarketMetadata = async (): Promise<MarketMetadataRow[]> => {
 export const getMarketMetadata = async (marketId: string): Promise<MarketMetadataRow | null> => {
   try {
     const { data, error } = await supabase
-      .from(MARKETS_TABLE_V10)
+      .from(MARKETS_TABLE_V11)
       .select(
         "program_id, market_id, transaction_id, title, description, source, category, market_type, outcome_count, outcome_labels, token_id, close_time, resolution_time, created_by, created_at, expiry_time",
       )

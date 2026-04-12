@@ -1,5 +1,5 @@
 {
-  "program": "veilmarkets_governance_v10.aleo",
+  "program": "veilmarkets_gov_build_v11.aleo",
   "structs": [
     {
       "path": [
@@ -95,7 +95,7 @@
           "path": [
             "Proposal"
           ],
-          "program": "veilmarkets_governance_v10.aleo"
+          "program": "veilmarkets_gov_build_v11.aleo"
         }
       }
     },

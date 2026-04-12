@@ -69,7 +69,7 @@ const sections = [
   },
   {
     id: "whats-new",
-    title: "What's New in v10",
+    title: "What's New in v11",
     icon: Zap,
     content: [
       {
@@ -112,7 +112,7 @@ const sections = [
       },
       {
         title: "Smart contracts",
-        description: "The v10 suite includes factory, core, oracle, governance, and token adapters (Credits, USDCx, USAD). Together they enforce market creation, share trading, quorum resolution, governance-bound params, and payout verification.",
+        description: "The v11 suite includes factory, core, oracle, governance, and token adapters (Credits, USDCx, USAD). Together they enforce market creation, share trading, quorum resolution, governance-bound params, and payout verification.",
       },
     ],
   },
@@ -185,7 +185,7 @@ export default function DocsPage() {
             <h1 className="text-4xl font-bold">Documentation</h1>
           </div>
           <p className="text-muted-foreground text-lg">
-            Learn how VeilMarkets v10 powers private multi-outcome prediction markets with multi-token settlement on Aleo
+            Learn how VeilMarkets v11 powers private multi-outcome prediction markets with multi-token settlement on Aleo
           </p>
         </motion.div>
 
