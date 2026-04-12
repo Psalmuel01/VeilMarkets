@@ -1,6 +1,6 @@
-import veilmarkets_factory_build_v11.aleo;
+import veilmarkets_factory_v11.aleo;
 
-program veilmarkets_core_build_v11.aleo {
+program veilmarkets_core_v11.aleo {
     const OUTCOME_UNRESOLVED: u8 = 254u8;
     const OUTCOME_CANCELLED: u8 = 255u8;
 
@@ -135,7 +135,7 @@ program veilmarkets_core_build_v11.aleo {
         public resolution_time: u64,
         public token_id: address,
     ) -> Final {
-        let auth_future: Final = veilmarkets_factory_build_v11.aleo::verify_is_registered(
+            let auth_future: Final = veilmarkets_factory_v11.aleo::verify_is_registered(
             TOKEN_CONTRACT_TYPE, token_id,
         );
         let caller: address = self.caller;
@@ -329,7 +329,7 @@ program veilmarkets_core_build_v11.aleo {
     ) -> Final {
         assert(resolver != self.address);
         let caller: address = self.caller;
-        let auth_future: Final = veilmarkets_factory_build_v11.aleo::verify_is_registered(
+        let auth_future: Final = veilmarkets_factory_v11.aleo::verify_is_registered(
             ORACLE_CONTRACT_TYPE, caller,
         );
         return final {
@@ -353,7 +353,7 @@ program veilmarkets_core_build_v11.aleo {
 
     fn set_protocol_u64(public param_key: u8, public value: u64) -> Final {
         let caller: address = self.caller;
-        let auth: Final = veilmarkets_factory_build_v11.aleo::verify_is_registered(
+        let auth: Final = veilmarkets_factory_v11.aleo::verify_is_registered(
             GOVERNANCE_CONTRACT_TYPE, caller,
         );
         return final {
@@ -363,7 +363,7 @@ program veilmarkets_core_build_v11.aleo {
 
     fn set_protocol_u8(public param_key: u8, public value: u8) -> Final {
         let caller: address = self.caller;
-        let auth: Final = veilmarkets_factory_build_v11.aleo::verify_is_registered(
+        let auth: Final = veilmarkets_factory_v11.aleo::verify_is_registered(
             GOVERNANCE_CONTRACT_TYPE, caller,
         );
         return final {

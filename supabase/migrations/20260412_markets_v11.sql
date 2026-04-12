@@ -4,7 +4,7 @@ create extension if not exists pgcrypto;
 
 create table if not exists public.markets_v11 (
   market_id text primary key,
-  program_id text not null default 'veilmarkets_core_build_v11.aleo',
+  program_id text not null default 'veilmarkets_core_v11.aleo',
   transaction_id text not null unique,
   title text not null,
   description text not null default '',

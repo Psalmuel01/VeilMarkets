@@ -1,6 +1,6 @@
 // VeilMarkets Factory (v11 buildathon)
 // Canonical registry + trust anchor for cross-program authorization.
-program veilmarkets_factory_build_v11.aleo {
+program veilmarkets_factory_v11.aleo {
     mapping contracts: address => u8;
 
     const TYPE_TOKEN: u8 = 1u8;

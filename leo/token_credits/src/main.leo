@@ -1,10 +1,10 @@
 // VeilMarkets Token — Credits Adapter (v11 buildathon)
 // Private credits rail for buy/fund/claim + governance-gated protocol fee withdrawals.
 import credits.aleo;
-import veilmarkets_core_build_v11.aleo;
-import veilmarkets_factory_build_v11.aleo;
+import veilmarkets_core_v11.aleo;
+import veilmarkets_factory_v11.aleo;
 
-program veilmarkets_credits_build_v11.aleo {
+program veilmarkets_token_credits_v11.aleo {
     const GOVERNANCE_CONTRACT_TYPE: u8 = 4u8;
     const MIN_BET: u64 = 1000000u64;
 
@@ -19,7 +19,7 @@ program veilmarkets_credits_build_v11.aleo {
         public min_shares_out: u64,
         public expected_shares_out: u64,
         public position_nonce: field,
-    ) -> (credits.aleo::credits, veilmarkets_core_build_v11.aleo::BetPosition, Final) {
+    ) -> (credits.aleo::credits, veilmarkets_core_v11.aleo::BetPosition, Final) {
         assert(input_credits.microcredits >= collateral_in);
         assert(collateral_in >= MIN_BET);
         assert(min_shares_out > 0u64);
@@ -44,8 +44,8 @@ program veilmarkets_credits_build_v11.aleo {
             self.signer as field + position_id,
         );
 
-        let (position, core_future): (veilmarkets_core_build_v11.aleo::BetPosition, Final) =
-            veilmarkets_core_build_v11.aleo::buy_shares(
+        let (position, core_future): (veilmarkets_core_v11.aleo::BetPosition, Final) =
+            veilmarkets_core_v11.aleo::buy_shares(
                 market_id,
                 outcome,
                 collateral_in,
@@ -79,7 +79,7 @@ program veilmarkets_credits_build_v11.aleo {
         // LP ownership key is intentionally stable per user for per-market LP accounting.
         // Note: this field is public when passed into core.
         let lp_owner_key: field = self.signer as field;
-        let core_future: Final = veilmarkets_core_build_v11.aleo::fund_pool(
+        let core_future: Final = veilmarkets_core_v11.aleo::fund_pool(
             market_id,
             amount,
             lp_owner_key,
@@ -95,7 +95,7 @@ program veilmarkets_credits_build_v11.aleo {
         public payout_amount: u64,
         public nullifier: field,
     ) -> (credits.aleo::credits, Final) {
-        let core_result: Final = veilmarkets_core_build_v11.aleo::verify_claim(
+        let core_result: Final = veilmarkets_core_v11.aleo::verify_claim(
             nullifier,
             payout_amount,
         );
@@ -116,11 +116,11 @@ program veilmarkets_credits_build_v11.aleo {
         public authorization_id: field,
         public recipient: address,
     ) -> (credits.aleo::credits, Final) {
-        let gov_auth: Final = veilmarkets_factory_build_v11.aleo::verify_is_registered(
+        let gov_auth: Final = veilmarkets_factory_v11.aleo::verify_is_registered(
             GOVERNANCE_CONTRACT_TYPE,
             self.caller,
         );
-        let core_auth: Final = veilmarkets_core_build_v11.aleo::authz_fee_withdrawal(
+        let core_auth: Final = veilmarkets_core_v11.aleo::authz_fee_withdrawal(
             amount,
             authorization_id,
         );

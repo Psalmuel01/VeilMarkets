@@ -37,13 +37,13 @@ VeilMarkets lets users create markets, trade outcome shares, and claim payouts w
 
 ## Contracts (v11)
 
-- Core: `veilmarkets_core_build_v11.aleo`
-- Factory: `veilmarkets_factory_build_v11.aleo`
-- Oracle: `veilmarkets_oracle_build_v11.aleo`
-- Governance: `veilmarkets_gov_build_v11.aleo`
-- Credits adapter: `veilmarkets_credits_build_v11.aleo`
-- USDCx adapter: `veilmarkets_usdcx_build_v11.aleo`
-- USAD adapter: `veilmarkets_usad_build_v11.aleo`
+- Core: `veilmarkets_core_v11.aleo`
+- Factory: `veilmarkets_factory_v11.aleo`
+- Oracle: `veilmarkets_oracle_v11.aleo`
+- Governance: `veilmarkets_governance_v11.aleo`
+- Credits adapter: `veilmarkets_token_credits_v11.aleo`
+- USDCx adapter: `veilmarkets_token_usdcx_v11.aleo`
+- USAD adapter: `veilmarkets_token_usad_v11.aleo`
 
 ## Architecture Overview
 
@@ -93,13 +93,13 @@ VITE_USAD_TOKEN_PROGRAM_ADDRESS=aleo1...
 
 Suggested order:
 
-1. `veilmarkets_factory_build_v11`
-2. `veilmarkets_core_build_v11`
-4. `veilmarkets_gov_build_v11`
-3. `veilmarkets_oracle_build_v11`
-5. `veilmarkets_credits_build_v11`
-6. `veilmarkets_usdcx_build_v11`
-7. `veilmarkets_usad_build_v11`
+1. `veilmarkets_factory_v11`
+2. `veilmarkets_core_v11`
+3. `veilmarkets_governance_v11`
+4. `veilmarkets_oracle_v11`
+5. `veilmarkets_token_credits_v11`
+6. `veilmarkets_token_usdcx_v11`
+7. `veilmarkets_token_usad_v11`
 
 ### 4) Register Contracts in Factory
 
@@ -145,10 +145,10 @@ npm run dev
 For a deeper understanding of VeilMarkets:
 
 - 📘 [Getting Started](./walkthrough.md)  
-  Learn how to use the platform: creating markets, placing bets, and claiming rewards  
+  Learn how to use the platform: creating markets, placing bets, and claiming rewards
 
 - 🧠 [Technical Architecture](./architecture.md)  
-  Explore the system design, contract interactions, and privacy model  
+  Explore the system design, contract interactions, and privacy model
 
 ## License
 

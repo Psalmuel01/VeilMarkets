@@ -1,14 +1,14 @@
 {
-  "program": "veilmarkets_core_build_v11.aleo",
+  "program": "veilmarkets_core_v11.aleo",
   "version": "0.1.0",
   "description": "",
   "license": "MIT",
   "leo": "4.0.0",
   "dependencies": [
     {
-      "name": "veilmarkets_factory_build_v11.aleo",
-      "location": "network",
-      "path": null
+      "name": "veilmarkets_factory_v11.aleo",
+      "location": "local",
+      "path": "../factory"
     }
   ],
   "dev_dependencies": null
