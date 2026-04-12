@@ -1,96 +1,124 @@
-# VeilMarkets Update
+```markdown
+# VeilMarkets Update Log
 
-## Wave 4 Recap (v8 + Product Revamp)
+## v13 — FPMM Rewrite (Current)
+**Network:** Aleo Testnet | **Status:** Live
 
-Wave 4 focused on turning VeilMarkets from a binary-only prototype into a production-shaped private prediction product with stronger UX, multi-token rails, and richer market structures.
+### What Changed
 
-### 1) Full UI/UX Revamp
-- Refreshed core product flows across market discovery, market details, market creation, and betting.
-- Improved interaction consistency and loading/success states (including post-bet success handling).
-- Added cleaner market card presentation with subtle token identity so currency context is clear at a glance.
+**Protocol model replaced entirely.**
+Moved from a broken hybrid AMM to pure Fixed Product Market Maker (FPMM) with
+fixed $1 redemption. Every winning share pays exactly 1 unit of collateral.
+Price equals implied probability. This is the same model Polymarket uses.
 
-### 2) Better Experience for Non-Connected Users
-- Improved read-only browsing paths so users can discover markets before connecting.
-- Reduced wallet-gated friction in the default UI state.
-- Tightened conditional rendering for wallet-required actions and status cards.
+**How it works now:**
+- LP deposits mint equal outcome tokens to all outcomes simultaneously
+- Traders buy outcome tokens from the pool using the constant product formula
+- Pool token quantity decreases for bought outcome, collateral increases
+- At resolution, outstanding tokens (supply minus pool qty) = winner payout pool
+- LPs receive everything remaining after winners are paid
 
-### 3) Multi-Token Support (ALEO Credits + USDCx + USAD)
-- Extended protocol support to three token rails:
-  - `credits.aleo` (Aleo Credits)
-  - `test_usdcx_stablecoin.aleo` via `veilmarkets_token_usdcx_v8.aleo`
-  - `test_usad_stablecoin.aleo` via `veilmarkets_token_usad_v8.aleo`
-- Added token-aware behavior in frontend flows (creation, market cards, filtering, bet placement).
-- Added currency filter UX in markets page so users can quickly segment by token.
-
-### 4) Beyond Binary: Categorical Markets
-- Introduced market types beyond yes/no:
-  - Binary markets
-  - Categorical markets (2-8 outcomes)
-- Added outcome count and label support across stack:
-  - Create flow collects/validates outcomes
-  - Metadata stores `market_type`, `outcome_count`, `outcome_labels`
-  - Detail/betting/resolution UI renders dynamic outcome sets
-- Oracle/core logic upgraded to resolve indexed outcomes (not just boolean winner).
-
-### 5) Contract Suite Upgrade to v8
-- Upgraded and aligned contracts to v8 naming and interfaces:
-  - `veilmarkets_factory_v8.aleo`
-  - `veilmarkets_v8.aleo`
-  - `veilmarkets_oracle_v8.aleo`
-  - `veilmarkets_token_credits_v8.aleo`
-  - `veilmarkets_token_usdcx_v8.aleo`
-  - `veilmarkets_token_usad_v8.aleo`
-- Updated Leo program dependencies/imports/tests accordingly.
-- Rebuilt contracts and validated compile flow under v8 suite.
-
-
-### 6) Oracle Lifecycle and Status Tracking
-- Improved oracle status tracking in frontend state.
-- Added unstake-driven status downgrade behavior (losing effective oracle status when stake falls below threshold).
-- Kept registration/staking flows aligned with updated contract semantics.
-
-### 7) Economic Hardening: Oracle Dispute Rewards
-- Introduced a **90/10 reward split** for market resolution disputes:
-  - **Winners** (Proposer or Disputer) receive 90% of the loser's stake/bond.
-  - **Platform** collects 10% as residues to maintain the oracle network.
-- **Fixed-Stake Slashing for Proposers**: Wrong proposals result in a slash of 30 Credits (minimum stake) to ensure accountability without over-penalizing large oracles.
-- **Disputer-Stake Slashing**: Disputers lose their entire bond if they lose a challenge, discouraging spam/lazy disputes.
-
-
-
-### 8) Implemented end-to-end auto-refresh behavior with React Query, invalidation, and realtime updates, for smooth user experience.
----
-
-## Current Product State After Wave 4
-
-VeilMarkets now supports private prediction markets across multiple settlement tokens, with both binary and categorical outcomes, and a v8 contract/metadata backbone ready for repeated deployment cycles.
+**The formula:**
+```
+Buy:  tokens_out = qty_outcome × net_in / (total_other_qty + net_in)
+Sell: collateral_out = total_other_qty × shares / (qty_outcome + shares)
+```
 
 ---
 
-## Wave 5 Plan (Next)
+### Bugs Fixed
 
-Wave 5 is focused on production hardening, deeper privacy guarantees, and scaling market design flexibility.
+| Bug | Fix |
+|---|---|
+| Share quote always failed | Removed solvency check that blocked trades below 50% price. FPMM math naturally enforces solvency. |
+| Winners claimed LP capital | LP and trading collateral now separated. Winners paid from trading pool only. |
+| No LP withdrawal | `withdraw_liquidity` implemented. Post-resolution only. Pays LP return pool + fee share. |
+| Creator rug vector | `cancel_market` blocked once any liquidity or trading exists. |
+| All contract calls failed with parse error | Removed inter-finalize helper function calls (`assert_protocol_not_paused`, `assert_oracle_not_paused`). Pause checks inlined directly into each finalize. SDK could not parse compiled inter-finalize call instructions. |
+| Protocol fees never withdrawable | `authz_fee_withdrawal` implemented with separate `spent_auth_ids` mapping. No longer mixed with position nullifiers. |
+| LP deposit had no effect on pricing | LP tokens now correctly initialize FPMM pool state via `outcome_token_qty`. |
+| trader_count and lp_count conflated | Separated in PoolState. Volume, OI, TVL now consistent across all UI pages. |
 
-### A) Advanced Market Types
-- Add additional non-binary market structures:
-  - Scalar/range markets
-  - Ranked/ordered outcome markets
-  - Multi-select outcome markets
-- Extend odds/probability visualization per market type.
+---
 
-### B) Resolution and Governance Hardening
-- Expand oracle accountability (challenge/dispute tooling, slashing hooks where applicable).
-- Improve proposal/vote/finalization observability in UI.
-- Add stronger edge-case handling for expired/cancelled/inconclusive markets.
+### Oracle Updates
 
-### C) Liquidity and Payout UX
-- Improve low-balance and payout-path UX across all supported tokens.
-- Add unified claim/refund center and clearer pending-state tracking.
-- Strengthen payout error diagnostics for faster user recovery.
+- Stake locking per proposal — proposer cannot unstake while bond is active
+- Voter rewards — correct-side voters earn 20% of slashed stake
+- Dispute timeout — if quorum not reached within 30 minutes of challenge window, falls back to proposed outcome (prevents stuck markets)
+- Platform fee pool replaces hardcoded admin address
+- Testnet defaults: 20 ALEO min stake, 10 minute dispute window, 2 min voters
 
-### D) Data, Analytics, and Reliability
-- Add product analytics around funnel drop-off (create, bet, claim).
-- Improve production filtering/search resiliency across environments.
-- Expand test coverage (frontend integration + Leo interaction smoke tests).
+---
 
+### Governance Updates
 
+- Stake-weighted voting (default weight 0 — admin must assign explicitly)
+- 24-hour execution timelock after vote passes
+- Oracle parameter changes authorized via `consume_oracle_u64/u8` pattern
+  (breaks circular import between oracle and governance)
+
+---
+
+### Frontend Updates
+
+- Quote functions fully rewritten using FPMM formula with BigInt precision
+- Quotes computed client-side from `outcome_token_qty` RPC reads — no transaction needed
+- `fetchMarkets` batched in groups of 8 to avoid RPC rate limits
+- Resolution finalize button visible to all users, not admin only
+- LP balance display reads from `lp_balances` mapping via derived key
+- LP withdrawable estimate = proportional lp_return_pool + fee_pool share
+
+---
+
+### Privacy — What Is Actually Private in v13
+
+| Data | Private? |
+|---|---|
+| Outcome you bet on | **No — public on-chain** |
+| Amount you bet | **No — public on-chain** |
+| Shares you hold after purchase | Yes — BetPosition record |
+| Your payout when claiming | Yes — WinningsClaim record |
+| LP deposit amount | **No — public on-chain** |
+| Oracle votes and stake | **No — by design** |
+| Market prices and pool depth | **No — by design** |
+
+The Aleo finalize model requires outcome and amount to be public inputs
+because validators must read them to update pool state. Full trade privacy
+requires a commit-reveal architecture, out of scope for this version.
+
+**Accurate claim:** Your position contents after purchase and your winnings
+at claim time are private. The trade itself is not.
+
+---
+
+### Removed
+
+`place_bet` · `refund_bet` · `mint_position_record` · `mint_share_record`
+· quote storage mappings · `outcome_exposure` mapping · `virtual_liq` param
+· `participant_count` · `EscrowedBet` record · `pending_position_*` mappings
+· `escrow_id` field · `assert_protocol_not_paused()` helper fn
+· `assert_oracle_not_paused()` helper fn
+
+---
+
+### Deployment Order
+
+```
+factory → core → governance → oracle → credits → usdcx → usad
+then register all seven in factory, assign governance voter weights,
+register oracle wallet with ≥ 20 ALEO stake
+```
+
+---
+
+### Open for v14
+
+- Fair LP fee distribution using cumulative fee index (current model
+  allows late LPs to claim fees they did not earn)
+- Emergency LP withdrawal for markets stuck 7+ days past resolution time
+- Per-trade position size cap to prevent outcome manipulation
+- On-chain challenger ≠ proposer enforcement
+- Outcome label metadata via IPFS + indexer
+- WithdrawLiquidityModal and CancelMarket UI fully wired
+```
