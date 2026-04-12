@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutGrid,
@@ -12,11 +13,14 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
+import { OracleRegistrationModal } from "@/components/resolution/OracleRegistrationModal";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { useSidebar } from "@/context/SidebarContext";
 import {
   useCreditsBalancesQuery,
   useMarketsQuery,
+  useOracleLockedStakeQuery,
+  useOracleStakeQuery,
   useUSADBalancesQuery,
   useUSDCxBalancesQuery,
 } from "@/hooks/useVeilQuery";
@@ -34,11 +38,16 @@ export function Sidebar() {
   const collapsed = isCollapsed;
   const location = useLocation();
   const { publicKey } = useAleoPrograms();
+  const [showOracleModal, setShowOracleModal] = useState(false);
   const { data: markets = [] } = useMarketsQuery();
   const { data: balances } = useCreditsBalancesQuery();
   const { data: usdcxBalances } = useUSDCxBalancesQuery();
   const { data: usadBalances } = useUSADBalancesQuery();
+  const { data: oracleStake = 0 } = useOracleStakeQuery();
+  const { data: oracleLockedStake = 0 } = useOracleLockedStakeQuery();
   const activeMarketsCount = markets.length;
+  const isOracle = oracleStake >= 20_000_000;
+  const unlockedOracleStake = Math.max(0, oracleStake - oracleLockedStake);
 
   return (
     <>
@@ -166,12 +175,49 @@ export function Sidebar() {
                           : "..."}
                       </span>
                     </div>
+                    <div className="pt-3 border-t border-white/5 space-y-2">
+                      <div className="flex justify-between items-center group/bal">
+                        <span className="text-[10px] text-muted-foreground group-hover/bal:text-white transition-colors">
+                          Oracle Stake
+                        </span>
+                        <span className="text-sm font-semibold font-mono text-white">
+                          {(oracleStake / 1_000_000).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center group/bal">
+                        <span className="text-[10px] text-muted-foreground group-hover/bal:text-white transition-colors">
+                          Locked / Open
+                        </span>
+                        <span className="text-[11px] font-semibold font-mono text-muted-foreground">
+                          {(oracleLockedStake / 1_000_000).toLocaleString()} / {(unlockedOracleStake / 1_000_000).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
             </div>
           </div>
         </div>
+
+        {publicKey && (
+          <div className={cn("px-4 pb-2 transition-all duration-300", collapsed ? "lg:hidden" : "block")}>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full justify-between rounded-2xl border-white/10 bg-white/[0.03] hover:bg-white/[0.06] text-white"
+              onClick={() => setShowOracleModal(true)}
+            >
+              <span className="flex items-center gap-2 text-xs">
+                <Shield className={cn("w-2 h-2", isOracle ? "text-success" : "text-amber-500")} />
+                <span>{isOracle ? "Manage Stake" : "Become an Oracle"}</span>
+              </span>
+              <span className="text-[10px] font-mono text-muted-foreground">
+                {(oracleStake / 1_000_000).toLocaleString()} CR
+              </span>
+            </Button>
+          </div>
+        )}
 
         {/* Wallet Connect & Faucet */}
         <div className="p-3 border-t border-border/50 space-y-2">
@@ -202,6 +248,11 @@ export function Sidebar() {
           </Button>
         </div>
       </aside>
+
+      <OracleRegistrationModal
+        isOpen={showOracleModal}
+        onClose={() => setShowOracleModal(false)}
+      />
     </>
   );
 }
