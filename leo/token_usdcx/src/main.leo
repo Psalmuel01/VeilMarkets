@@ -25,7 +25,7 @@ program veilmarkets_token_usdcx_v11.aleo {
         public collateral_in: u64,
         public min_shares_out: u64,
         public expected_shares_out: u64,
-        public position_nonce: field,
+        position_nonce: field,
     ) -> (
         test_usdcx_stablecoin.aleo::ComplianceRecord,
         test_usdcx_stablecoin.aleo::Token,
@@ -70,9 +70,7 @@ program veilmarkets_token_usdcx_v11.aleo {
                 + collateral_in as field
                 + position_nonce,
         );
-        let owner_commitment: field = BHP256::hash_to_field(
-            self.signer as field + position_id,
-        );
+        let owner_commitment: field = BHP256::hash_to_field(position_id);
 
         let (position, core_future): (veilmarkets_core_v11.aleo::BetPosition, Final) =
             veilmarkets_core_v11.aleo::buy_shares(
@@ -130,9 +128,7 @@ program veilmarkets_token_usdcx_v11.aleo {
             token_proof,
         );
 
-        // LP ownership key is intentionally stable per user for per-market LP accounting.
-        // Note: this field is public when passed into core.
-        let lp_owner_key: field = self.signer as field;
+        let lp_owner_key: field = BHP256::hash_to_field(market_id + self.signer as field);
         let core_future: Final = veilmarkets_core_v11.aleo::fund_pool(
             market_id,
             amount,

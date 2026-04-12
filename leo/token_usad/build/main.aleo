@@ -19,7 +19,7 @@ function buy_shares:
     input r5 as u64.public;
     input r6 as u64.public;
     input r7 as u64.public;
-    input r8 as field.public;
+    input r8 as field.private;
     cast r5 into r9 as u128;
     gte r0.amount r9 into r10;
     assert.eq r10 true;
@@ -43,15 +43,13 @@ function buy_shares:
     add r24 r25 into r26;
     add r26 r8 into r27;
     hash.bhp256 r27 into r28 as field;
-    cast self.signer into r29 as field;
-    add r29 r28 into r30;
-    hash.bhp256 r30 into r31 as field;
-    call veilmarkets_core_v11.aleo/buy_shares r3 r4 r5 r6 r7 r28 r31 into r32 r33;
-    async buy_shares r20 r33 into r34;
+    hash.bhp256 r28 into r29 as field;
+    call veilmarkets_core_v11.aleo/buy_shares r3 r4 r5 r6 r7 r28 r29 into r30 r31;
+    async buy_shares r20 r31 into r32;
     output r18 as test_usad_stablecoin.aleo/ComplianceRecord.record;
     output r19 as test_usad_stablecoin.aleo/Token.record;
-    output r32 as veilmarkets_core_v11.aleo/BetPosition.record;
-    output r34 as veilmarkets_token_usad_v11.aleo/buy_shares.future;
+    output r30 as veilmarkets_core_v11.aleo/BetPosition.record;
+    output r32 as veilmarkets_token_usad_v11.aleo/buy_shares.future;
 
 finalize buy_shares:
     input r0 as test_usad_stablecoin.aleo/transfer_private_to_public.future;
@@ -75,11 +73,13 @@ function fund_pool:
     cast r8 r9 into r10 as [test_usad_stablecoin.aleo/MerkleProof; 2u32];
     call test_usad_stablecoin.aleo/transfer_private_to_public veilmarkets_token_usad_v11.aleo r5 r0 r10 into r11 r12 r13;
     cast self.signer into r14 as field;
-    call veilmarkets_core_v11.aleo/fund_pool r3 r4 r14 into r15;
-    async fund_pool r13 r15 into r16;
+    add r3 r14 into r15;
+    hash.bhp256 r15 into r16 as field;
+    call veilmarkets_core_v11.aleo/fund_pool r3 r4 r16 into r17;
+    async fund_pool r13 r17 into r18;
     output r11 as test_usad_stablecoin.aleo/ComplianceRecord.record;
     output r12 as test_usad_stablecoin.aleo/Token.record;
-    output r16 as veilmarkets_token_usad_v11.aleo/fund_pool.future;
+    output r18 as veilmarkets_token_usad_v11.aleo/fund_pool.future;
 
 finalize fund_pool:
     input r0 as test_usad_stablecoin.aleo/transfer_private_to_public.future;

@@ -135,7 +135,7 @@ export function OracleRegistrationModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(nextOpen) => { if (!nextOpen) handleClose(); }}>
-      <DialogContent className="sm:max-w-md bg-card">
+      <DialogContent className="sm:max-w-lg bg-card">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Shield className="w-5 h-5 text-amber-500" />

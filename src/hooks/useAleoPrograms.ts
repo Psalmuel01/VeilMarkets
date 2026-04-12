@@ -1,12 +1,9 @@
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { toast } from "sonner";
-import type { TxHistoryResult } from "@provablehq/aleo-types";
 import {
   fetchMappingValue,
   fetchTransaction,
   parseMarketInfo,
-  fetchCurrentBlockHeight,
-  DEFAULT_BLOCK_TIME_SECONDS,
   PoolInfo,
   parsePoolInfo,
   parseResolutionProposal,
@@ -16,11 +13,9 @@ import {
   getAllMarketMetadata,
   type MarketMetadataRow,
 } from "../lib/metadata";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
 import { useRefresh } from "../context/RefreshContext";
 import { formatDateFriendly } from "@/lib/utils";
-
-type TxHistoryTransaction = TxHistoryResult["transactions"][number];
 
 interface WalletRecord {
   id?: string;
@@ -172,15 +167,6 @@ const cleanAleoPrimitive = (value: unknown): string => {
       .trim();
   }
   return String(value ?? "");
-};
-
-const parseAleoAmount = (value: unknown): number => {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const parsed = Number.parseInt(value.replace(/u64|u128|u32/g, "").trim(), 10);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-  return 0;
 };
 
 const unwrapValue = (value: unknown): unknown => {
@@ -433,55 +419,51 @@ const normalizeFieldId = (marketId: string): string =>
   marketId.includes("field") ? marketId.replace(/\s+/g, "") : `${marketId.replace(/\s+/g, "")}field`;
 
 let cachedBhpHelpers:
-  | {
-    hashOutcomeKey: (marketIdField: string, outcome: number) => string | null;
-    hashLpKey: (marketIdField: string, lpOwnerField: string) => string | null;
-  }
+  | BhpHelpers
   | null = null;
 
-const getBhpHelpers = async (): Promise<{
+type BhpHelpers = {
   hashOutcomeKey: (marketIdField: string, outcome: number) => string | null;
   hashLpKey: (marketIdField: string, lpOwnerField: string) => string | null;
-} | null> => {
+};
+
+const buildBhpFieldKey = (
+  wasm: Awaited<typeof import("@provablehq/wasm")>,
+  bhp: InstanceType<(typeof import("@provablehq/wasm"))["BHP256"]>,
+  left: string,
+  right: string,
+): string | null => {
+  try {
+    const leftField = wasm.Field.fromString(normalizeField(left));
+    const rightField = wasm.Field.fromString(normalizeField(right));
+    const sumField = leftField.add(rightField);
+
+    // The contracts derive these mapping keys with BHP256 over the field bits.
+    // We lazily load the wasm module and reuse one BHP instance so read-only
+    // queries can mirror the on-chain key derivation without paying that setup
+    // cost on every hook render.
+    const bits = sumField.toBitsLe();
+    while (bits.length < 256) bits.push(false);
+
+    return bhp.hash(bits).toString();
+  } catch (error) {
+    console.error("[BHP] Error deriving mapping key:", error);
+    return null;
+  }
+};
+
+const getBhpHelpers = async (): Promise<BhpHelpers | null> => {
   if (cachedBhpHelpers) return cachedBhpHelpers;
   try {
     const wasm = await import("@provablehq/wasm");
     const bhp = new wasm.BHP256();
     cachedBhpHelpers = {
       hashOutcomeKey: (marketIdField: string, outcome: number) => {
-        try {
-          const marketField = wasm.Field.fromString(normalizeField(marketIdField));
-          const outcomeField = wasm.Field.fromString(`${Math.max(0, Math.floor(outcome))}field`);
-          const sumField = marketField.add(outcomeField);
-
-          // Leo's BHP256::hash_to_field expects bits of the field.
-          // Field.toBitsLe() returns ~253 bits. We pad to 256 bits (standard BHP chunk).
-          const bits = sumField.toBitsLe();
-          while (bits.length < 256) bits.push(false);
-
-          const derivedKey = bhp.hash(bits).toString();
-          return derivedKey;
-        } catch (err) {
-          console.error("[BHP] Error hashing outcome key:", err);
-          return null;
-        }
+        const normalizedOutcome = `${Math.max(0, Math.floor(outcome))}field`;
+        return buildBhpFieldKey(wasm, bhp, marketIdField, normalizedOutcome);
       },
       hashLpKey: (marketIdField: string, lpOwnerField: string) => {
-        try {
-          const marketField = wasm.Field.fromString(normalizeField(marketIdField));
-          const ownerField = wasm.Field.fromString(normalizeField(lpOwnerField));
-          const sumField = marketField.add(ownerField);
-
-          // Field.toBitsLe() returns ~253 bits. Pad to 256 bits.
-          const bits = sumField.toBitsLe();
-          while (bits.length < 256) bits.push(false);
-
-          const derivedKey = bhp.hash(bits).toString();
-          return derivedKey;
-        } catch (err) {
-          console.error("[BHP] Error hashing LP key:", err);
-          return null;
-        }
+        return buildBhpFieldKey(wasm, bhp, marketIdField, lpOwnerField);
       },
     };
     return cachedBhpHelpers;
@@ -506,15 +488,21 @@ const deriveLpBalanceKey = async (marketIdField: string, lpOwnerField: string): 
   return helpers.hashLpKey(marketIdField, lpOwnerField);
 };
 
+const deriveLpOwnerCommitment = async (marketIdField: string, ownerField: string): Promise<string | null> => {
+  const helpers = await getBhpHelpers();
+  if (!helpers) return null;
+  return helpers.hashLpKey(marketIdField, ownerField);
+};
+
 let cachedAddressFieldHelpers:
-  | {
-    toField: (address: string) => string;
-  }
+  | AddressFieldHelpers
   | null = null;
 
-const getAddressFieldHelpers = async (): Promise<{
+type AddressFieldHelpers = {
   toField: (address: string) => string;
-} | null> => {
+};
+
+const getAddressFieldHelpers = async (): Promise<AddressFieldHelpers | null> => {
   if (cachedAddressFieldHelpers) return cachedAddressFieldHelpers;
   try {
     const wasm = await import("@provablehq/wasm");
@@ -989,19 +977,6 @@ export const useAleoPrograms = () => {
     }
   }, []);
 
-  const [currentHeight, setCurrentHeight] = useState<number | null>(null);
-
-  useEffect(() => {
-    const updateHeight = async () => {
-      const h = await fetchCurrentBlockHeight();
-      if (!h) return;
-      setCurrentHeight(h);
-    };
-    updateHeight();
-    const interval = setInterval(updateHeight, 30000); // 30s is enough now that we don't estimate
-    return () => clearInterval(interval);
-  }, []);
-
   const fetchPoolStats = useCallback(async (marketId: string): Promise<PoolInfo | null> => {
     try {
       const cleanedId = marketId.replace("field", "").trim() + "field";
@@ -1272,11 +1247,6 @@ export const useAleoPrograms = () => {
     };
   }, [address, requestRecords]);
 
-  const fetchTokenBalance = useCallback(async (): Promise<number> => {
-    const balances = await fetchBalances();
-    return balances.total;
-  }, [fetchBalances]);
-
   const fetchArc20Balances = useCallback(async (
     baseProgramId: string,
     label: string,
@@ -1312,19 +1282,9 @@ export const useAleoPrograms = () => {
     return fetchArc20Balances("test_usdcx_stablecoin.aleo", "USDCx");
   }, [fetchArc20Balances]);
 
-  const fetchUSDCxBalance = useCallback(async (): Promise<number> => {
-    const balances = await fetchUSDCxBalances();
-    return balances.total;
-  }, [fetchUSDCxBalances]);
-
   const fetchUSADBalances = useCallback(async (): Promise<TokenBalanceSummary> => {
     return fetchArc20Balances("test_usad_stablecoin.aleo", "USAD");
   }, [fetchArc20Balances]);
-
-  const fetchUSADBalance = useCallback(async (): Promise<number> => {
-    const balances = await fetchUSADBalances();
-    return balances.total;
-  }, [fetchUSADBalances]);
 
 
   const createMarket = async (
@@ -1406,21 +1366,6 @@ export const useAleoPrograms = () => {
       console.error("Create market failed:", error);
       return null;
     }
-  };
-
-  const requestCredits = async () => {
-    toast.info("Opening Aleo Faucet...");
-    window.open("https://faucet.aleo.org/", "_blank");
-  };
-
-  const requestUSDCx = async () => {
-    toast.info("USDCx can be obtained via the official USDCx bridge/faucet on testnet.");
-    // In a real app, link to the specific USDCx faucet/bridge if available
-  };
-
-  const requestUSAD = async () => {
-    toast.info("USAD can be obtained via the official USAD bridge/faucet on testnet.");
-    // In a real app, link to the specific USAD faucet/bridge if available
   };
 
   const findTokenRecord = async (
@@ -1597,8 +1542,11 @@ export const useAleoPrograms = () => {
         const marketField = `${cleanMarketId}field`;
         const helpers = await getAddressFieldHelpers();
         if (helpers) {
-          const lpOwnerField = formatField(helpers.toField(address));
-          const lpBalanceKey = await deriveLpBalanceKey(marketField, lpOwnerField);
+          const ownerField = formatField(helpers.toField(address));
+          const lpOwnerCommitment = await deriveLpOwnerCommitment(marketField, ownerField);
+          const lpBalanceKey = lpOwnerCommitment
+            ? await deriveLpBalanceKey(marketField, lpOwnerCommitment)
+            : null;
           if (lpBalanceKey) {
             const [
               lpSharesRaw,
@@ -2321,60 +2269,6 @@ export const useAleoPrograms = () => {
     }
   };
 
-  const diagnoseResolution = async (marketId: string) => {
-    const cleanId = normalizeFieldId(marketId);
-    const nowTs = Math.floor(Date.now() / 1000);
-
-    // 1. Check market state
-    const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanId);
-    const market = marketRaw ? parseMarketInfo(marketRaw, cleanId) : null;
-
-    // 2. Check factory registration
-    const oracleRegRaw = await fetchMappingValue(
-      FACTORY_PROGRAM_ID,
-      "contracts",
-      ORACLE_PROGRAM_ID
-    );
-    void oracleRegRaw;
-
-    // 3. Check proposal
-    const proposalRaw = await fetchMappingValue(ORACLE_PROGRAM_ID, "proposals", cleanId);
-    const proposal = proposalRaw ? parseResolutionProposal(proposalRaw) : null;
-
-    if (proposal) {
-      void proposal.challenge_deadline;
-      void proposal.is_disputed;
-    }
-
-    // 4. Check locked bond
-    const lockedBondRaw = await fetchMappingValue(
-      ORACLE_PROGRAM_ID,
-      "proposal_locked_bond",
-      cleanId
-    );
-    void lockedBondRaw; // should be 30_000_000 if proposal is active
-
-    // 5. Check oracle pause state
-    const pauseRaw = await fetchMappingValue(ORACLE_PROGRAM_ID, "oracle_u8", "1u8");
-    void pauseRaw; // oracle pause state check
-    // should be 0
-
-    // 6. Check proposer stake
-    if (proposal?.proposer) {
-      const stakeRaw = await fetchMappingValue(
-        ORACLE_PROGRAM_ID,
-        "active_oracles",
-        proposal.proposer
-      );
-      await fetchMappingValue(
-        ORACLE_PROGRAM_ID,
-        "oracle_locked_stake",
-        proposal.proposer
-      );
-      void stakeRaw; // retained for potential future use
-    }
-  };
-
   const resolveMarketOnCore = async (marketId: string, outcome: number) => {
     if (!address) return;
     const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
@@ -2776,7 +2670,6 @@ export const useAleoPrograms = () => {
     sellShares,
     fundPool,
     withdrawLiquidity,
-    diagnoseResolution,
     resolveMarket: resolveMarketOnCore,
     proposeResolution,
     disputeResolution,
@@ -2793,11 +2686,8 @@ export const useAleoPrograms = () => {
     fetchBalances,
     fetchMarkets,
     fetchUserBets,
-    fetchTokenBalance,
     fetchUSDCxBalances,
-    fetchUSDCxBalance,
     fetchUSADBalances,
-    fetchUSADBalance,
     fetchMarketPositionSummary,
     fetchCoreProtocolConfig,
     quoteBuyShares,
@@ -2805,12 +2695,8 @@ export const useAleoPrograms = () => {
     fetchPoolStats,
     fetchOutcomeTotals,
     isOracleRegistered,
-    requestCredits,
-    requestUSDCx,
-    requestUSAD,
     refreshSignal,
     publicKey,
     loading,
-    currentHeight,
   };
 };

@@ -155,14 +155,13 @@ program veilmarkets_oracle_v11.aleo {
     }
 
     fn execute_quorum_resolution(public market_id: field, public outcome: u8) -> Final {
-        assert(outcome <= 7u8);
         let f_core: Final = veilmarkets_core_v11.aleo::resolve_market(
             market_id,
             outcome,
             self.address,
         );
         return final {
-            finalize_resolve_on_core(market_id, outcome, f_core);
+            finalize_eqr_stub(market_id, outcome, f_core);
         };
     }
 
@@ -388,25 +387,27 @@ final fn finalize_resolve_on_core(market_id: field, outcome: u8, f_core: Final) 
     assert(proposer_locked_stake >= locked_bond);
 
     if (proposal.is_disputed) {
-        let vote_weight: u64 = Mapping::get_or_use(votes, outcome_vote_key(market_id, outcome), 0u64);
-        let total_weight: u64 = Mapping::get_or_use(vote_weight_totals, market_id, 0u64);
-
         let min_voters: u8 = Mapping::get_or_use(oracle_u8, PARAM_MIN_VOTERS, DEFAULT_MIN_VOTERS);
-        let min_stake: u64 = Mapping::get_or_use(
-            oracle_u64,
-            PARAM_MIN_ORACLE_STAKE,
-            DEFAULT_MIN_ORACLE_STAKE,
-        );
-        let quorum_weight: u64 = min_stake * min_voters as u64;
         let voter_count: u64 = Mapping::get_or_use(disputed_voter_counts, market_id, 0u64);
-        let timeout_ready: bool = block.timestamp as u64 >= proposal.challenge_deadline + DEFAULT_DISPUTED_FINAL_TIMEOUT;
-        let quorum_ready: bool = voter_count >= min_voters as u64
-            && total_weight >= quorum_weight
-            && vote_weight > 0u64;
+        let has_min_voters: bool = voter_count >= min_voters as u64;
+        let vote_weight: u64 = Mapping::get_or_use(votes, outcome_vote_key(market_id, outcome), 0u64);
+        let has_vote_weight: bool = vote_weight > 0u64;
 
-        if (!quorum_ready) {
-            assert(timeout_ready);
+        if (!(has_min_voters && has_vote_weight)) {
+            assert(block.timestamp as u64 >= proposal.challenge_deadline + DEFAULT_DISPUTED_FINAL_TIMEOUT);
             assert_eq(outcome, proposal.proposed_outcome);
+        } else {
+            let min_stake: u64 = Mapping::get_or_use(
+                oracle_u64,
+                PARAM_MIN_ORACLE_STAKE,
+                DEFAULT_MIN_ORACLE_STAKE,
+            );
+            let total_weight: u64 = Mapping::get_or_use(vote_weight_totals, market_id, 0u64);
+            let quorum_weight: u64 = min_stake * min_voters as u64;
+            if (total_weight < quorum_weight) {
+                assert(block.timestamp as u64 >= proposal.challenge_deadline + DEFAULT_DISPUTED_FINAL_TIMEOUT);
+                assert_eq(outcome, proposal.proposed_outcome);
+            }
         }
     } else {
         assert(block.timestamp as u64 >= proposal.challenge_deadline);
@@ -418,14 +419,9 @@ final fn finalize_resolve_on_core(market_id: field, outcome: u8, f_core: Final) 
 
     if (proposal.is_disputed) {
         let dispute: Dispute = Mapping::get(disputes, market_id);
-        let winning_vote_weight: u64 = Mapping::get_or_use(
-            votes,
-            outcome_vote_key(market_id, outcome),
-            0u64,
-        );
-        let has_vote_winner: bool = winning_vote_weight > 0u64;
+        let winning_vote_weight: u64 = Mapping::get_or_use(votes, outcome_vote_key(market_id, outcome), 0u64);
 
-        if (!has_vote_winner) {
+        if (winning_vote_weight == 0u64) {
             let bond: u64 = dispute.stake;
             let platform_fee: u64 = bond / 10u64;
             let proposer_reward: u64 = bond - platform_fee;
@@ -437,40 +433,41 @@ final fn finalize_resolve_on_core(market_id: field, outcome: u8, f_core: Final) 
             Mapping::set(platform_fee_pool, PLATFORM_FEE_POOL_KEY, current_pool + platform_fee);
             Mapping::set(market_voter_reward_pool, market_id, 0u64);
             Mapping::set(market_winning_vote_weight, market_id, 0u64);
-        } else if (outcome != proposal.proposed_outcome) {
-            let proposer_stake: u64 = Mapping::get(active_oracles, proposal.proposer);
-            assert(proposer_stake >= locked_bond);
-            let slash_amount: u64 = locked_bond;
-            Mapping::set(active_oracles, proposal.proposer, proposer_stake - slash_amount);
-
-            let platform_fee: u64 = slash_amount / 10u64;
-            let voter_reward_pool: u64 = slash_amount / 5u64;
-            let disputer_reward: u64 = slash_amount - platform_fee - voter_reward_pool;
-
-            let disputer_balance: u64 = Mapping::get_or_use(active_oracles, dispute.challenger, 0u64);
-            Mapping::set(
-                active_oracles,
-                dispute.challenger,
-                disputer_balance + dispute.stake + disputer_reward,
-            );
-
-            let current_pool: u64 = Mapping::get_or_use(platform_fee_pool, PLATFORM_FEE_POOL_KEY, 0u64);
-            Mapping::set(platform_fee_pool, PLATFORM_FEE_POOL_KEY, current_pool + platform_fee);
-            Mapping::set(market_voter_reward_pool, market_id, voter_reward_pool);
-            Mapping::set(market_winning_vote_weight, market_id, winning_vote_weight);
         } else {
-            let bond: u64 = dispute.stake;
-            let platform_fee: u64 = bond / 10u64;
-            let voter_reward_pool: u64 = bond / 5u64;
-            let proposer_reward: u64 = bond - platform_fee - voter_reward_pool;
+            if (outcome != proposal.proposed_outcome) {
+                let proposer_stake: u64 = Mapping::get(active_oracles, proposal.proposer);
+                assert(proposer_stake >= locked_bond);
+                Mapping::set(active_oracles, proposal.proposer, proposer_stake - locked_bond);
 
-            let proposer_balance: u64 = Mapping::get(active_oracles, proposal.proposer);
-            Mapping::set(active_oracles, proposal.proposer, proposer_balance + proposer_reward);
+                let platform_fee: u64 = locked_bond / 10u64;
+                let voter_reward_pool: u64 = locked_bond / 5u64;
+                let disputer_reward: u64 = locked_bond - platform_fee - voter_reward_pool;
 
-            let current_pool: u64 = Mapping::get_or_use(platform_fee_pool, PLATFORM_FEE_POOL_KEY, 0u64);
-            Mapping::set(platform_fee_pool, PLATFORM_FEE_POOL_KEY, current_pool + platform_fee);
-            Mapping::set(market_voter_reward_pool, market_id, voter_reward_pool);
-            Mapping::set(market_winning_vote_weight, market_id, winning_vote_weight);
+                let disputer_balance: u64 = Mapping::get_or_use(active_oracles, dispute.challenger, 0u64);
+                Mapping::set(
+                    active_oracles,
+                    dispute.challenger,
+                    disputer_balance + dispute.stake + disputer_reward,
+                );
+
+                let current_pool: u64 = Mapping::get_or_use(platform_fee_pool, PLATFORM_FEE_POOL_KEY, 0u64);
+                Mapping::set(platform_fee_pool, PLATFORM_FEE_POOL_KEY, current_pool + platform_fee);
+                Mapping::set(market_voter_reward_pool, market_id, voter_reward_pool);
+                Mapping::set(market_winning_vote_weight, market_id, winning_vote_weight);
+            } else {
+                let bond: u64 = dispute.stake;
+                let platform_fee: u64 = bond / 10u64;
+                let voter_reward_pool: u64 = bond / 5u64;
+                let proposer_reward: u64 = bond - platform_fee - voter_reward_pool;
+
+                let proposer_balance: u64 = Mapping::get(active_oracles, proposal.proposer);
+                Mapping::set(active_oracles, proposal.proposer, proposer_balance + proposer_reward);
+
+                let current_pool: u64 = Mapping::get_or_use(platform_fee_pool, PLATFORM_FEE_POOL_KEY, 0u64);
+                Mapping::set(platform_fee_pool, PLATFORM_FEE_POOL_KEY, current_pool + platform_fee);
+                Mapping::set(market_voter_reward_pool, market_id, voter_reward_pool);
+                Mapping::set(market_winning_vote_weight, market_id, winning_vote_weight);
+            }
         }
     } else {
         Mapping::set(market_voter_reward_pool, market_id, 0u64);
@@ -483,6 +480,16 @@ final fn finalize_resolve_on_core(market_id: field, outcome: u8, f_core: Final) 
         proposer_locked_stake - locked_bond,
     );
     Mapping::set(proposal_locked_bond, market_id, 0u64);
+}
+
+final fn finalize_eqr_stub(market_id: field, outcome: u8, f_core: Final) {
+    // Preserve the legacy finalize input shape for upgrade compatibility.
+    // This stub intentionally fails fast after consuming the legacy future.
+    // That keeps the upgrade shape intact without duplicating the heavy logic
+    // from finalize_resolve_on_core.
+    f_core.run();
+    assert_eq(market_id, 0field);
+    assert_eq(outcome, 255u8);
 }
 
 final fn finalize_unstake_credits(oracle: address, amount: u64, transfer_future: Final) {
@@ -578,5 +585,3 @@ final fn finalize_set_protocol_u8(param_key: u8, value: u8, auth: Final) {
     }
     Mapping::set(oracle_u8, param_key, value);
 }
-
-

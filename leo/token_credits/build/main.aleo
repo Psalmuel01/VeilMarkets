@@ -10,7 +10,7 @@ function buy_shares:
     input r3 as u64.public;
     input r4 as u64.public;
     input r5 as u64.public;
-    input r6 as field.public;
+    input r6 as field.private;
     gte r0.microcredits r3 into r7;
     assert.eq r7 true;
     gte r3 1000000u64 into r8;
@@ -30,14 +30,12 @@ function buy_shares:
     add r17 r18 into r19;
     add r19 r6 into r20;
     hash.bhp256 r20 into r21 as field;
-    cast self.signer into r22 as field;
-    add r22 r21 into r23;
-    hash.bhp256 r23 into r24 as field;
-    call veilmarkets_core_v11.aleo/buy_shares r1 r2 r3 r4 r5 r21 r24 into r25 r26;
-    async buy_shares r13 r26 into r27;
+    hash.bhp256 r21 into r22 as field;
+    call veilmarkets_core_v11.aleo/buy_shares r1 r2 r3 r4 r5 r21 r22 into r23 r24;
+    async buy_shares r13 r24 into r25;
     output r12 as credits.aleo/credits.record;
-    output r25 as veilmarkets_core_v11.aleo/BetPosition.record;
-    output r27 as veilmarkets_token_credits_v11.aleo/buy_shares.future;
+    output r23 as veilmarkets_core_v11.aleo/BetPosition.record;
+    output r25 as veilmarkets_token_credits_v11.aleo/buy_shares.future;
 
 finalize buy_shares:
     input r0 as credits.aleo/transfer_private_to_public.future;
@@ -55,10 +53,12 @@ function fund_pool:
     assert.eq r4 true;
     call credits.aleo/transfer_private_to_public r0 veilmarkets_token_credits_v11.aleo r2 into r5 r6;
     cast self.signer into r7 as field;
-    call veilmarkets_core_v11.aleo/fund_pool r1 r2 r7 into r8;
-    async fund_pool r6 r8 into r9;
+    add r1 r7 into r8;
+    hash.bhp256 r8 into r9 as field;
+    call veilmarkets_core_v11.aleo/fund_pool r1 r2 r9 into r10;
+    async fund_pool r6 r10 into r11;
     output r5 as credits.aleo/credits.record;
-    output r9 as veilmarkets_token_credits_v11.aleo/fund_pool.future;
+    output r11 as veilmarkets_token_credits_v11.aleo/fund_pool.future;
 
 finalize fund_pool:
     input r0 as credits.aleo/transfer_private_to_public.future;

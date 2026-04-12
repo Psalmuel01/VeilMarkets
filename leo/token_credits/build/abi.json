@@ -81,7 +81,7 @@
               "Primitive": "Field"
             }
           },
-          "mode": "Public"
+          "mode": "None"
         }
       ],
       "outputs": [

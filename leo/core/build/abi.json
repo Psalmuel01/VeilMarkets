@@ -609,7 +609,7 @@
               "Primitive": "Field"
             }
           },
-          "mode": "Public"
+          "mode": "None"
         },
         {
           "name": "outcome",
@@ -620,7 +620,7 @@
               }
             }
           },
-          "mode": "Public"
+          "mode": "None"
         },
         {
           "name": "collateral_in",
@@ -631,7 +631,7 @@
               }
             }
           },
-          "mode": "Public"
+          "mode": "None"
         },
         {
           "name": "min_shares_out",
@@ -642,7 +642,7 @@
               }
             }
           },
-          "mode": "Public"
+          "mode": "None"
         },
         {
           "name": "expected_shares_out",
@@ -653,7 +653,7 @@
               }
             }
           },
-          "mode": "Public"
+          "mode": "None"
         },
         {
           "name": "position_id",
@@ -662,7 +662,7 @@
               "Primitive": "Field"
             }
           },
-          "mode": "Public"
+          "mode": "None"
         },
         {
           "name": "owner_commitment",
@@ -671,7 +671,7 @@
               "Primitive": "Field"
             }
           },
-          "mode": "Public"
+          "mode": "None"
         }
       ],
       "outputs": [
@@ -778,7 +778,7 @@
               "Primitive": "Field"
             }
           },
-          "mode": "Public"
+          "mode": "None"
         }
       ],
       "outputs": [
@@ -887,7 +887,7 @@
               "Primitive": "Field"
             }
           },
-          "mode": "Public"
+          "mode": "None"
         }
       ],
       "outputs": [

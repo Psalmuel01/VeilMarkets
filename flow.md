@@ -51,7 +51,7 @@ It is not pari-mutuel pool splitting anymore.
 - Disputed:
   - Requires minimum unique voters and minimum total vote weight.
   - Defaults: min voters = `3`, min stake = `30` credits, so quorum weight >= `90`.
-  - Finalizer supplies outcome to `resolve_on_core` / `execute_quorum_resolution`.
+  - Finalizer supplies outcome to `resolve_on_core`.
 
 ## 5) Fees and economics
 
