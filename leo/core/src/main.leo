@@ -493,7 +493,7 @@ final fn finalize_create_market(
     assert(outcome_count <= max_outcomes);
     if (market_type == 0u8) { assert_eq(outcome_count, 2u8); }
     assert(close_time > block.timestamp as u64);
-    assert(resolution_time > close_time);
+    assert(resolution_time >= close_time);
 
     let market: MarketInfo = MarketInfo {
         creator: creator,

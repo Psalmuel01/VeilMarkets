@@ -54,9 +54,10 @@ program veilmarkets_oracle_build_v11.aleo {
     const PARAM_MIN_VOTERS: u8 = 0u8;
     const PARAM_ORACLE_PAUSED: u8 = 1u8;
 
-    const DEFAULT_MIN_ORACLE_STAKE: u64 = 30000000u64; // 30 ALEO
-    const DEFAULT_DISPUTE_WINDOW: u64 = 10800u64; // 3 hours
-    const DEFAULT_MIN_VOTERS: u8 = 3u8;
+    const DEFAULT_MIN_ORACLE_STAKE: u64 = 20000000u64; // 20 ALEO (testing default)
+    const DEFAULT_DISPUTE_WINDOW: u64 = 600u64; // 10 minutes (testing default)
+    const DEFAULT_DISPUTED_FINALIZE_TIMEOUT: u64 = 1800u64; // 30 minutes after challenge window
+    const DEFAULT_MIN_VOTERS: u8 = 2u8;
     const DEFAULT_ORACLE_PAUSED: u8 = 0u8;
 
     const ADMIN: address = aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
@@ -393,9 +394,15 @@ final fn finalize_resolve_on_core(market_id: field, outcome: u8, f_core: Final) 
         );
         let quorum_weight: u64 = min_stake * min_voters as u64;
         let voter_count: u64 = Mapping::get_or_use(disputed_voter_counts, market_id, 0u64);
-        assert(voter_count >= min_voters as u64);
-        assert(total_weight >= quorum_weight);
-        assert(vote_weight > 0u64);
+        let timeout_ready: bool = block.timestamp as u64 >= proposal.challenge_deadline + DEFAULT_DISPUTED_FINALIZE_TIMEOUT;
+        let quorum_ready: bool = voter_count >= min_voters as u64
+            && total_weight >= quorum_weight
+            && vote_weight > 0u64;
+
+        if (!quorum_ready) {
+            assert(timeout_ready);
+            assert_eq(outcome, proposal.proposed_outcome);
+        }
     } else {
         assert(block.timestamp as u64 >= proposal.challenge_deadline);
         assert_eq(outcome, proposal.proposed_outcome);
@@ -411,9 +418,21 @@ final fn finalize_resolve_on_core(market_id: field, outcome: u8, f_core: Final) 
             outcome_vote_key(market_id, outcome),
             0u64,
         );
-        assert(winning_vote_weight > 0u64);
+        let has_vote_winner: bool = winning_vote_weight > 0u64;
 
-        if (outcome != proposal.proposed_outcome) {
+        if (!has_vote_winner) {
+            let bond: u64 = dispute.stake;
+            let platform_fee: u64 = bond / 10u64;
+            let proposer_reward: u64 = bond - platform_fee;
+
+            let proposer_balance: u64 = Mapping::get(active_oracles, proposal.proposer);
+            Mapping::set(active_oracles, proposal.proposer, proposer_balance + proposer_reward);
+
+            let current_pool: u64 = Mapping::get_or_use(platform_fee_pool, PLATFORM_FEE_POOL_KEY, 0u64);
+            Mapping::set(platform_fee_pool, PLATFORM_FEE_POOL_KEY, current_pool + platform_fee);
+            Mapping::set(market_voter_reward_pool, market_id, 0u64);
+            Mapping::set(market_winning_vote_weight, market_id, 0u64);
+        } else if (outcome != proposal.proposed_outcome) {
             let proposer_stake: u64 = Mapping::get(active_oracles, proposal.proposer);
             assert(proposer_stake >= locked_bond);
             let slash_amount: u64 = locked_bond;
@@ -545,7 +564,7 @@ final fn finalize_set_protocol_u64(param_key: u8, value: u64, auth: Final) {
 final fn finalize_set_protocol_u8(param_key: u8, value: u8, auth: Final) {
     auth.run();
     if (param_key == PARAM_MIN_VOTERS) {
-        assert(value >= 3u8);
+        assert(value >= 2u8);
         assert(value <= 8u8);
     }
     if (param_key == PARAM_ORACLE_PAUSED) {

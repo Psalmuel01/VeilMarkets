@@ -47,7 +47,7 @@ interface ResolutionModalProps {
 }
 
 type Step = "action" | "processing" | "success" | "failed";
-const DISPUTE_BOND_CREDITS = 30;
+const DISPUTE_BOND_CREDITS = 20;
 
 export function ResolutionModal({
   isOpen,
@@ -131,7 +131,6 @@ export function ResolutionModal({
     }
     if (!isOracle) return "Only registered oracles can propose outcomes.";
     if (selectedOutcome === null) return "Select an outcome to propose.";
-    if (isOutcomeEmpty) return "Outcome has zero supply. Cannot resolve.";
     if (didPropose) return "Proposal already submitted.";
     return "";
   })();
@@ -257,11 +256,11 @@ export function ResolutionModal({
                       <motion.div
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: "auto" }}
-                        className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-xs text-destructive flex gap-3"
+                        className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200 flex gap-3"
                       >
                         <AlertTriangle className="w-4 h-4 flex-shrink-0" />
                         <p>
-                          <strong>Fatal Constraint:</strong> This outcome has ZERO matching shares. The smart contract will reject this resolution because there is nobody to pay out. Please verify the real-world result or choose another outcome.
+                          <strong>Heads up:</strong> This outcome currently has zero matching trader shares. Resolution is still allowed. If it wins, no trader payouts will be created and the remaining pool value stays with LP return accounting.
                         </p>
                       </motion.div>
                     )}

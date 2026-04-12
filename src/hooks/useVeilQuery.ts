@@ -292,7 +292,7 @@ export const useOracleStatusQuery = () => {
   const { publicKey } = useAleoPrograms();
   const stakeQuery = useOracleStakeQuery();
 
-  const isOracle = (stakeQuery.data ?? 0) >= 30_000_000;
+  const isOracle = (stakeQuery.data ?? 0) >= 20_000_000;
 
   return {
     ...stakeQuery,

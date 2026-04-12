@@ -154,6 +154,9 @@ export interface ResolutionFinalizeRequirements {
   leadingOutcome: number | null;
   leadingOutcomeVoteWeightMicro: number;
   recommendedOutcome: number | null;
+  timeoutEligible: boolean;
+  timeoutAt: number | null;
+  fallbackMode: boolean;
   canFinalize: boolean;
   blockers: string[];
 }
@@ -206,7 +209,7 @@ const generateRandomField = (): string => {
 };
 const USDCX_FREEZELIST_PROGRAM_ID = "test_usdcx_freezelist.aleo";
 const USAD_FREEZELIST_PROGRAM_ID = "test_usad_freezelist.aleo";
-const MIN_ORACLE_STAKE_MICROCREDITS = 30_000_000;
+const MIN_ORACLE_STAKE_MICROCREDITS = 20_000_000;
 
 const parseMappingU64 = (value: unknown): number => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -2616,28 +2619,35 @@ export const useAleoPrograms = () => {
           proposalRaw,
           minVotersRaw,
           minStakeRaw,
+          disputeWindowRaw,
           voterCountRaw,
           totalWeightRaw,
         ] = await Promise.all([
           fetchMappingValue(ORACLE_PROGRAM_ID, "proposals", cleanMarketId),
           fetchMappingValue(ORACLE_PROGRAM_ID, "oracle_u8", "0u8"),
           fetchMappingValue(ORACLE_PROGRAM_ID, "oracle_u64", "0u8"),
+          fetchMappingValue(ORACLE_PROGRAM_ID, "oracle_u64", "1u8"),
           fetchMappingValue(ORACLE_PROGRAM_ID, "disputed_voter_counts", cleanMarketId),
           fetchMappingValue(ORACLE_PROGRAM_ID, "vote_weight_totals", cleanMarketId),
         ]);
 
         const proposal = proposalRaw ? parseResolutionProposal(proposalRaw as string | object) : null;
-        const minVoters = Math.max(3, parseMappingU64(minVotersRaw) || 3);
+        const minVoters = Math.max(2, parseMappingU64(minVotersRaw) || 2);
         const minStakeMicro = Math.max(MIN_ORACLE_STAKE_MICROCREDITS, parseMappingU64(minStakeRaw) || MIN_ORACLE_STAKE_MICROCREDITS);
+        const disputeWindowSeconds = Math.max(600, parseMappingU64(disputeWindowRaw) || 600);
         const voterCount = parseMappingU64(voterCountRaw);
         const totalVoteWeightMicro = parseMappingU64(totalWeightRaw);
         const quorumWeightMicro = minVoters * minStakeMicro;
+        const disputeTimeoutSeconds = 1_800;
 
         const blockers: string[] = [];
         let selectedOutcomeVoteWeightMicro = 0;
         let leadingOutcome: number | null = null;
         let leadingOutcomeVoteWeightMicro = 0;
         let recommendedOutcome: number | null = null;
+        let timeoutEligible = false;
+        let timeoutAt: number | null = null;
+        let fallbackMode = false;
 
         if (!proposal) {
           blockers.push("No resolution proposal has been submitted yet.");
@@ -2650,6 +2660,7 @@ export const useAleoPrograms = () => {
           recommendedOutcome = proposal.proposed_outcome;
         } else {
           const normalizedCount = Math.max(2, Math.min(8, outcomeCount || 2));
+          timeoutAt = proposal.challenge_deadline + disputeTimeoutSeconds;
           const weights = await Promise.all(
             Array.from({ length: normalizedCount }, async (_, index) => {
               const voteKey = await deriveOutcomeVoteKey(cleanMarketId, index);
@@ -2668,17 +2679,33 @@ export const useAleoPrograms = () => {
 
           recommendedOutcome = leadingOutcome;
           selectedOutcomeVoteWeightMicro = leadingOutcome !== null ? weights[leadingOutcome] : 0;
+          const quorumReady =
+            voterCount >= minVoters
+            && totalVoteWeightMicro >= quorumWeightMicro
+            && selectedOutcomeVoteWeightMicro > 0;
+          timeoutEligible = nowTs >= timeoutAt;
 
-          if (voterCount < minVoters) {
-            blockers.push(`Needs at least ${minVoters} unique dispute voters (currently ${voterCount}).`);
-          }
-          if (totalVoteWeightMicro < quorumWeightMicro) {
-            blockers.push(
-              `Needs quorum vote weight of ${(quorumWeightMicro / 1_000_000).toFixed(2)} ALEO (currently ${(totalVoteWeightMicro / 1_000_000).toFixed(2)} ALEO).`,
-            );
-          }
-          if (selectedOutcomeVoteWeightMicro <= 0) {
-            blockers.push("No vote weight found for the finalizing outcome yet.");
+          if (!quorumReady) {
+            if (timeoutEligible) {
+              fallbackMode = true;
+              recommendedOutcome = proposal.proposed_outcome;
+              selectedOutcomeVoteWeightMicro = 0;
+            } else {
+              if (voterCount < minVoters) {
+                blockers.push(`Needs at least ${minVoters} unique dispute voters (currently ${voterCount}).`);
+              }
+              if (totalVoteWeightMicro < quorumWeightMicro) {
+                blockers.push(
+                  `Needs quorum vote weight of ${(quorumWeightMicro / 1_000_000).toFixed(2)} ALEO (currently ${(totalVoteWeightMicro / 1_000_000).toFixed(2)} ALEO).`,
+                );
+              }
+              if (selectedOutcomeVoteWeightMicro <= 0) {
+                blockers.push("No vote weight found for the leading disputed outcome yet.");
+              }
+              blockers.push(
+                `Fallback finalization unlocks at ${formatDateFriendly(timeoutAt)} if quorum is still not met.`,
+              );
+            }
           }
         }
 
@@ -2694,6 +2721,9 @@ export const useAleoPrograms = () => {
           leadingOutcome,
           leadingOutcomeVoteWeightMicro,
           recommendedOutcome,
+          timeoutEligible,
+          timeoutAt,
+          fallbackMode,
           canFinalize: blockers.length === 0 && Boolean(proposal),
           blockers,
         };

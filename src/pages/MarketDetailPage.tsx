@@ -924,12 +924,24 @@ export default function MarketDetailPage() {
                         <p className="text-xs text-success">All requirements satisfied. Market can be finalized.</p>
                       )}
                       {proposal.is_disputed && finalizeRequirements && (
-                        <p className="text-[11px] text-muted-foreground">
-                          Quorum: {(finalizeRequirements.totalVoteWeightMicro / 1_000_000).toFixed(2)} /{" "}
-                          {(finalizeRequirements.quorumWeightMicro / 1_000_000).toFixed(2)} ALEO
-                          {" • "}
-                          Voters: {finalizeRequirements.voterCount}/{finalizeRequirements.minVoters}
-                        </p>
+                        <div className="space-y-1">
+                          <p className="text-[11px] text-muted-foreground">
+                            Quorum: {(finalizeRequirements.totalVoteWeightMicro / 1_000_000).toFixed(2)} /{" "}
+                            {(finalizeRequirements.quorumWeightMicro / 1_000_000).toFixed(2)} ALEO
+                            {" • "}
+                            Voters: {finalizeRequirements.voterCount}/{finalizeRequirements.minVoters}
+                          </p>
+                          {finalizeRequirements.fallbackMode && (
+                            <p className="text-[11px] text-amber-500">
+                              Quorum timeout reached. Finalization can now fall back to the originally proposed outcome.
+                            </p>
+                          )}
+                          {!finalizeRequirements.fallbackMode && finalizeRequirements.timeoutAt && (
+                            <p className="text-[11px] text-muted-foreground">
+                              Fallback unlock: {formatDateFriendly(finalizeRequirements.timeoutAt)}
+                            </p>
+                          )}
+                        </div>
                       )}
                     </div>
                   )}
@@ -1085,6 +1097,11 @@ export default function MarketDetailPage() {
                     </p>
                   ))}
                 </div>
+              )}
+              {proposal?.is_disputed && finalizeRequirements?.fallbackMode && (
+                <p className="text-xs text-amber-500">
+                  Quorum timeout reached. This resolve call will use the original proposal as the fallback outcome.
+                </p>
               )}
               <Button onClick={handleFinalize} className="w-full btn-glow-success" disabled={!isFinalizable}>
                 Confirm Resolve

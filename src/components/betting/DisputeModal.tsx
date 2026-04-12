@@ -18,7 +18,7 @@ interface DisputeModalProps {
   proposedOutcomeLabel: string;
 }
 
-const DISPUTE_BOND_ALEO = 30; // 30 ALEO stake required
+const DISPUTE_BOND_ALEO = 20; // testing default dispute bond
 
 export const DisputeModal = ({
   open,
@@ -74,7 +74,7 @@ export const DisputeModal = ({
                 </div>
                 <p className="text-sm text-amber-200/80 leading-relaxed">
                   To challenge the proposed outcome (<span className="text-white font-bold">"{proposedOutcomeLabel}"</span>),
-                  you must stake <span className="text-white font-bold">{DISPUTE_BOND_ALEO} ALEO</span> as a dispute bond.
+                  you must stake <span className="text-white font-bold">{DISPUTE_BOND_ALEO} Credits</span> as a dispute bond.
                 </p>
                 <div className="pt-2">
                   <p className="text-[11px] text-amber-500/60 font-medium">

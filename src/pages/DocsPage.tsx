@@ -131,11 +131,11 @@ const sections = [
       },
       {
         title: "3) Propose Resolution",
-        description: "Registered oracles can propose the outcome after resolution_time. Proposer must meet minimum active oracle stake (default 30 Credits).",
+        description: "Registered oracles can propose the outcome after resolution_time. Proposer must meet minimum active oracle stake (testing default 20 Credits).",
       },
       {
         title: "4) Challenge & Vote",
-        description: "Anyone can dispute during the challenge window by posting the dispute bond (at least minimum stake). If disputed, staked oracles vote. Finalization requires quorum (default: at least 3 unique voters and total vote weight >= 3x minimum stake).",
+        description: "Anyone can dispute during the challenge window by posting the dispute bond (at least minimum stake). If disputed, staked oracles vote. Testing defaults use a 10 minute challenge window, 2 unique voters minimum, and fallback finalization after 30 minutes if quorum is still not met.",
       },
       {
         title: "5) Finalize",
