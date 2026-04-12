@@ -175,7 +175,7 @@ export const SellSharesModal = ({
                   </Button>
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Max sell (single position): {availableShares.toLocaleString()}
+                  Max sell for this outcome: {availableShares.toLocaleString()}
                 </div>
                 {sellAmount > availableShares && (
                   <div className="text-xs text-warning">

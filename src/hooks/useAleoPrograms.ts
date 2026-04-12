@@ -102,7 +102,7 @@ interface CoreProtocolConfig {
 interface MarketPositionSummary {
   marketId: string;
   outcome: number | null;
-  sellableShares: number; // max shares sellable in a single sell transaction for selected outcome
+  sellableShares: number; // total shares sellable across all same-outcome position records
   sellableCollateral: number;
   outcomeShares: Record<number, number>;
   outcomeMaxPositionShares: Record<number, number>;
@@ -1464,11 +1464,11 @@ export const useAleoPrograms = () => {
 
   const findCreditsRecord = (amountMicro: number) => findTokenRecord("credits.aleo", amountMicro);
 
-  const findClaimablePositionRecord = async (
+  const findClaimablePositionRecords = async (
     marketId: string,
     options?: { outcome?: number; includeLp?: boolean },
-  ): Promise<WalletRecord | null> => {
-    if (!address) return null;
+  ): Promise<WalletRecord[]> => {
+    if (!address) return [];
 
     const cleanMarketId = marketId.includes("field") ? marketId.replace("field", "") : marketId;
 
@@ -1499,14 +1499,22 @@ export const useAleoPrograms = () => {
         .filter((entry) => Number.isFinite(entry.shares) && entry.shares > 0)
         .sort((a, b) => b.shares - a.shares);
 
-      return candidates[0]?.record ?? null;
+      return candidates.map((entry) => entry.record);
     } catch (error) {
       if (isWalletNoResponse(error)) {
         toast.error("Wallet did not respond. Unlock/approve the wallet and retry claim.");
       }
       console.error("Error finding claimable record:", error);
-      return null;
+      return [];
     }
+  };
+
+  const findClaimablePositionRecord = async (
+    marketId: string,
+    options?: { outcome?: number; includeLp?: boolean },
+  ): Promise<WalletRecord | null> => {
+    const records = await findClaimablePositionRecords(marketId, options);
+    return records[0] ?? null;
   };
 
   const waitForPositionRecord = async (
@@ -1581,10 +1589,8 @@ export const useAleoPrograms = () => {
 
           tradePositionCount += 1;
           if (typeof outcome === "number" && recordOutcome === outcome) {
-            if (shares > sellableShares) {
-              sellableShares = shares;
-              sellableCollateral = Number.isFinite(collateral) && collateral > 0 ? collateral : 0;
-            }
+            sellableShares += shares;
+            sellableCollateral += Number.isFinite(collateral) && collateral > 0 ? collateral : 0;
           }
         }
 
@@ -2109,97 +2115,126 @@ export const useAleoPrograms = () => {
         return null;
       }
 
-      let positionRecord = await findClaimablePositionRecord(cleanMarketId, {
+      const positionRecords = await findClaimablePositionRecords(cleanMarketId, {
         outcome: options?.outcome,
       });
-      if (!positionRecord) {
+      if (!positionRecords.length) {
         toast.error("No sellable position record found for this market/outcome.");
         return null;
       }
 
-      const outcomeRaw = Number.parseInt(parseRecordField(positionRecord, "outcome"), 10);
-      const sharesRaw = Number.parseInt(parseRecordField(positionRecord, "shares"), 10);
-      if (!Number.isFinite(outcomeRaw) || !Number.isFinite(sharesRaw) || sharesRaw <= 0) {
-        toast.error("Unable to read position share balance.");
+      const outcomeRaw = Number.parseInt(parseRecordField(positionRecords[0], "outcome"), 10);
+      if (!Number.isFinite(outcomeRaw)) {
+        toast.error("Unable to read position outcome.");
         return null;
       }
 
       const shares = Math.max(1, Math.floor(sharesToSell));
-      if (shares > sharesRaw) {
+      const totalAvailableShares = positionRecords.reduce((sum, record) => {
+        const recordShares = Number.parseInt(parseRecordField(record, "shares"), 10);
+        return sum + (Number.isFinite(recordShares) && recordShares > 0 ? recordShares : 0);
+      }, 0);
+      if (shares > totalAvailableShares) {
         toast.error("Sell amount exceeds your available shares.");
         return null;
       }
+      let remainingShares = shares;
+      let aggregatePayoutMicro = 0;
+      let lastTransactionId: string | null = null;
 
-      const quote = await quoteSellShares(
-        cleanMarketId,
-        outcomeRaw,
-        shares,
-        options?.slippageBps ?? 200,
+      toast.info(
+        positionRecords.length > 1
+          ? "Selling shares across multiple position records..."
+          : "Selling shares...",
       );
-      if (!quote) {
-        toast.error("Unable to compute sell quote right now.");
-        return null;
-      }
 
-      const sellNonce = generateRandomField();
-      toast.info("Selling shares...");
-      const sellResult = await executeAndPoll({
-        program: PROGRAM_ID,
-        function: "sell_shares",
-        inputs: [
-          positionRecord,
-          formatU64(shares),
-          formatU64(quote.minPayoutMicro),
-          sellNonce,
-        ],
-        fee: 1_000_000,
-        privateFee: false,
-      }, PROGRAM_ID, "sell_shares");
+      for (const positionRecord of positionRecords) {
+        if (remainingShares <= 0) break;
 
-      if (!sellResult?.transactionId) {
-        toast.error("Sell transaction failed.");
-        return null;
-      }
+        const sharesRaw = Number.parseInt(parseRecordField(positionRecord, "shares"), 10);
+        if (!Number.isFinite(sharesRaw) || sharesRaw <= 0) continue;
 
-      let nullifierField = extractTransitionField(sellResult.transition, "nullifier");
-      if (!nullifierField) {
-        const claimRecord = await waitForWinningsClaimRecord(marketId);
-        if (!claimRecord) {
-          toast.error("Sell payout claim record not available yet. Please retry shortly.");
-          triggerRefresh();
-          return { transactionId: sellResult.transactionId, payoutAmount: 0, payoutTicker };
+        const chunkShares = Math.min(remainingShares, sharesRaw);
+        const quote = await quoteSellShares(
+          cleanMarketId,
+          outcomeRaw,
+          chunkShares,
+          options?.slippageBps ?? 200,
+        );
+        if (!quote) {
+          toast.error("Unable to compute sell quote right now.");
+          return null;
         }
-        const nullifierRaw = parseRecordField(claimRecord, "nullifier");
-        if (!nullifierRaw) {
-          toast.error("Unable to read sell claim nullifier.");
-          return { transactionId: sellResult.transactionId, payoutAmount: 0, payoutTicker };
+
+        const sellNonce = generateRandomField();
+        const sellResult = await executeAndPoll({
+          program: PROGRAM_ID,
+          function: "sell_shares",
+          inputs: [
+            positionRecord,
+            formatU64(chunkShares),
+            formatU64(quote.minPayoutMicro),
+            sellNonce,
+          ],
+          fee: 1_000_000,
+          privateFee: false,
+        }, PROGRAM_ID, "sell_shares");
+
+        if (!sellResult?.transactionId) {
+          toast.error("Sell transaction failed.");
+          return null;
         }
-        nullifierField = formatField(nullifierRaw);
-      }
-      const payoutAmount = await waitForPendingPayout(nullifierField);
-      if (!payoutAmount || payoutAmount <= 0) {
-        toast.error("Sell payout is not available yet. Please retry.");
-        return { transactionId: sellResult.transactionId, payoutAmount: 0, payoutTicker };
+        lastTransactionId = sellResult.transactionId;
+
+        let nullifierField = extractTransitionField(sellResult.transition, "nullifier");
+        if (!nullifierField) {
+          const claimRecord = await waitForWinningsClaimRecord(marketId);
+          if (!claimRecord) {
+            toast.error("Sell payout claim record not available yet. Please retry shortly.");
+            triggerRefresh();
+            return { transactionId: sellResult.transactionId, payoutAmount: aggregatePayoutMicro / 1_000_000, payoutTicker };
+          }
+          const nullifierRaw = parseRecordField(claimRecord, "nullifier");
+          if (!nullifierRaw) {
+            toast.error("Unable to read sell claim nullifier.");
+            return { transactionId: sellResult.transactionId, payoutAmount: aggregatePayoutMicro / 1_000_000, payoutTicker };
+          }
+          nullifierField = formatField(nullifierRaw);
+        }
+        const payoutAmount = await waitForPendingPayout(nullifierField);
+        if (!payoutAmount || payoutAmount <= 0) {
+          toast.error("Sell payout is not available yet. Please retry.");
+          return { transactionId: sellResult.transactionId, payoutAmount: aggregatePayoutMicro / 1_000_000, payoutTicker };
+        }
+
+        const payoutResult = await executeAndPoll({
+          program: payoutTokenProgram,
+          function: "claim_payout",
+          inputs: [formatU64(payoutAmount), nullifierField],
+          fee: 500_000,
+          privateFee: false,
+        }, payoutTokenProgram, "claim_payout");
+
+        if (!payoutResult?.transactionId) {
+          toast.error("Sell payout transfer failed.");
+          return null;
+        }
+
+        aggregatePayoutMicro += payoutAmount;
+        lastTransactionId = payoutResult.transactionId;
+        remainingShares -= chunkShares;
       }
 
-      const payoutResult = await executeAndPoll({
-        program: payoutTokenProgram,
-        function: "claim_payout",
-        inputs: [formatU64(payoutAmount), nullifierField],
-        fee: 500_000,
-        privateFee: false,
-      }, payoutTokenProgram, "claim_payout");
-
-      if (!payoutResult?.transactionId) {
-        toast.error("Sell payout transfer failed.");
+      if (remainingShares > 0 || !lastTransactionId) {
+        toast.error("Unable to fully satisfy the requested sell amount.");
         return null;
       }
 
-      const payoutAmountDisplay = payoutAmount / 1_000_000;
+      const payoutAmountDisplay = aggregatePayoutMicro / 1_000_000;
       toast.success(`Sold shares for ${payoutAmountDisplay.toFixed(4)} ${payoutTicker}`);
       triggerRefresh();
       return {
-        transactionId: payoutResult.transactionId,
+        transactionId: lastTransactionId,
         payoutAmount: payoutAmountDisplay,
         payoutTicker,
       };
