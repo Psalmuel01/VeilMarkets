@@ -481,7 +481,8 @@ final fn finalize_create_market(
     auth_future: Final,
 ) {
     auth_future.run();
-    assert_protocol_not_paused();
+    let paused: u8 = Mapping::get_or_use(protocol_u8, PARAM_PROTOCOL_PAUSED, DEFAULT_PROTOCOL_PAUSED);
+    assert(paused == 0u8);
 
     let exists: bool = Mapping::contains(markets, market_id);
     assert(!exists);
@@ -532,7 +533,8 @@ final fn finalize_fund_pool(
     lp_owner_key: field,
     caller: address,
 ) {
-    assert_protocol_not_paused();
+    let paused: u8 = Mapping::get_or_use(protocol_u8, PARAM_PROTOCOL_PAUSED, DEFAULT_PROTOCOL_PAUSED);
+    assert(paused == 0u8);
 
     let market: MarketInfo = Mapping::get(markets, market_id);
     assert_eq(market.token_id, caller);
@@ -616,7 +618,8 @@ final fn finalize_buy_shares(
     owner: address,
     caller: address,
 ) {
-    assert_protocol_not_paused();
+    let paused: u8 = Mapping::get_or_use(protocol_u8, PARAM_PROTOCOL_PAUSED, DEFAULT_PROTOCOL_PAUSED);
+    assert(paused == 0u8);
 
     let market: MarketInfo = Mapping::get(markets, market_id);
     assert_eq(market.token_id, caller);
@@ -745,7 +748,8 @@ final fn finalize_sell_shares(
     nullifier: field,
     caller: address,
 ) {
-    assert_protocol_not_paused();
+    let paused: u8 = Mapping::get_or_use(protocol_u8, PARAM_PROTOCOL_PAUSED, DEFAULT_PROTOCOL_PAUSED);
+    assert(paused == 0u8);
 
     let spent: bool = Mapping::get_or_use(spent_nullifiers, nullifier, false);
     assert(!spent);
@@ -1030,7 +1034,8 @@ final fn finalize_withdraw_liquidity(
 }
 
 final fn finalize_cancel_market(market_id: field, caller: address) {
-    assert_protocol_not_paused();
+    let paused: u8 = Mapping::get_or_use(protocol_u8, PARAM_PROTOCOL_PAUSED, DEFAULT_PROTOCOL_PAUSED);
+    assert(paused == 0u8);
 
     let market: MarketInfo = Mapping::get(markets, market_id);
     assert_eq(market.creator, caller);
@@ -1103,7 +1108,4 @@ final fn finalize_set_protocol_u8(param_key: u8, value: u8, auth: Final) {
     Mapping::set(protocol_u8, param_key, value);
 }
 
-final fn assert_protocol_not_paused() {
-    let flag: u8 = Mapping::get_or_use(protocol_u8, PARAM_PROTOCOL_PAUSED, DEFAULT_PROTOCOL_PAUSED);
-    assert(flag == 0u8);
-}
+

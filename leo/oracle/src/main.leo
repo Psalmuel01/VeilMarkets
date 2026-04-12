@@ -265,7 +265,8 @@ fn mul_div_u64(a: u64, b: u64, den: u64) -> u64 {
 }
 
 final fn finalize_register_oracle(oracle: address, amount: u64, transfer_future: Final) {
-    assert_oracle_not_paused();
+    let oracle_paused: u8 = Mapping::get_or_use(oracle_u8, PARAM_ORACLE_PAUSED, DEFAULT_ORACLE_PAUSED);
+    assert(oracle_paused == 0u8);
     transfer_future.run();
     let min_stake: u64 = Mapping::get_or_use(
         oracle_u64,
@@ -282,7 +283,8 @@ final fn finalize_propose_resolution(
     proposed_outcome: u8,
     proposer: address,
 ) {
-    assert_oracle_not_paused();
+    let oracle_paused: u8 = Mapping::get_or_use(oracle_u8, PARAM_ORACLE_PAUSED, DEFAULT_ORACLE_PAUSED);
+    assert(oracle_paused == 0u8);
     let min_stake: u64 = Mapping::get_or_use(
         oracle_u64,
         PARAM_MIN_ORACLE_STAKE,
@@ -318,7 +320,8 @@ final fn finalize_dispute_resolution(
     amount: u64,
     transfer_future: Final,
 ) {
-    assert_oracle_not_paused();
+    let oracle_paused: u8 = Mapping::get_or_use(oracle_u8, PARAM_ORACLE_PAUSED, DEFAULT_ORACLE_PAUSED);
+    assert(oracle_paused == 0u8);
     transfer_future.run();
     let min_stake: u64 = Mapping::get_or_use(
         oracle_u64,
@@ -340,7 +343,8 @@ final fn finalize_dispute_resolution(
 }
 
 final fn finalize_vote_on_resolution(market_id: field, outcome: u8, voter: address) {
-    assert_oracle_not_paused();
+    let oracle_paused: u8 = Mapping::get_or_use(oracle_u8, PARAM_ORACLE_PAUSED, DEFAULT_ORACLE_PAUSED);
+    assert(oracle_paused == 0u8);
     let proposal: ResolutionProposal = Mapping::get(proposals, market_id);
     assert(proposal.is_disputed);
 
@@ -371,7 +375,8 @@ final fn finalize_vote_on_resolution(market_id: field, outcome: u8, voter: addre
 }
 
 final fn finalize_resolve_on_core(market_id: field, outcome: u8, f_core: Final) {
-    assert_oracle_not_paused();
+    let oracle_paused: u8 = Mapping::get_or_use(oracle_u8, PARAM_ORACLE_PAUSED, DEFAULT_ORACLE_PAUSED);
+    assert(oracle_paused == 0u8);
     let proposal: ResolutionProposal = Mapping::get(proposals, market_id);
     let locked_bond: u64 = Mapping::get_or_use(proposal_locked_bond, market_id, 0u64);
     assert(locked_bond > 0u64);
@@ -481,7 +486,8 @@ final fn finalize_resolve_on_core(market_id: field, outcome: u8, f_core: Final) 
 }
 
 final fn finalize_unstake_credits(oracle: address, amount: u64, transfer_future: Final) {
-    assert_oracle_not_paused();
+    let oracle_paused: u8 = Mapping::get_or_use(oracle_u8, PARAM_ORACLE_PAUSED, DEFAULT_ORACLE_PAUSED);
+    assert(oracle_paused == 0u8);
     transfer_future.run();
     let current_stake: u64 = Mapping::get(active_oracles, oracle);
     let locked_stake: u64 = Mapping::get_or_use(oracle_locked_stake, oracle, 0u64);
@@ -573,11 +579,4 @@ final fn finalize_set_protocol_u8(param_key: u8, value: u8, auth: Final) {
     Mapping::set(oracle_u8, param_key, value);
 }
 
-final fn assert_oracle_not_paused() {
-    let paused_flag: u8 = Mapping::get_or_use(
-        oracle_u8,
-        PARAM_ORACLE_PAUSED,
-        DEFAULT_ORACLE_PAUSED,
-    );
-    assert(paused_flag == 0u8);
-}
+
