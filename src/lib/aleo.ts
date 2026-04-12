@@ -46,11 +46,23 @@ export interface PoolInfo {
   total_outcome_1: number;
   total_outcome_2: number;
   total_outcome_3: number;
+  total_outcome_4: number;
+  total_outcome_5: number;
+  total_outcome_6: number;
+  total_outcome_7: number;
   // Legacy aliases kept for backwards compatibility in existing UI.
   total_no: number;
   total_yes: number;
+  trader_count: number;
+  lp_count: number;
   participant_count: number;
   locked: boolean;
+  trading_collateral: number;
+  lp_collateral: number;
+  total_collateral: number;
+  total_shares: number;
+  lp_supply: number;
+  cumulative_volume: number;
   escrowed_amount: number;
 }
 
@@ -191,21 +203,16 @@ export const extractMarketIdFromTx = (tx: AleoTransaction | null): string | null
   try {
     if (!tx) return null;
 
-    console.log('[extractMarketIdFromTx] Full tx:', JSON.stringify(tx, null, 2));
-
     const transitions = tx?.execution?.transitions;
     if (!Array.isArray(transitions)) {
       console.warn('[extractMarketIdFromTx] No transitions found in tx');
       return null;
     }
 
-    console.log('[extractMarketIdFromTx] Transitions:', JSON.stringify(transitions, null, 2));
-
     // Find create_market transition — check both program match and function name
     const createMarketTx = transitions.find((t) => {
       const fnMatch = t.function === 'create_market';
       const programMatch = t.program === PROGRAM_ID || String(t.program).startsWith(PROGRAM_ID.split('.')[0]);
-      console.log(`[extractMarketIdFromTx] Transition: program=${t.program} function=${t.function} fnMatch=${fnMatch} programMatch=${programMatch}`);
       return fnMatch && programMatch;
     });
 
@@ -215,15 +222,11 @@ export const extractMarketIdFromTx = (tx: AleoTransaction | null): string | null
       return null;
     }
 
-    console.log('[extractMarketIdFromTx] Found create_market transition:', JSON.stringify(createMarketTx, null, 2));
-
     const outputs = createMarketTx.outputs;
     if (!Array.isArray(outputs) || outputs.length === 0) {
       console.warn('[extractMarketIdFromTx] No outputs in create_market transition');
       return null;
     }
-
-    console.log('[extractMarketIdFromTx] Outputs:', JSON.stringify(outputs, null, 2));
 
     // Try every output for a field value
     for (const output of outputs) {
@@ -231,7 +234,6 @@ export const extractMarketIdFromTx = (tx: AleoTransaction | null): string | null
 
       // Direct field string
       if (typeof val === 'string' && /^\d+field$/.test(val.trim())) {
-        console.log('[extractMarketIdFromTx] Direct field value:', val.trim());
         return val.trim();
       }
 
@@ -239,26 +241,19 @@ export const extractMarketIdFromTx = (tx: AleoTransaction | null): string | null
       if (typeof val === 'object' && val !== null) {
         const str = JSON.stringify(val);
         const match = str.match(/(\d+field)/);
-        if (match) {
-          console.log('[extractMarketIdFromTx] Field from nested object:', match[1]);
-          return match[1];
-        }
+        if (match) return match[1];
       }
 
       // String containing field somewhere
       if (typeof val === 'string') {
         const match = val.match(/(\d+field)/);
-        if (match) {
-          console.log('[extractMarketIdFromTx] Field from string match:', match[1]);
-          return match[1];
-        }
+        if (match) return match[1];
       }
     }
 
     // Last resort — scan entire transition JSON for field values
     const txStr = JSON.stringify(createMarketTx);
     const allFields = [...txStr.matchAll(/(\d+field)/g)].map(m => m[1]);
-    console.log('[extractMarketIdFromTx] All field values in transition:', allFields);
 
     // First field is usually titleHash (input), second is market_id (output)
     if (allFields.length >= 2) return allFields[1];
@@ -363,10 +358,22 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
     total_outcome_1: 0,
     total_outcome_2: 0,
     total_outcome_3: 0,
+    total_outcome_4: 0,
+    total_outcome_5: 0,
+    total_outcome_6: 0,
+    total_outcome_7: 0,
     total_no: 0,
     total_yes: 0,
+    trader_count: 0,
+    lp_count: 0,
     participant_count: 0,
     locked: false,
+    trading_collateral: 0,
+    lp_collateral: 0,
+    total_collateral: 0,
+    total_shares: 0,
+    lp_supply: 0,
+    cumulative_volume: 0,
     escrowed_amount: 0,
   };
 
@@ -378,16 +385,40 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
     const totalOutcome1 = parseAleoInt(obj.total_outcome_1 ?? obj.total_yes);
     const totalOutcome2 = parseAleoInt(obj.total_outcome_2);
     const totalOutcome3 = parseAleoInt(obj.total_outcome_3);
+    const totalOutcome4 = parseAleoInt(obj.total_outcome_4);
+    const totalOutcome5 = parseAleoInt(obj.total_outcome_5);
+    const totalOutcome6 = parseAleoInt(obj.total_outcome_6);
+    const totalOutcome7 = parseAleoInt(obj.total_outcome_7);
+    const traderCount = parseAleoInt(obj.trader_count ?? obj.participant_count);
+    const lpCount = parseAleoInt(obj.lp_count);
+    const tradingCollateral = parseAleoInt(obj.trading_collateral ?? obj.total_collateral);
+    const lpCollateral = parseAleoInt(obj.lp_collateral);
+    const totalCollateral = parseAleoInt(
+      obj.total_collateral ?? (tradingCollateral + lpCollateral),
+    );
+    const cumulativeVolume = parseAleoInt(obj.cumulative_volume);
     return {
       total_outcome_0: totalOutcome0,
       total_outcome_1: totalOutcome1,
       total_outcome_2: totalOutcome2,
       total_outcome_3: totalOutcome3,
+      total_outcome_4: totalOutcome4,
+      total_outcome_5: totalOutcome5,
+      total_outcome_6: totalOutcome6,
+      total_outcome_7: totalOutcome7,
       total_no: totalOutcome0,
       total_yes: totalOutcome1,
-      participant_count: parseAleoInt(obj.participant_count),
+      trader_count: traderCount,
+      lp_count: lpCount,
+      participant_count: traderCount + lpCount,
       locked: parseAleoBool(obj.locked),
-      escrowed_amount: parseAleoInt(obj.escrowed_amount),
+      trading_collateral: tradingCollateral,
+      lp_collateral: lpCollateral,
+      total_collateral: totalCollateral,
+      total_shares: parseAleoInt(obj.total_shares),
+      lp_supply: parseAleoInt(obj.lp_supply),
+      cumulative_volume: cumulativeVolume,
+      escrowed_amount: parseAleoInt(obj.escrowed_amount ?? tradingCollateral),
     };
   }
 
@@ -413,9 +444,21 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
       key === "total_outcome_1" ||
       key === "total_outcome_2" ||
       key === "total_outcome_3" ||
+      key === "total_outcome_4" ||
+      key === "total_outcome_5" ||
+      key === "total_outcome_6" ||
+      key === "total_outcome_7" ||
       key === "total_no" ||
       key === "total_yes" ||
+      key === "trader_count" ||
+      key === "lp_count" ||
       key === "participant_count" ||
+      key === "trading_collateral" ||
+      key === "lp_collateral" ||
+      key === "total_collateral" ||
+      key === "total_shares" ||
+      key === "lp_supply" ||
+      key === "cumulative_volume" ||
       key === "escrowed_amount"
     ) {
       parsed[key] = parseAleoInt(value) as never;
@@ -423,12 +466,20 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
   }
 
   const merged = { ...base, ...parsed };
+  const totalOutcome0 = parsed.total_outcome_0 ?? parsed.total_no ?? 0;
+  const totalOutcome1 = parsed.total_outcome_1 ?? parsed.total_yes ?? 0;
   return {
     ...merged,
-    total_outcome_0: merged.total_outcome_0 || merged.total_no,
-    total_outcome_1: merged.total_outcome_1 || merged.total_yes,
-    total_no: merged.total_outcome_0 || merged.total_no,
-    total_yes: merged.total_outcome_1 || merged.total_yes,
+    total_outcome_0: totalOutcome0,
+    total_outcome_1: totalOutcome1,
+    total_no: totalOutcome0,
+    total_yes: totalOutcome1,
+    participant_count:
+      (parsed.participant_count as number | undefined) ??
+      ((parsed.trader_count as number | undefined) ?? 0) + ((parsed.lp_count as number | undefined) ?? 0),
+    escrowed_amount:
+      (parsed.escrowed_amount as number | undefined) ??
+      ((parsed.trading_collateral as number | undefined) ?? (parsed.total_collateral as number | undefined) ?? 0),
   };
 };
 

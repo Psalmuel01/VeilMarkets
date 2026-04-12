@@ -25,7 +25,7 @@ Wave 4 focused on turning VeilMarkets from a binary-only prototype into a produc
 ### 4) Beyond Binary: Categorical Markets
 - Introduced market types beyond yes/no:
   - Binary markets
-  - Categorical markets (2-4 outcomes)
+  - Categorical markets (2-8 outcomes)
 - Added outcome count and label support across stack:
   - Create flow collects/validates outcomes
   - Metadata stores `market_type`, `outcome_count`, `outcome_labels`
@@ -92,6 +92,5 @@ Wave 5 is focused on production hardening, deeper privacy guarantees, and scalin
 - Add product analytics around funnel drop-off (create, bet, claim).
 - Improve production filtering/search resiliency across environments.
 - Expand test coverage (frontend integration + Leo interaction smoke tests).
-
 
 

@@ -1,12 +1,9 @@
 import { useWallet } from "@provablehq/aleo-wallet-adaptor-react";
 import { toast } from "sonner";
-import type { TxHistoryResult } from "@provablehq/aleo-types";
 import {
   fetchMappingValue,
   fetchTransaction,
   parseMarketInfo,
-  fetchCurrentBlockHeight,
-  DEFAULT_BLOCK_TIME_SECONDS,
   PoolInfo,
   parsePoolInfo,
   parseResolutionProposal,
@@ -16,10 +13,9 @@ import {
   getAllMarketMetadata,
   type MarketMetadataRow,
 } from "../lib/metadata";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
 import { useRefresh } from "../context/RefreshContext";
-
-type TxHistoryTransaction = TxHistoryResult["transactions"][number];
+import { formatDateFriendly } from "@/lib/utils";
 
 interface WalletRecord {
   id?: string;
@@ -50,9 +46,11 @@ import {
   resolveTokenTicker,
   resolveTokenDisplayName,
   resolveTokenKind,
+  FACTORY_PROGRAM_ID,
 } from "../lib/constants";
 
 export interface ChainMarket {
+  program_id?: string;
   creator: string;
   title_hash: string;
   category: number;
@@ -87,6 +85,77 @@ interface TokenBalanceSummary {
   total: number;
 }
 
+interface CoreProtocolConfig {
+  maxOutcomes: number;
+  feeBps: number;
+  lpFeeShareBps: number;
+  minTrade: number;
+  minLiquidity: number;
+  maxMarketCollateral: number;
+}
+
+interface MarketPositionSummary {
+  marketId: string;
+  outcome: number | null;
+  sellableShares: number; // total shares sellable across all same-outcome position records
+  sellableCollateral: number;
+  outcomeShares: Record<number, number>;
+  outcomeMaxPositionShares: Record<number, number>;
+  tradePositionCount: number;
+  lpShares: number;
+  lpCollateral: number;
+  lpFeeAccrued: number;
+  lpWithdrawable: number;
+  lpPositionCount: number;
+}
+
+interface BuyQuote {
+  marketId: string;
+  outcome: number;
+  amountMicro: number;
+  feeMicro: number;
+  netCollateralMicro: number;
+  sharesOut: number;
+  minSharesOut: number;
+  slippageBps: number;
+  priceMicro: number;
+}
+
+interface SellQuote {
+  marketId: string;
+  outcome: number;
+  sharesToSell: number;
+  grossPayoutMicro: number;
+  feeMicro: number;
+  netPayoutMicro: number;
+  minPayoutMicro: number;
+  slippageBps: number;
+}
+
+export interface ResolutionFinalizeRequirements {
+  marketId: string;
+  proposal: {
+    proposed_outcome: number;
+    challenge_deadline: number;
+    is_disputed: boolean;
+    proposer: string;
+  } | null;
+  minVoters: number;
+  minStakeMicro: number;
+  quorumWeightMicro: number;
+  voterCount: number;
+  totalVoteWeightMicro: number;
+  selectedOutcomeVoteWeightMicro: number;
+  leadingOutcome: number | null;
+  leadingOutcomeVoteWeightMicro: number;
+  recommendedOutcome: number | null;
+  timeoutEligible: boolean;
+  timeoutAt: number | null;
+  fallbackMode: boolean;
+  canFinalize: boolean;
+  blockers: string[];
+}
+
 const toObject = (value: unknown): Record<string, unknown> | null =>
   typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
 
@@ -98,15 +167,6 @@ const cleanAleoPrimitive = (value: unknown): string => {
       .trim();
   }
   return String(value ?? "");
-};
-
-const parseAleoAmount = (value: unknown): number => {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const parsed = Number.parseInt(value.replace(/u64|u128|u32/g, "").trim(), 10);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-  return 0;
 };
 
 const unwrapValue = (value: unknown): unknown => {
@@ -128,9 +188,14 @@ const toMicrocredits = (credits: number): number => Math.max(1_000_000, Math.flo
 const formatU64 = (value: number): string => `${Math.max(0, Math.floor(value))}u64`;
 const formatU8 = (value: number): string => `${Math.max(0, Math.floor(value))}u8`;
 const formatField = (value: string): string => (value.endsWith("field") ? value : `${value}field`);
+const generateRandomField = (): string => {
+  const seed = crypto.getRandomValues(new Uint32Array(2));
+  const randomValue = (BigInt(seed[0]) << 32n) + BigInt(seed[1]);
+  return `${randomValue}field`;
+};
 const USDCX_FREEZELIST_PROGRAM_ID = "test_usdcx_freezelist.aleo";
 const USAD_FREEZELIST_PROGRAM_ID = "test_usad_freezelist.aleo";
-const MIN_ORACLE_STAKE_MICROCREDITS = 30_000_000;
+const MIN_ORACLE_STAKE_MICROCREDITS = 20_000_000;
 
 const parseMappingU64 = (value: unknown): number => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -144,6 +209,28 @@ const parseMappingU64 = (value: unknown): number => {
     if (obj.value !== undefined) return parseMappingU64(obj.value);
   }
   return 0;
+};
+
+const parseMappingBigInt = (value: unknown): bigint => {
+  if (typeof value === "bigint") return value;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return BigInt(Math.max(0, Math.floor(value)));
+  }
+  if (typeof value === "string") {
+    const match = value.match(/-?\d+/);
+    if (!match) return 0n;
+    try {
+      const parsed = BigInt(match[0]);
+      return parsed < 0n ? 0n : parsed;
+    } catch {
+      return 0n;
+    }
+  }
+  if (typeof value === "object" && value !== null) {
+    const obj = value as Record<string, unknown>;
+    if (obj.value !== undefined) return parseMappingBigInt(obj.value);
+  }
+  return 0n;
 };
 
 const parseMappingString = (value: unknown): string | null => {
@@ -225,6 +312,34 @@ const parseRecordField = (record: WalletRecord, field: string): string => {
   return "";
 };
 
+const extractTransitionField = (transition: unknown, field: string): string | null => {
+  if (!transition || typeof transition !== "object") return null;
+  const outputs = Array.isArray((transition as { outputs?: unknown[] }).outputs)
+    ? ((transition as { outputs?: unknown[] }).outputs as unknown[])
+    : [];
+  const patterns = [
+    new RegExp(`${field}\\s*:\\s*(\\d+field)`),
+    new RegExp(`"${field}"\\s*:\\s*"?(\\d+field)`),
+  ];
+
+  for (const output of outputs) {
+    const candidates: string[] = [];
+    if (typeof output === "string") candidates.push(output);
+    if (typeof output === "object" && output !== null) {
+      const obj = output as Record<string, unknown>;
+      if (typeof obj.value === "string") candidates.push(obj.value);
+      candidates.push(JSON.stringify(obj));
+    }
+    for (const candidate of candidates) {
+      for (const pattern of patterns) {
+        const match = candidate.match(pattern);
+        if (match?.[1]) return formatField(match[1]);
+      }
+    }
+  }
+  return null;
+};
+
 const extractRecordAmount = (record: WalletRecord): number => {
   // 1. Try common field names
   const possibleFields = ["microcredits", "amount", "value"];
@@ -298,6 +413,108 @@ const normalizeField = (value: unknown): string => {
     .trim()
     .replace(/\.private|\.public/g, "");
   return /field$/.test(str) ? str : `${str.replace(/field$/g, "")}field`;
+};
+
+const normalizeFieldId = (marketId: string): string =>
+  marketId.includes("field") ? marketId.replace(/\s+/g, "") : `${marketId.replace(/\s+/g, "")}field`;
+
+let cachedBhpHelpers:
+  | BhpHelpers
+  | null = null;
+
+type BhpHelpers = {
+  hashOutcomeKey: (marketIdField: string, outcome: number) => string | null;
+  hashLpKey: (marketIdField: string, lpOwnerField: string) => string | null;
+};
+
+const buildBhpFieldKey = (
+  wasm: Awaited<typeof import("@provablehq/wasm")>,
+  bhp: InstanceType<(typeof import("@provablehq/wasm"))["BHP256"]>,
+  left: string,
+  right: string,
+): string | null => {
+  try {
+    const leftField = wasm.Field.fromString(normalizeField(left));
+    const rightField = wasm.Field.fromString(normalizeField(right));
+    const sumField = leftField.add(rightField);
+
+    // The contracts derive these mapping keys with BHP256 over the field bits.
+    // We lazily load the wasm module and reuse one BHP instance so read-only
+    // queries can mirror the on-chain key derivation without paying that setup
+    // cost on every hook render.
+    const bits = sumField.toBitsLe();
+    while (bits.length < 256) bits.push(false);
+
+    return bhp.hash(bits).toString();
+  } catch (error) {
+    console.error("[BHP] Error deriving mapping key:", error);
+    return null;
+  }
+};
+
+const getBhpHelpers = async (): Promise<BhpHelpers | null> => {
+  if (cachedBhpHelpers) return cachedBhpHelpers;
+  try {
+    const wasm = await import("@provablehq/wasm");
+    const bhp = new wasm.BHP256();
+    cachedBhpHelpers = {
+      hashOutcomeKey: (marketIdField: string, outcome: number) => {
+        const normalizedOutcome = `${Math.max(0, Math.floor(outcome))}field`;
+        return buildBhpFieldKey(wasm, bhp, marketIdField, normalizedOutcome);
+      },
+      hashLpKey: (marketIdField: string, lpOwnerField: string) => {
+        return buildBhpFieldKey(wasm, bhp, marketIdField, lpOwnerField);
+      },
+    };
+    return cachedBhpHelpers;
+  } catch (error) {
+    console.warn("[BHP256] Unable to initialize hashed key helpers:", error);
+    return null;
+  }
+};
+
+const deriveOutcomeExposureKey = async (marketIdField: string, outcome: number): Promise<string | null> => {
+  const helpers = await getBhpHelpers();
+  if (!helpers) return null;
+  return helpers.hashOutcomeKey(marketIdField, outcome);
+};
+
+const deriveOutcomeVoteKey = async (marketIdField: string, outcome: number): Promise<string | null> =>
+  deriveOutcomeExposureKey(marketIdField, outcome);
+
+const deriveLpBalanceKey = async (marketIdField: string, lpOwnerField: string): Promise<string | null> => {
+  const helpers = await getBhpHelpers();
+  if (!helpers) return null;
+  return helpers.hashLpKey(marketIdField, lpOwnerField);
+};
+
+const deriveLpOwnerCommitment = async (marketIdField: string, ownerField: string): Promise<string | null> => {
+  const helpers = await getBhpHelpers();
+  if (!helpers) return null;
+  return helpers.hashLpKey(marketIdField, ownerField);
+};
+
+let cachedAddressFieldHelpers:
+  | AddressFieldHelpers
+  | null = null;
+
+type AddressFieldHelpers = {
+  toField: (address: string) => string;
+};
+
+const getAddressFieldHelpers = async (): Promise<AddressFieldHelpers | null> => {
+  if (cachedAddressFieldHelpers) return cachedAddressFieldHelpers;
+  try {
+    const wasm = await import("@provablehq/wasm");
+    cachedAddressFieldHelpers = {
+      toField: (address: string) =>
+        wasm.Address.from_string(address).toGroup().toXCoordinate().toString(),
+    };
+    return cachedAddressFieldHelpers;
+  } catch (error) {
+    console.warn("[AddressField] Unable to initialize address field helper:", error);
+    return null;
+  }
 };
 
 const formatMerkleProof = (value: unknown): string | null => {
@@ -450,23 +667,23 @@ const extractUsdcMerkleProofInputs = (record: WalletRecord): [string, string] | 
       const obj = source as Record<string, unknown>;
       const p0 = formatMerkleProof(
         obj[0] ??
-          obj.proof0 ??
-          obj.first ??
-          obj.left ??
-          obj.token_proof_0 ??
-          obj.proof_0 ??
-          obj.a ??
-          obj.p0,
+        obj.proof0 ??
+        obj.first ??
+        obj.left ??
+        obj.token_proof_0 ??
+        obj.proof_0 ??
+        obj.a ??
+        obj.p0,
       );
       const p1 = formatMerkleProof(
         obj[1] ??
-          obj.proof1 ??
-          obj.second ??
-          obj.right ??
-          obj.token_proof_1 ??
-          obj.proof_1 ??
-          obj.b ??
-          obj.p1,
+        obj.proof1 ??
+        obj.second ??
+        obj.right ??
+        obj.token_proof_1 ??
+        obj.proof_1 ??
+        obj.b ??
+        obj.p1,
       );
       if (p0 && p1) return [p0, p1];
     }
@@ -579,8 +796,6 @@ export const useAleoPrograms = () => {
         return String(input);
       });
 
-      console.log(`[executeWalletTransaction] Executing ${options.program}/${options.function}`, cleanedInputs);
-
       return executeTransaction({
         ...options,
         inputs: cleanedInputs,
@@ -673,7 +888,6 @@ export const useAleoPrograms = () => {
 
               if (transitionMatch) {
                 foundTransition = transitionMatch;
-                console.log(`[poll] Confirmed tx:`, actualTxId);
                 break outer;
               }
             }
@@ -720,8 +934,12 @@ export const useAleoPrograms = () => {
         try {
           const cleanId = row.market_id.replace(/field$/i, '').trim();
           const fieldId = `${cleanId}field`;
+          const sourceProgramId =
+            typeof row.program_id === "string" && row.program_id.trim().length > 0
+              ? row.program_id.trim()
+              : PROGRAM_ID;
 
-          const raw = await fetchMappingValue(PROGRAM_ID, "markets", fieldId);
+          const raw = await fetchMappingValue(sourceProgramId, "markets", fieldId);
           // console.log(`[fetchMarkets] On-chain data for ${fieldId}:`, raw);
 
           if (!raw) {
@@ -733,6 +951,7 @@ export const useAleoPrograms = () => {
 
           return {
             ...parsed,
+            program_id: sourceProgramId,
             id: parsed.id || fieldId,
             title: row.title || `Market ${row.market_id.slice(0, 8)}...`,
             description: row.description || 'No description.',
@@ -758,19 +977,6 @@ export const useAleoPrograms = () => {
     }
   }, []);
 
-  const [currentHeight, setCurrentHeight] = useState<number | null>(null);
-
-  useEffect(() => {
-    const updateHeight = async () => {
-      const h = await fetchCurrentBlockHeight();
-      if (!h) return;
-      setCurrentHeight(h);
-    };
-    updateHeight();
-    const interval = setInterval(updateHeight, 30000); // 30s is enough now that we don't estimate
-    return () => clearInterval(interval);
-  }, []);
-
   const fetchPoolStats = useCallback(async (marketId: string): Promise<PoolInfo | null> => {
     try {
       const cleanedId = marketId.replace("field", "").trim() + "field";
@@ -783,51 +989,214 @@ export const useAleoPrograms = () => {
     }
   }, []);
 
+  const fetchOutcomeTotals = useCallback(
+    async (
+      marketId: string,
+      outcomeCount: number,
+      _preferredProgramId?: string,
+    ): Promise<number[]> => {
+      const cleanMarketId = normalizeFieldId(marketId);
+      const normalizedCount = Math.max(2, outcomeCount);
+      const indices = Array.from({ length: normalizedCount }, (_, index) => index);
+      const totals = await Promise.all(
+        indices.map(async (index) => {
+          const exposureKey = await deriveOutcomeExposureKey(cleanMarketId, index);
+          if (!exposureKey) return 0;
+          const [qtyRaw, supplyRaw] = await Promise.all([
+            fetchMappingValue(PROGRAM_ID, "outcome_token_qty", exposureKey),
+            fetchMappingValue(PROGRAM_ID, "outcome_token_supply", exposureKey),
+          ]);
+          const qty = parseMappingBigInt(qtyRaw);
+          const supply = parseMappingBigInt(supplyRaw);
+          const outstanding = supply > qty ? supply - qty : 0n;
+          return outstanding > BigInt(Number.MAX_SAFE_INTEGER)
+            ? Number.MAX_SAFE_INTEGER
+            : Number(outstanding);
+        }),
+      );
+      return totals;
+    },
+    [],
+  );
+
+  const fetchCoreProtocolConfig = useCallback(async (): Promise<CoreProtocolConfig> => {
+    const [
+      maxOutcomesRaw,
+      feeBpsRaw,
+      minTradeRaw,
+      minLiquidityRaw,
+      lpFeeShareBpsRaw,
+      maxMarketCollateralRaw,
+    ] =
+      await Promise.all([
+        fetchMappingValue(PROGRAM_ID, "protocol_u8", "0u8"),
+        fetchMappingValue(PROGRAM_ID, "protocol_u64", "1u8"),
+        fetchMappingValue(PROGRAM_ID, "protocol_u64", "2u8"),
+        fetchMappingValue(PROGRAM_ID, "protocol_u64", "3u8"),
+        fetchMappingValue(PROGRAM_ID, "protocol_u64", "5u8"),
+        fetchMappingValue(PROGRAM_ID, "protocol_u64", "6u8"),
+      ]);
+
+    return {
+      maxOutcomes: Math.min(8, Math.max(2, parseMappingU64(maxOutcomesRaw) || 8)),
+      feeBps: Math.min(10_000, Math.max(0, parseMappingU64(feeBpsRaw) || 100)),
+      lpFeeShareBps: Math.min(10_000, Math.max(0, parseMappingU64(lpFeeShareBpsRaw) || 8_000)),
+      minTrade: Math.max(1, parseMappingU64(minTradeRaw) || 1_000_000),
+      minLiquidity: Math.max(1, parseMappingU64(minLiquidityRaw) || 1_000_000),
+      maxMarketCollateral: Math.max(1, parseMappingU64(maxMarketCollateralRaw) || 100_000_000_000),
+    };
+  }, []);
+
+  const quoteBuyShares = useCallback(
+    async (
+      marketId: string,
+      outcome: number,
+      amountMicro: number,
+      slippageBps = 200,
+    ): Promise<BuyQuote | null> => {
+      const cleanMarketId = normalizeFieldId(marketId);
+      const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
+      if (!marketRaw) return null;
+      const market = parseMarketInfo(marketRaw as string | object, cleanMarketId);
+      if (outcome < 0 || outcome >= market.outcome_count) return null;
+
+      const poolRaw = await fetchMappingValue(PROGRAM_ID, "pools", cleanMarketId);
+      const pool = poolRaw ? parsePoolInfo(poolRaw as any) : null;
+      if (!pool) return null;
+
+      const protocol = await fetchCoreProtocolConfig();
+      if (amountMicro < protocol.minTrade) return null;
+      const amountBI = BigInt(amountMicro);
+      const feeBpsBI = BigInt(protocol.feeBps);
+      const feeBI = (amountBI * feeBpsBI) / 10000n;
+      const netCollateralBI = amountBI - feeBI;
+      if (netCollateralBI <= 0n) return null;
+
+      if ((pool.lp_collateral ?? 0) <= 0) return null;
+
+      const outcomeCountNum = Math.max(2, Math.min(8, market.outcome_count));
+      const allQty = await Promise.all(
+        Array.from({ length: outcomeCountNum }, async (_, index) => {
+          const key = await deriveOutcomeExposureKey(cleanMarketId, index);
+          if (!key) return 0n;
+          const raw = await fetchMappingValue(PROGRAM_ID, "outcome_token_qty", key);
+          return parseMappingBigInt(raw);
+        }),
+      );
+
+      const qtyOutcome = allQty[outcome] ?? 0n;
+      if (qtyOutcome <= 0n) return null;
+
+      const totalOtherQty = allQty.reduce(
+        (sum, qty, index) => (index === outcome ? sum : sum + qty),
+        0n,
+      );
+      if (totalOtherQty <= 0n) return null;
+
+      const sharesOutBI = (qtyOutcome * netCollateralBI) / (totalOtherQty + netCollateralBI);
+      if (sharesOutBI <= 0n || sharesOutBI >= qtyOutcome) return null;
+
+      const boundedSlippage = Math.min(5_000, Math.max(0, slippageBps));
+      const minSharesOutBI = (sharesOutBI * BigInt(10_000 - boundedSlippage)) / 10000n;
+      if (minSharesOutBI <= 0n) return null;
+
+      const sharesOut = Number(sharesOutBI);
+      const minSharesOut = Number(minSharesOutBI);
+      const priceMicroBI = (netCollateralBI * 1_000_000n) / sharesOutBI;
+
+      return {
+        marketId: cleanMarketId,
+        outcome,
+        amountMicro,
+        feeMicro: Number(feeBI),
+        netCollateralMicro: Number(netCollateralBI),
+        sharesOut,
+        minSharesOut,
+        slippageBps: boundedSlippage,
+        priceMicro: Number(priceMicroBI),
+      };
+    },
+    [fetchCoreProtocolConfig],
+  );
+
+  const quoteSellShares = useCallback(
+    async (
+      marketId: string,
+      outcome: number,
+      sharesToSell: number,
+      slippageBps = 200,
+    ): Promise<SellQuote | null> => {
+      const cleanMarketId = normalizeFieldId(marketId);
+      if (sharesToSell <= 0) return null;
+
+      const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
+      if (!marketRaw) return null;
+      const market = parseMarketInfo(marketRaw as string | object, cleanMarketId);
+      if (outcome < 0 || outcome >= market.outcome_count) return null;
+
+      const poolRaw = await fetchMappingValue(PROGRAM_ID, "pools", cleanMarketId);
+      const pool = poolRaw ? parsePoolInfo(poolRaw as any) : null;
+      if (!pool) return null;
+
+      const protocol = await fetchCoreProtocolConfig();
+      const sharesBI = BigInt(Math.max(1, Math.floor(sharesToSell)));
+      const outcomeCountNum = Math.max(2, Math.min(8, market.outcome_count));
+      const allQty = await Promise.all(
+        Array.from({ length: outcomeCountNum }, async (_, index) => {
+          const key = await deriveOutcomeExposureKey(cleanMarketId, index);
+          if (!key) return 0n;
+          const raw = await fetchMappingValue(PROGRAM_ID, "outcome_token_qty", key);
+          return parseMappingBigInt(raw);
+        }),
+      );
+
+      const qtyOutcome = allQty[outcome] ?? 0n;
+      const totalOtherQty = allQty.reduce(
+        (sum, qty, index) => (index === outcome ? sum : sum + qty),
+        0n,
+      );
+      if (totalOtherQty <= 0n) return null;
+
+      const grossPayoutBI = (totalOtherQty * sharesBI) / (qtyOutcome + sharesBI);
+      if (grossPayoutBI <= 0n || grossPayoutBI > BigInt(pool.total_collateral)) return null;
+
+      const feeBpsBI = BigInt(protocol.feeBps);
+      const feeBI = (grossPayoutBI * feeBpsBI) / 10000n;
+      const netPayoutBI = grossPayoutBI > feeBI ? grossPayoutBI - feeBI : 0n;
+
+      const boundedSlippage = Math.min(5_000, Math.max(0, slippageBps));
+      const minPayoutBI = (netPayoutBI * BigInt(10_000 - boundedSlippage)) / 10000n;
+
+      if (grossPayoutBI <= 0n || netPayoutBI <= 0n) return null;
+
+      return {
+        marketId: cleanMarketId,
+        outcome,
+        sharesToSell: Number(sharesBI),
+        grossPayoutMicro: Number(grossPayoutBI),
+        feeMicro: Number(feeBI),
+        netPayoutMicro: Number(netPayoutBI),
+        minPayoutMicro: Number(minPayoutBI),
+        slippageBps: boundedSlippage,
+      };
+    },
+    [fetchCoreProtocolConfig],
+  );
+
   const fetchUserBets = useCallback(async (): Promise<ParsedBetRecord[]> => {
     if (!address) return [];
     setLoading(true);
     try {
-      // Query token adapters for EscrowedBet records (where bets are escrowed)
-      const tokenPrograms = [CREDITS_TOKEN_PROGRAM_ID, USDCX_TOKEN_PROGRAM_ID, USAD_TOKEN_PROGRAM_ID];
-      const unspentRecords: WalletRecord[] = [];
-
-      for (const programId of tokenPrograms) {
-        try {
-          const rawRecords = await requestRecordsWithRetry(requestRecords, programId, "EscrowedBet");
-          const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
-          unspentRecords.push(...records.filter((record) => !record.spent));
-        } catch (error) {
-          console.warn(`[fetchUserBets] Failed to read EscrowedBet records for ${programId}:`, error);
-        }
-      }
-
       const rawPositions = await requestRecordsWithRetry(requestRecords, PROGRAM_ID, "BetPosition");
       const positionRecords = rawPositions.filter(
         (entry): entry is WalletRecord => typeof entry === "object" && entry !== null,
       );
-      const positionSpentByKey = new Map<string, boolean>();
-      for (const record of positionRecords) {
-        const market_id = parseRecordField(record, "market_id");
-        const escrow_id = parseRecordField(record, "escrow_id");
-        if (!market_id || !escrow_id) continue;
-        const key = `${market_id}-${escrow_id}`;
-        positionSpentByKey.set(key, Boolean(record.spent));
-      }
-
-      // console.log(`[fetchUserBets] Found ${unspentRecords.length} unspent EscrowedBet records across token adapters.`);
-
-      const results = unspentRecords
+      const results = positionRecords
         .map((record) => {
           const market_id = parseRecordField(record, "market_id");
           const outcome = parseRecordField(record, "outcome");
-          const amount = parseRecordField(record, "amount");
-          const escrow_id = parseRecordField(record, "escrow_id");
-          const position_key = `${market_id}-${escrow_id}`;
-          const position_spent = positionSpentByKey.get(position_key) ?? false;
-
-          if (market_id) {
-            console.log(`[fetchUserBets] Found bet for market: ${market_id}`, { outcome, amount, escrow_id });
-          }
+          const amount = parseRecordField(record, "collateral_in");
+          const escrow_id = parseRecordField(record, "position_id");
 
           return {
             market_id,
@@ -835,12 +1204,10 @@ export const useAleoPrograms = () => {
             amount,
             escrow_id,
             spent: Boolean(record.spent),
-            position_spent,
+            position_spent: Boolean(record.spent),
           };
         })
         .filter((record) => Boolean(record.market_id));
-
-      // console.log(`[fetchUserBets] Returning ${results.length} valid bet records.`);
       return results;
     } catch (error) {
       console.error("Failed to fetch user bets:", error);
@@ -880,11 +1247,6 @@ export const useAleoPrograms = () => {
     };
   }, [address, requestRecords]);
 
-  const fetchTokenBalance = useCallback(async (): Promise<number> => {
-    const balances = await fetchBalances();
-    return balances.total;
-  }, [fetchBalances]);
-
   const fetchArc20Balances = useCallback(async (
     baseProgramId: string,
     label: string,
@@ -920,19 +1282,9 @@ export const useAleoPrograms = () => {
     return fetchArc20Balances("test_usdcx_stablecoin.aleo", "USDCx");
   }, [fetchArc20Balances]);
 
-  const fetchUSDCxBalance = useCallback(async (): Promise<number> => {
-    const balances = await fetchUSDCxBalances();
-    return balances.total;
-  }, [fetchUSDCxBalances]);
-
   const fetchUSADBalances = useCallback(async (): Promise<TokenBalanceSummary> => {
     return fetchArc20Balances("test_usad_stablecoin.aleo", "USAD");
   }, [fetchArc20Balances]);
-
-  const fetchUSADBalance = useCallback(async (): Promise<number> => {
-    const balances = await fetchUSADBalances();
-    return balances.total;
-  }, [fetchUSADBalances]);
 
 
   const createMarket = async (
@@ -980,19 +1332,6 @@ export const useAleoPrograms = () => {
 
         if (match) {
           const marketId = match[1];
-          console.log("[createMarket] Metadata before saving to Supabase:", {
-            transactionId: result.transactionId,
-            marketId,
-            title,
-            description,
-            resolutionSource,
-            marketType,
-            outcomeCount,
-            outcomeLabels,
-            tokenId,
-            closeTime,
-            resolutionTime,
-          });
           // Save metadata for rendering and filtering.
           try {
             await saveMarketMetadata({
@@ -1013,7 +1352,7 @@ export const useAleoPrograms = () => {
           } catch (metadataError) {
             const maybeError = metadataError as { code?: string; message?: string };
             if (maybeError?.code === "42501") {
-              toast.warning("Market created on-chain, but metadata save was blocked by Supabase RLS for markets_v8.");
+              toast.warning("Market created on-chain, but metadata save was blocked by Supabase RLS for markets_v11.");
             } else {
               toast.warning("Market created on-chain, but metadata save failed.");
             }
@@ -1027,21 +1366,6 @@ export const useAleoPrograms = () => {
       console.error("Create market failed:", error);
       return null;
     }
-  };
-
-  const requestCredits = async () => {
-    toast.info("Opening Aleo Faucet...");
-    window.open("https://faucet.aleo.org/", "_blank");
-  };
-
-  const requestUSDCx = async () => {
-    toast.info("USDCx can be obtained via the official USDCx bridge/faucet on testnet.");
-    // In a real app, link to the specific USDCx faucet/bridge if available
-  };
-
-  const requestUSAD = async () => {
-    toast.info("USAD can be obtained via the official USAD bridge/faucet on testnet.");
-    // In a real app, link to the specific USAD faucet/bridge if available
   };
 
   const findTokenRecord = async (
@@ -1085,69 +1409,203 @@ export const useAleoPrograms = () => {
 
   const findCreditsRecord = (amountMicro: number) => findTokenRecord("credits.aleo", amountMicro);
 
-  const findClaimablePositionRecord = async (marketId: string): Promise<WalletRecord | null> => {
-    if (!address) return null;
+  const findClaimablePositionRecords = async (
+    marketId: string,
+    options?: { outcome?: number; includeLp?: boolean },
+  ): Promise<WalletRecord[]> => {
+    if (!address) return [];
 
     const cleanMarketId = marketId.includes("field") ? marketId.replace("field", "") : marketId;
 
     try {
-      // Search CORE program for BetPosition records
-      const rawRecords = await requestRecordsWithRetry(requestRecords, PROGRAM_ID, "Claim");
+      const rawRecords = await requestRecordsWithRetry(requestRecords, PROGRAM_ID, "BetPosition");
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       const unspent = records.filter((record) => !record.spent);
 
-      const found = unspent.find((record) => {
-        const recordMarketId = parseRecordField(record, "market_id");
-        return recordMarketId === cleanMarketId;
-      });
+      const candidates = unspent
+        .filter((record) => {
+          const recordMarketId = parseRecordField(record, "market_id");
+          if (recordMarketId !== cleanMarketId) return false;
 
-      return found ?? null;
+          const outcomeRaw = Number.parseInt(parseRecordField(record, "outcome"), 10);
+          if (options?.outcome !== undefined) {
+            return Number.isFinite(outcomeRaw) && outcomeRaw === options.outcome;
+          }
+
+          if (!options?.includeLp) {
+            return !Number.isFinite(outcomeRaw) || outcomeRaw !== 255;
+          }
+          return true;
+        })
+        .map((record) => ({
+          record,
+          shares: Number.parseInt(parseRecordField(record, "shares"), 10),
+        }))
+        .filter((entry) => Number.isFinite(entry.shares) && entry.shares > 0)
+        .sort((a, b) => b.shares - a.shares);
+
+      return candidates.map((entry) => entry.record);
     } catch (error) {
       if (isWalletNoResponse(error)) {
         toast.error("Wallet did not respond. Unlock/approve the wallet and retry claim.");
       }
       console.error("Error finding claimable record:", error);
-      return null;
+      return [];
     }
   };
 
-  const waitForPositionRecord = async (marketId: string): Promise<WalletRecord | null> => {
+  const findClaimablePositionRecord = async (
+    marketId: string,
+    options?: { outcome?: number; includeLp?: boolean },
+  ): Promise<WalletRecord | null> => {
+    const records = await findClaimablePositionRecords(marketId, options);
+    return records[0] ?? null;
+  };
+
+  const waitForPositionRecord = async (
+    marketId: string,
+    options?: { outcome?: number; includeLp?: boolean },
+  ): Promise<WalletRecord | null> => {
     for (let i = 0; i < 10; i++) {
-      const record = await findClaimablePositionRecord(marketId);
+      const record = await findClaimablePositionRecord(marketId, options);
       if (record) return record;
       await new Promise((r) => setTimeout(r, 2000));
     }
     return null;
   };
 
-  const findEscrowedBetRecord = async (
-    marketId: string,
-    tokenProgramId: string = CREDITS_TOKEN_PROGRAM_ID
-  ): Promise<WalletRecord | null> => {
-    if (!address) return null;
+  const fetchMarketPositionSummary = useCallback(
+    async (marketId: string, outcome?: number): Promise<MarketPositionSummary> => {
+      const cleanMarketId = marketId.replace(/field$/i, "").trim();
+      const empty: MarketPositionSummary = {
+        marketId: cleanMarketId,
+        outcome: typeof outcome === "number" ? outcome : null,
+        sellableShares: 0,
+        sellableCollateral: 0,
+        outcomeShares: {},
+        outcomeMaxPositionShares: {},
+        tradePositionCount: 0,
+        lpShares: 0,
+        lpCollateral: 0,
+        lpFeeAccrued: 0,
+        lpWithdrawable: 0,
+        lpPositionCount: 0,
+      };
+      if (!address || !cleanMarketId) return empty;
 
-    const cleanMarketId = marketId.includes("field") ? marketId.replace("field", "") : marketId;
+      try {
+        const rawRecords = await requestRecordsWithRetry(requestRecords, PROGRAM_ID, "BetPosition");
+        const records = rawRecords.filter(
+          (entry): entry is WalletRecord => typeof entry === "object" && entry !== null,
+        );
+        const unspent = records.filter((record) => !record.spent);
 
-    try {
-      // Search TOKEN program for EscrowedBet records
-      const rawRecords = await requestRecordsWithRetry(requestRecords, tokenProgramId, "EscrowedBet");
-      const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
-      const unspent = records.filter((record) => !record.spent);
+        let sellableShares = 0;
+        let sellableCollateral = 0;
+        const outcomeShares: Record<number, number> = {};
+        const outcomeMaxPositionShares: Record<number, number> = {};
+        let tradePositionCount = 0;
+        let lpShares = 0;
+        let lpCollateral = 0;
+        let lpFeeAccrued = 0;
+        let lpWithdrawable = 0;
+        let lpPositionCount = 0;
 
-      const found = unspent.find((record) => {
-        const recordMarketId = parseRecordField(record, "market_id");
-        return recordMarketId === cleanMarketId;
-      });
+        for (const record of unspent) {
+          const recordMarketId = parseRecordField(record, "market_id");
+          if (recordMarketId !== cleanMarketId) continue;
 
-      return found ?? null;
-    } catch (error) {
-      if (isWalletNoResponse(error)) {
-        toast.error("Wallet did not respond. Unlock/approve the wallet and retry claim.");
+          const recordOutcome = Number.parseInt(parseRecordField(record, "outcome"), 10);
+          const shares = Number.parseInt(parseRecordField(record, "shares"), 10);
+          const collateral = Number.parseInt(parseRecordField(record, "collateral_in"), 10);
+          if (!Number.isFinite(shares) || shares <= 0) continue;
+
+          if (recordOutcome === 255) {
+            lpPositionCount += 1;
+            lpShares += shares;
+            if (Number.isFinite(collateral) && collateral > 0) lpCollateral += collateral;
+            continue;
+          }
+          outcomeShares[recordOutcome] = (outcomeShares[recordOutcome] ?? 0) + shares;
+          outcomeMaxPositionShares[recordOutcome] = Math.max(
+            outcomeMaxPositionShares[recordOutcome] ?? 0,
+            shares,
+          );
+
+          tradePositionCount += 1;
+          if (typeof outcome === "number" && recordOutcome === outcome) {
+            sellableShares += shares;
+            sellableCollateral += Number.isFinite(collateral) && collateral > 0 ? collateral : 0;
+          }
+        }
+
+        const marketField = `${cleanMarketId}field`;
+        const helpers = await getAddressFieldHelpers();
+        if (helpers) {
+          const ownerField = formatField(helpers.toField(address));
+          const lpOwnerCommitment = await deriveLpOwnerCommitment(marketField, ownerField);
+          const lpBalanceKey = lpOwnerCommitment
+            ? await deriveLpBalanceKey(marketField, lpOwnerCommitment)
+            : null;
+          if (lpBalanceKey) {
+            const [
+              lpSharesRaw,
+              poolRaw,
+              feePoolRaw,
+              lpReturnPoolRaw,
+              marketRaw,
+            ] = await Promise.all([
+              fetchMappingValue(PROGRAM_ID, "lp_balances", lpBalanceKey),
+              fetchMappingValue(PROGRAM_ID, "pools", marketField),
+              fetchMappingValue(PROGRAM_ID, "market_fee_pool", marketField),
+              fetchMappingValue(PROGRAM_ID, "market_lp_return_pool", marketField),
+              fetchMappingValue(PROGRAM_ID, "markets", marketField),
+            ]);
+            const mappedLpShares = parseMappingU64(lpSharesRaw);
+            if (mappedLpShares > 0) {
+              lpShares = mappedLpShares;
+              lpPositionCount = Math.max(lpPositionCount, 1);
+            }
+            const poolInfo = poolRaw ? parsePoolInfo(poolRaw as string | object) : null;
+            const marketInfo = marketRaw ? parseMarketInfo(marketRaw as string | object, marketField) : null;
+            if (poolInfo && poolInfo.lp_supply > 0 && lpShares > 0) {
+              lpCollateral = Math.floor((lpShares * poolInfo.lp_collateral) / poolInfo.lp_supply);
+              lpFeeAccrued = Math.floor((lpShares * parseMappingU64(feePoolRaw)) / poolInfo.lp_supply);
+              if (marketInfo?.is_resolved) {
+                const lpReturnShare = Math.floor(
+                  (lpShares * parseMappingU64(lpReturnPoolRaw)) / poolInfo.lp_supply,
+                );
+                lpWithdrawable = lpReturnShare + lpFeeAccrued;
+              } else {
+                lpWithdrawable = 0;
+              }
+            } else if (lpShares > 0) {
+              lpWithdrawable = 0;
+            }
+          }
+        }
+
+        return {
+          marketId: cleanMarketId,
+          outcome: typeof outcome === "number" ? outcome : null,
+          sellableShares,
+          sellableCollateral,
+          outcomeShares,
+          outcomeMaxPositionShares,
+          tradePositionCount,
+          lpShares,
+          lpCollateral,
+          lpFeeAccrued,
+          lpWithdrawable,
+          lpPositionCount,
+        };
+      } catch (error) {
+        console.error("Failed to fetch market position summary:", error);
+        return empty;
       }
-      console.error(`Error finding escrowed bet record in ${tokenProgramId}:`, error);
-      return null;
-    }
-  };
+    },
+    [address, requestRecords],
+  );
 
   const findWinningsClaimRecord = async (marketId: string): Promise<WalletRecord | null> => {
     if (!address) return null;
@@ -1155,7 +1613,7 @@ export const useAleoPrograms = () => {
     const cleanMarketId = marketId.includes("field") ? marketId.replace("field", "") : marketId;
 
     try {
-      const rawRecords = await requestRecords(PROGRAM_ID, true);
+      const rawRecords = await requestRecordsWithRetry(requestRecords, PROGRAM_ID, "WinningsClaim");
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       const unspent = records.filter((record) => !record.spent);
 
@@ -1191,7 +1649,13 @@ export const useAleoPrograms = () => {
     return 0;
   };
 
-  const placeBet = async (marketId: string, outcome: number, amountCredits: number, tokenId: string) => {
+  const placeBet = async (
+    marketId: string,
+    outcome: number,
+    amountCredits: number,
+    tokenId: string,
+    options?: { slippageBps?: number },
+  ) => {
     if (!address) {
       toast.error("Please connect your wallet first");
       return;
@@ -1200,8 +1664,44 @@ export const useAleoPrograms = () => {
     setLoading(true);
     const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
     const amountMicro = toMicrocredits(amountCredits);
+    const betNonce = generateRandomField();
 
     try {
+      const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
+      if (!marketRaw) {
+        toast.error("Market not found on v11.");
+        return;
+      }
+
+      const quote = await quoteBuyShares(
+        cleanMarketId,
+        outcome,
+        amountMicro,
+        options?.slippageBps ?? 200,
+      );
+      if (!quote) {
+        const [protocol, poolRaw] = await Promise.all([
+          fetchCoreProtocolConfig().catch(() => null),
+          fetchMappingValue(PROGRAM_ID, "pools", cleanMarketId).catch(() => null)
+        ]);
+
+        if (protocol && amountMicro < protocol.minTrade) {
+          toast.error(
+            `Trade too small. Minimum trade is ${(protocol.minTrade / 1_000_000).toFixed(6)} tokens.`,
+          );
+        } else if (protocol && poolRaw) {
+          const pool = parsePoolInfo(poolRaw as any);
+          if (pool.lp_collateral <= 0) {
+            toast.error("Market needs LP funding before trading opens. Please add liquidity first.");
+          } else {
+            toast.error("Unable to compute share quote for this market. Please retry.");
+          }
+        } else {
+          toast.error("Unable to compute share quote for this market. Please retry.");
+        }
+        return;
+      }
+
       const tokenProgram = resolveTokenAdapterProgram(tokenId);
       const tokenKind = resolveTokenKind(tokenId);
       const tokenLabel = resolveTokenDisplayName(tokenId);
@@ -1221,6 +1721,7 @@ export const useAleoPrograms = () => {
           return;
         }
 
+        const generatedProofPromise = buildStablecoinMerkleProofInputs(baseTokenProgram);
         const tokenRecord = await findTokenRecord(baseTokenProgram, amountMicro);
         if (!tokenRecord) {
           toast.error(`Insufficient private ${tokenLabel} balance.`);
@@ -1233,7 +1734,7 @@ export const useAleoPrograms = () => {
           return;
         }
 
-        const generatedProofInputs = await buildStablecoinMerkleProofInputs(baseTokenProgram);
+        const generatedProofInputs = await generatedProofPromise;
         const walletProofInputs = extractUsdcMerkleProofInputs(tokenRecord);
 
         const proofCandidates: Array<[string, string]> = [];
@@ -1249,7 +1750,7 @@ export const useAleoPrograms = () => {
 
         if (proofCandidates.length === 0) {
           toast.error(`Missing private ${tokenLabel} proof inputs. Reconnect wallet and try again.`);
-          console.warn(`[${tokenLabel}] Unable to prepare private inputs for place_bet`, {
+          console.warn(`[${tokenLabel}] Unable to prepare private inputs for buy_shares`, {
             recordKeys: Object.keys(tokenRecord ?? {}),
             dataKeys: Object.keys(toObject(tokenRecord?.data) ?? {}),
           });
@@ -1259,7 +1760,7 @@ export const useAleoPrograms = () => {
         for (const [proof0, proof1] of proofCandidates) {
           betResult = await executeAndPoll({
             program: tokenProgram,
-            function: "place_bet",
+            function: "buy_shares",
             inputs: [
               tokenInput,
               proof0,
@@ -1267,10 +1768,13 @@ export const useAleoPrograms = () => {
               cleanMarketId,
               formatU8(outcome),
               formatU64(amountMicro),
+              formatU64(quote.minSharesOut),
+              formatU64(quote.sharesOut),
+              betNonce,
             ],
             fee: 1_500_000,
             privateFee: false,
-          }, tokenProgram, "place_bet");
+          }, tokenProgram, "buy_shares");
           if (betResult) break;
         }
       } else {
@@ -1296,25 +1800,419 @@ export const useAleoPrograms = () => {
 
         betResult = await executeAndPoll({
           program: tokenProgram,
-          function: "place_bet",
+          function: "buy_shares",
           inputs: [
             tokenInput,
             cleanMarketId,
             formatU8(outcome),
             formatU64(amountMicro),
+            formatU64(quote.minSharesOut),
+            formatU64(quote.sharesOut),
+            betNonce,
           ],
           fee: 1_500_000,
           privateFee: false,
-        }, tokenProgram, "place_bet");
+        }, tokenProgram, "buy_shares");
       }
 
-      if (betResult) triggerRefresh();
+      if (betResult) {
+        triggerRefresh();
+        await new Promise(r => setTimeout(r, 1500)); // Wait 1.5s for Aleo to settle
+      }
       return betResult ? betResult.transactionId : null;
     } catch (error) {
       console.error("Place bet failed:", error);
       return null;
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fundPool = async (marketId: string, amountCredits: number, tokenId: string) => {
+    if (!address) {
+      toast.error("Please connect your wallet first");
+      return null;
+    }
+
+    setLoading(true);
+    const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+    const amountMicro = toMicrocredits(amountCredits);
+
+    try {
+      const tokenProgram = resolveTokenAdapterProgram(tokenId);
+      const tokenKind = resolveTokenKind(tokenId);
+      const tokenLabel = resolveTokenDisplayName(tokenId);
+
+      if (!tokenProgram || !tokenKind) {
+        toast.error(`Unsupported market token: ${tokenId}`);
+        return null;
+      }
+
+      const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
+      if (!marketRaw) {
+        toast.error("Pool funding is only available for deployed v11 markets.");
+        return null;
+      }
+
+      toast.info(`Funding pool with ${tokenLabel}...`);
+
+      if (tokenKind === "usdcx" || tokenKind === "usad") {
+        const baseTokenProgram = resolveTokenBaseProgram(tokenId);
+        if (!baseTokenProgram) return null;
+
+        const generatedProofPromise = buildStablecoinMerkleProofInputs(baseTokenProgram);
+        const tokenRecord = await findTokenRecord(baseTokenProgram, amountMicro);
+        if (!tokenRecord) {
+          toast.error(`Insufficient private ${tokenLabel} balance.`);
+          return null;
+        }
+
+        const tokenInput = extractRecordPlaintextInput(tokenRecord, ["owner", "amount"]);
+        if (!tokenInput) {
+          toast.error(`Unable to prepare private ${tokenLabel} record input.`);
+          return null;
+        }
+
+        const generatedProofInputs = await generatedProofPromise;
+        const walletProofInputs = extractUsdcMerkleProofInputs(tokenRecord);
+        const proof = generatedProofInputs ?? walletProofInputs;
+        if (!proof) {
+          toast.error(`Missing private ${tokenLabel} proof inputs. Reconnect wallet and try again.`);
+          return null;
+        }
+
+        const result = await executeAndPoll({
+          program: tokenProgram,
+          function: "fund_pool",
+          inputs: [
+            tokenInput,
+            proof[0],
+            proof[1],
+            cleanMarketId,
+            formatU64(amountMicro),
+          ],
+          fee: 1_500_000,
+          privateFee: false,
+        }, tokenProgram, "fund_pool");
+
+        if (result) {
+          triggerRefresh();
+          await new Promise(r => setTimeout(r, 1500)); // Wait 1.5s for Aleo to settle
+        }
+        return result ? result.transactionId : null;
+      }
+
+      const creditsRecord = await findTokenRecord("credits.aleo", amountMicro);
+      if (!creditsRecord) {
+        toast.error("Insufficient private Aleo Credits balance.");
+        return null;
+      }
+      const creditsInput =
+        extractRecordPlaintextInput(creditsRecord, ["owner", "microcredits"]) ??
+        (creditsRecord.recordPlaintext || creditsRecord.plaintext);
+      if (!creditsInput) {
+        toast.error("Unable to prepare private credits record input.");
+        return null;
+      }
+
+      const result = await executeAndPoll({
+        program: tokenProgram,
+        function: "fund_pool",
+        inputs: [creditsInput, cleanMarketId, formatU64(amountMicro)],
+        fee: 1_500_000,
+        privateFee: false,
+      }, tokenProgram, "fund_pool");
+
+      if (result) {
+        triggerRefresh();
+        await new Promise(r => setTimeout(r, 1500)); // Wait 1.5s for Aleo to settle
+      }
+      return result ? result.transactionId : null;
+    } catch (error) {
+      console.error("Fund pool failed:", error);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const withdrawLiquidity = async (
+    marketId: string,
+    lpShares: number,
+    options?: { minPayoutMicro?: number },
+  ): Promise<{ transactionId: string; payoutAmount: number; payoutTicker: string } | null> => {
+    if (!address) {
+      toast.error("Please connect your wallet first");
+      return null;
+    }
+
+    setLoading(true);
+    try {
+      const cleanMarketId = normalizeFieldId(marketId);
+      const sharesToWithdraw = Math.max(1, Math.floor(lpShares));
+      const minPayoutMicro = Math.max(0, Math.floor(options?.minPayoutMicro ?? 0));
+      const withdrawNonce = generateRandomField();
+
+      const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
+      if (!marketRaw) {
+        toast.error("Market not found on v11.");
+        return null;
+      }
+      const marketInfo = parseMarketInfo(marketRaw as string | object, cleanMarketId);
+      const payoutTokenProgram = resolveTokenAdapterProgram(marketInfo.token_id ?? "");
+      const payoutTicker = resolveTokenTicker(marketInfo.token_id ?? "");
+      if (!payoutTokenProgram) {
+        toast.error("Unsupported market token for liquidity withdrawal.");
+        return null;
+      }
+
+      const withdrawResult = await executeAndPoll({
+        program: PROGRAM_ID,
+        function: "withdraw_liquidity",
+        inputs: [
+          cleanMarketId,
+          formatU64(sharesToWithdraw),
+          formatU64(minPayoutMicro),
+          withdrawNonce,
+        ],
+        fee: 1_000_000,
+        privateFee: false,
+      }, PROGRAM_ID, "withdraw_liquidity");
+
+      if (!withdrawResult?.transactionId) {
+        toast.error("Liquidity withdrawal transaction failed.");
+        return null;
+      }
+
+      let nullifierField = extractTransitionField(withdrawResult.transition, "nullifier");
+      if (!nullifierField) {
+        const claimRecord = await waitForWinningsClaimRecord(cleanMarketId);
+        if (!claimRecord) {
+          toast.error("Liquidity claim record not available yet. Please retry shortly.");
+          triggerRefresh();
+          return { transactionId: withdrawResult.transactionId, payoutAmount: 0, payoutTicker };
+        }
+        const nullifierRaw = parseRecordField(claimRecord, "nullifier");
+        if (!nullifierRaw) {
+          toast.error("Unable to read liquidity claim nullifier.");
+          return { transactionId: withdrawResult.transactionId, payoutAmount: 0, payoutTicker };
+        }
+        nullifierField = formatField(nullifierRaw);
+      }
+
+      const payoutAmount = await waitForPendingPayout(nullifierField);
+      if (!payoutAmount || payoutAmount <= 0) {
+        toast.error("Liquidity payout is not available yet. Please retry shortly.");
+        triggerRefresh();
+        return { transactionId: withdrawResult.transactionId, payoutAmount: 0, payoutTicker };
+      }
+
+      const payoutResult = await executeAndPoll({
+        program: payoutTokenProgram,
+        function: "claim_payout",
+        inputs: [formatU64(payoutAmount), nullifierField],
+        fee: 500_000,
+        privateFee: false,
+      }, payoutTokenProgram, "claim_payout");
+
+      if (!payoutResult?.transactionId) {
+        toast.error("Liquidity payout transfer failed.");
+        return null;
+      }
+
+      const payoutAmountDisplay = payoutAmount / 1_000_000;
+      toast.success(`Liquidity withdrawn: ${payoutAmountDisplay.toFixed(4)} ${payoutTicker}`);
+      triggerRefresh();
+      return {
+        transactionId: payoutResult.transactionId,
+        payoutAmount: payoutAmountDisplay,
+        payoutTicker,
+      };
+    } catch (error) {
+      console.error("Withdraw liquidity failed:", error);
+      toast.error(`Withdraw error: ${getErrorMessage(error)}`);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sellShares = async (
+    marketId: string,
+    sharesToSell: number,
+    options?: { slippageBps?: number; outcome?: number },
+  ): Promise<{ transactionId: string; payoutAmount: number; payoutTicker: string } | null> => {
+    if (!address) {
+      toast.error("Please connect your wallet first");
+      return null;
+    }
+
+    setLoading(true);
+    try {
+      const cleanMarketId = normalizeFieldId(marketId);
+      const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
+      if (!marketRaw) {
+        toast.error("Market not found on v11.");
+        return null;
+      }
+      const marketInfo = parseMarketInfo(marketRaw as string | object, cleanMarketId);
+      const payoutTokenProgram = resolveTokenAdapterProgram(marketInfo.token_id ?? "");
+      const payoutTicker = resolveTokenTicker(marketInfo.token_id ?? "");
+      if (!payoutTokenProgram) {
+        toast.error("Unsupported market token for sell payout.");
+        return null;
+      }
+
+      const positionRecords = await findClaimablePositionRecords(cleanMarketId, {
+        outcome: options?.outcome,
+      });
+      if (!positionRecords.length) {
+        toast.error("No sellable position record found for this market/outcome.");
+        return null;
+      }
+
+      const outcomeRaw = Number.parseInt(parseRecordField(positionRecords[0], "outcome"), 10);
+      if (!Number.isFinite(outcomeRaw)) {
+        toast.error("Unable to read position outcome.");
+        return null;
+      }
+
+      const shares = Math.max(1, Math.floor(sharesToSell));
+      const totalAvailableShares = positionRecords.reduce((sum, record) => {
+        const recordShares = Number.parseInt(parseRecordField(record, "shares"), 10);
+        return sum + (Number.isFinite(recordShares) && recordShares > 0 ? recordShares : 0);
+      }, 0);
+      if (shares > totalAvailableShares) {
+        toast.error("Sell amount exceeds your available shares.");
+        return null;
+      }
+      let remainingShares = shares;
+      let aggregatePayoutMicro = 0;
+      let lastTransactionId: string | null = null;
+
+      toast.info(
+        positionRecords.length > 1
+          ? "Selling shares across multiple position records..."
+          : "Selling shares...",
+      );
+
+      for (const positionRecord of positionRecords) {
+        if (remainingShares <= 0) break;
+
+        const sharesRaw = Number.parseInt(parseRecordField(positionRecord, "shares"), 10);
+        if (!Number.isFinite(sharesRaw) || sharesRaw <= 0) continue;
+
+        const chunkShares = Math.min(remainingShares, sharesRaw);
+        const quote = await quoteSellShares(
+          cleanMarketId,
+          outcomeRaw,
+          chunkShares,
+          options?.slippageBps ?? 200,
+        );
+        if (!quote) {
+          toast.error("Unable to compute sell quote right now.");
+          return null;
+        }
+
+        const sellNonce = generateRandomField();
+        const sellResult = await executeAndPoll({
+          program: PROGRAM_ID,
+          function: "sell_shares",
+          inputs: [
+            positionRecord,
+            formatU64(chunkShares),
+            formatU64(quote.minPayoutMicro),
+            sellNonce,
+          ],
+          fee: 1_000_000,
+          privateFee: false,
+        }, PROGRAM_ID, "sell_shares");
+
+        if (!sellResult?.transactionId) {
+          toast.error("Sell transaction failed.");
+          return null;
+        }
+        lastTransactionId = sellResult.transactionId;
+
+        let nullifierField = extractTransitionField(sellResult.transition, "nullifier");
+        if (!nullifierField) {
+          const claimRecord = await waitForWinningsClaimRecord(marketId);
+          if (!claimRecord) {
+            toast.error("Sell payout claim record not available yet. Please retry shortly.");
+            triggerRefresh();
+            return { transactionId: sellResult.transactionId, payoutAmount: aggregatePayoutMicro / 1_000_000, payoutTicker };
+          }
+          const nullifierRaw = parseRecordField(claimRecord, "nullifier");
+          if (!nullifierRaw) {
+            toast.error("Unable to read sell claim nullifier.");
+            return { transactionId: sellResult.transactionId, payoutAmount: aggregatePayoutMicro / 1_000_000, payoutTicker };
+          }
+          nullifierField = formatField(nullifierRaw);
+        }
+        const payoutAmount = await waitForPendingPayout(nullifierField);
+        if (!payoutAmount || payoutAmount <= 0) {
+          toast.error("Sell payout is not available yet. Please retry.");
+          return { transactionId: sellResult.transactionId, payoutAmount: aggregatePayoutMicro / 1_000_000, payoutTicker };
+        }
+
+        const payoutResult = await executeAndPoll({
+          program: payoutTokenProgram,
+          function: "claim_payout",
+          inputs: [formatU64(payoutAmount), nullifierField],
+          fee: 500_000,
+          privateFee: false,
+        }, payoutTokenProgram, "claim_payout");
+
+        if (!payoutResult?.transactionId) {
+          toast.error("Sell payout transfer failed.");
+          return null;
+        }
+
+        aggregatePayoutMicro += payoutAmount;
+        lastTransactionId = payoutResult.transactionId;
+        remainingShares -= chunkShares;
+      }
+
+      if (remainingShares > 0 || !lastTransactionId) {
+        toast.error("Unable to fully satisfy the requested sell amount.");
+        return null;
+      }
+
+      const payoutAmountDisplay = aggregatePayoutMicro / 1_000_000;
+      toast.success(`Sold shares for ${payoutAmountDisplay.toFixed(4)} ${payoutTicker}`);
+      triggerRefresh();
+      return {
+        transactionId: lastTransactionId,
+        payoutAmount: payoutAmountDisplay,
+        payoutTicker,
+      };
+    } catch (error) {
+      console.error("Sell shares failed:", error);
+      toast.error(`Sell error: ${getErrorMessage(error)}`);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancelMarket = async (marketId: string) => {
+    if (!address) return;
+    const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+
+    try {
+      const result = await executeAndPoll({
+        program: PROGRAM_ID,
+        function: "cancel_market",
+        inputs: [cleanMarketId],
+        fee: 100_000,
+        privateFee: false,
+      }, PROGRAM_ID, "cancel_market");
+
+      if (result) triggerRefresh();
+      return result ? result.transactionId : null;
+    } catch (error) {
+      console.error("Cancel market failed:", error);
+      return null;
     }
   };
 
@@ -1433,14 +2331,32 @@ export const useAleoPrograms = () => {
     }
   }, [publicKey]);
 
+  const fetchOracleLockedStake = useCallback(async (): Promise<number> => {
+    if (!publicKey) return 0;
+    try {
+      const raw = await fetchMappingValue(ORACLE_PROGRAM_ID, "oracle_locked_stake", publicKey);
+      return parseMappingU64(raw);
+    } catch (error) {
+      console.error("Failed to fetch oracle locked stake:", error);
+      return 0;
+    }
+  }, [publicKey]);
+
   const unstakeOracleCredits = async (amountCredits: number) => {
     if (!address) return null;
     const amountMicro = Math.max(1_000_000, Math.floor(amountCredits * 1_000_000));
 
     try {
-      const currentStake = await fetchOracleStake();
+      const [currentStake, lockedStake] = await Promise.all([
+        fetchOracleStake(),
+        fetchOracleLockedStake(),
+      ]);
       if (currentStake < amountMicro) {
         toast.error("Unstake amount exceeds your current oracle stake.");
+        return null;
+      }
+      if (lockedStake > 0) {
+        toast.error("Your oracle stake is locked by an active proposal. Unstake is available after finalization.");
         return null;
       }
 
@@ -1458,6 +2374,29 @@ export const useAleoPrograms = () => {
       return result ? result.transactionId : null;
     } catch (error) {
       console.error("Oracle unstake failed:", error);
+      return null;
+    }
+  };
+
+  const claimOracleVoteReward = async (marketId: string) => {
+    if (!address) return null;
+    const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+    try {
+      const result = await executeAndPoll({
+        program: ORACLE_PROGRAM_ID,
+        function: "claim_vote_reward",
+        inputs: [cleanMarketId],
+        fee: 500_000,
+        privateFee: false,
+      }, ORACLE_PROGRAM_ID, "claim_vote_reward");
+      if (result) {
+        toast.success("Oracle vote reward claimed.");
+        triggerRefresh();
+      }
+      return result ? result.transactionId : null;
+    } catch (error) {
+      console.error("Claim oracle vote reward failed:", error);
+      toast.error(`Vote reward claim failed: ${getErrorMessage(error)}`);
       return null;
     }
   };
@@ -1496,6 +2435,10 @@ export const useAleoPrograms = () => {
     try {
       const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
       const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
+      if (!marketRaw) {
+        toast.error("Market not found on v11.");
+        return null;
+      }
       const marketInfo = marketRaw ? parseMarketInfo(marketRaw as string | object, cleanMarketId) : null;
       const payoutTokenProgram = resolveTokenAdapterProgram(marketInfo?.token_id ?? "");
       const payoutTicker = resolveTokenTicker(marketInfo?.token_id ?? "");
@@ -1508,42 +2451,9 @@ export const useAleoPrograms = () => {
       // Step 1: Call core contract claim_winnings with BetPosition record
       let positionRecord = await findClaimablePositionRecord(marketId);
       if (!positionRecord) {
-        const escrowedBet = await findEscrowedBetRecord(marketId, payoutTokenProgram);
-        if (!escrowedBet) {
-          await logProgramRecordSummary(payoutTokenProgram, "EscrowedBet");
-          toast.error(`No claimable bet record found for this market in your wallet. Ensure you placed the bet with this wallet and that your wallet allows ${payoutTokenProgram} records.`);
-          return;
-        }
-
-        const marketIdRaw = parseRecordField(escrowedBet, "market_id");
-        const outcomeRaw = parseRecordField(escrowedBet, "outcome");
-        const amountRaw = parseRecordField(escrowedBet, "amount");
-        const escrowIdRaw = parseRecordField(escrowedBet, "escrow_id");
-
-        if (!marketIdRaw || !outcomeRaw || !amountRaw || !escrowIdRaw) {
-          toast.error("Unable to read escrowed bet details to mint position.");
-          return;
-        }
-
-        toast.info("Preparing claim record...");
-        await executeAndPoll({
-          program: PROGRAM_ID,
-          function: "mint_position_record",
-          inputs: [
-            formatField(marketIdRaw),
-            formatU8(Number(outcomeRaw)),
-            formatU64(Number(amountRaw)),
-            formatField(escrowIdRaw),
-          ],
-          fee: 500_000,
-          privateFee: false,
-        }, PROGRAM_ID, "mint_position_record");
-
-        positionRecord = await waitForPositionRecord(marketId);
-        if (!positionRecord) {
-          toast.error("Claim record not found after minting. Please retry.");
-          return;
-        }
+        await logProgramRecordSummary(PROGRAM_ID, "BetPosition");
+        toast.error("No claimable position record found yet. Wait for wallet sync and retry.");
+        return null;
       }
 
       toast.info("Step 1/2: Claiming winnings from core contract...");
@@ -1560,22 +2470,23 @@ export const useAleoPrograms = () => {
         return;
       }
 
-      // Step 2: Wait for WinningsClaim record, then claim payout from token contract
-      const claimRecord = await waitForWinningsClaimRecord(marketId);
-      if (!claimRecord) {
-        toast.error("Claim record not found in wallet yet. Please retry in a moment.");
-        triggerRefresh();
-        return { transactionId: claimResult.transactionId, payoutAmount: 0, payoutTicker };
+      // Step 2: Resolve nullifier, then claim payout from token contract
+      let nullifierField = extractTransitionField(claimResult.transition, "nullifier");
+      if (!nullifierField) {
+        const claimRecord = await waitForWinningsClaimRecord(marketId);
+        if (!claimRecord) {
+          toast.error("Claim record not found in wallet yet. Please retry in a moment.");
+          triggerRefresh();
+          return { transactionId: claimResult.transactionId, payoutAmount: 0, payoutTicker };
+        }
+        const nullifierRaw = parseRecordField(claimRecord, "nullifier");
+        if (!nullifierRaw) {
+          toast.error("Unable to read claim nullifier from wallet record.");
+          triggerRefresh();
+          return { transactionId: claimResult.transactionId, payoutAmount: 0, payoutTicker };
+        }
+        nullifierField = formatField(nullifierRaw);
       }
-
-      const nullifierRaw = parseRecordField(claimRecord, "nullifier");
-      if (!nullifierRaw) {
-        toast.error("Unable to read claim nullifier from wallet record.");
-        triggerRefresh();
-        return { transactionId: claimResult.transactionId, payoutAmount: 0, payoutTicker };
-      }
-
-      const nullifierField = formatField(nullifierRaw);
       const payoutAmount = await waitForPendingPayout(nullifierField);
 
       if (!payoutAmount || payoutAmount <= 0) {
@@ -1628,34 +2539,164 @@ export const useAleoPrograms = () => {
     }
   }, []);
 
+  const fetchResolutionFinalizeRequirements = useCallback(
+    async (marketId: string, outcomeCount: number): Promise<ResolutionFinalizeRequirements | null> => {
+      try {
+        const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+        const nowTs = Math.floor(Date.now() / 1000);
+        const [
+          proposalRaw,
+          minVotersRaw,
+          minStakeRaw,
+          disputeWindowRaw,
+          voterCountRaw,
+          totalWeightRaw,
+        ] = await Promise.all([
+          fetchMappingValue(ORACLE_PROGRAM_ID, "proposals", cleanMarketId),
+          fetchMappingValue(ORACLE_PROGRAM_ID, "oracle_u8", "0u8"),
+          fetchMappingValue(ORACLE_PROGRAM_ID, "oracle_u64", "0u8"),
+          fetchMappingValue(ORACLE_PROGRAM_ID, "oracle_u64", "1u8"),
+          fetchMappingValue(ORACLE_PROGRAM_ID, "disputed_voter_counts", cleanMarketId),
+          fetchMappingValue(ORACLE_PROGRAM_ID, "vote_weight_totals", cleanMarketId),
+        ]);
+
+        const proposal = proposalRaw ? parseResolutionProposal(proposalRaw as string | object) : null;
+        const minVoters = Math.max(2, parseMappingU64(minVotersRaw) || 2);
+        const minStakeMicro = Math.max(MIN_ORACLE_STAKE_MICROCREDITS, parseMappingU64(minStakeRaw) || MIN_ORACLE_STAKE_MICROCREDITS);
+        const disputeWindowSeconds = Math.max(600, parseMappingU64(disputeWindowRaw) || 600);
+        const voterCount = parseMappingU64(voterCountRaw);
+        const totalVoteWeightMicro = parseMappingU64(totalWeightRaw);
+        const quorumWeightMicro = minVoters * minStakeMicro;
+        const disputeTimeoutSeconds = 1_800;
+
+        const blockers: string[] = [];
+        let selectedOutcomeVoteWeightMicro = 0;
+        let leadingOutcome: number | null = null;
+        let leadingOutcomeVoteWeightMicro = 0;
+        let recommendedOutcome: number | null = null;
+        let timeoutEligible = false;
+        let timeoutAt: number | null = null;
+        let fallbackMode = false;
+
+        if (!proposal) {
+          blockers.push("No resolution proposal has been submitted yet.");
+        } else if (!proposal.is_disputed) {
+          if (nowTs < proposal.challenge_deadline) {
+            blockers.push(
+              `Challenge window is still active until ${formatDateFriendly(proposal.challenge_deadline)}.`,
+            );
+          }
+          recommendedOutcome = proposal.proposed_outcome;
+        } else {
+          const normalizedCount = Math.max(2, Math.min(8, outcomeCount || 2));
+          timeoutAt = proposal.challenge_deadline + disputeTimeoutSeconds;
+          const weights = await Promise.all(
+            Array.from({ length: normalizedCount }, async (_, index) => {
+              const voteKey = await deriveOutcomeVoteKey(cleanMarketId, index);
+              if (!voteKey) return 0;
+              const raw = await fetchMappingValue(ORACLE_PROGRAM_ID, "votes", voteKey);
+              return parseMappingU64(raw);
+            }),
+          );
+
+          for (let i = 0; i < weights.length; i += 1) {
+            if (weights[i] > leadingOutcomeVoteWeightMicro) {
+              leadingOutcomeVoteWeightMicro = weights[i];
+              leadingOutcome = i;
+            }
+          }
+
+          recommendedOutcome = leadingOutcome;
+          selectedOutcomeVoteWeightMicro = leadingOutcome !== null ? weights[leadingOutcome] : 0;
+          const quorumReady =
+            voterCount >= minVoters
+            && totalVoteWeightMicro >= quorumWeightMicro
+            && selectedOutcomeVoteWeightMicro > 0;
+          timeoutEligible = nowTs >= timeoutAt;
+
+          if (!quorumReady) {
+            if (timeoutEligible) {
+              fallbackMode = true;
+              recommendedOutcome = proposal.proposed_outcome;
+              selectedOutcomeVoteWeightMicro = 0;
+            } else {
+              if (voterCount < minVoters) {
+                blockers.push(`Needs at least ${minVoters} unique dispute voters (currently ${voterCount}).`);
+              }
+              if (totalVoteWeightMicro < quorumWeightMicro) {
+                blockers.push(
+                  `Needs quorum vote weight of ${(quorumWeightMicro / 1_000_000).toFixed(2)} ALEO (currently ${(totalVoteWeightMicro / 1_000_000).toFixed(2)} ALEO).`,
+                );
+              }
+              if (selectedOutcomeVoteWeightMicro <= 0) {
+                blockers.push("No vote weight found for the leading disputed outcome yet.");
+              }
+              blockers.push(
+                `Fallback finalization unlocks at ${formatDateFriendly(timeoutAt)} if quorum is still not met.`,
+              );
+            }
+          }
+        }
+
+        return {
+          marketId: cleanMarketId,
+          proposal,
+          minVoters,
+          minStakeMicro,
+          quorumWeightMicro,
+          voterCount,
+          totalVoteWeightMicro,
+          selectedOutcomeVoteWeightMicro,
+          leadingOutcome,
+          leadingOutcomeVoteWeightMicro,
+          recommendedOutcome,
+          timeoutEligible,
+          timeoutAt,
+          fallbackMode,
+          canFinalize: blockers.length === 0 && Boolean(proposal),
+          blockers,
+        };
+      } catch (error) {
+        console.error("Failed to fetch resolution finalization requirements:", error);
+        return null;
+      }
+    },
+    [],
+  );
+
   return {
     createMarket,
     placeBet,
+    sellShares,
+    fundPool,
+    withdrawLiquidity,
     resolveMarket: resolveMarketOnCore,
     proposeResolution,
     disputeResolution,
+    cancelMarket,
     registerAsOracle,
     unstakeOracleCredits,
+    claimOracleVoteReward,
     fetchOracleStake,
+    fetchOracleLockedStake,
     fetchResolutionProposal,
+    fetchResolutionFinalizeRequirements,
     claimWinnings,
     shieldCredits,
     fetchBalances,
     fetchMarkets,
     fetchUserBets,
-    fetchTokenBalance,
     fetchUSDCxBalances,
-    fetchUSDCxBalance,
     fetchUSADBalances,
-    fetchUSADBalance,
+    fetchMarketPositionSummary,
+    fetchCoreProtocolConfig,
+    quoteBuyShares,
+    quoteSellShares,
     fetchPoolStats,
+    fetchOutcomeTotals,
     isOracleRegistered,
-    requestCredits,
-    requestUSDCx,
-    requestUSAD,
     refreshSignal,
     publicKey,
     loading,
-    currentHeight,
   };
 };

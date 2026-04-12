@@ -1,5 +1,5 @@
 {
-  "program": "veilmarkets_oracle_v8.aleo",
+  "program": "veilmarkets_oracle_v11.aleo",
   "structs": [
     {
       "path": [
@@ -124,7 +124,7 @@
           "path": [
             "ResolutionProposal"
           ],
-          "program": "veilmarkets_oracle_v8"
+          "program": "veilmarkets_oracle_v11.aleo"
         }
       }
     },
@@ -132,6 +132,28 @@
       "name": "active_oracles",
       "key": {
         "Primitive": "Address"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "oracle_locked_stake",
+      "key": {
+        "Primitive": "Address"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "proposal_locked_bond",
+      "key": {
+        "Primitive": "Field"
       },
       "value": {
         "Primitive": {
@@ -151,6 +173,68 @@
       }
     },
     {
+      "name": "vote_weight_totals",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "disputed_voter_counts",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "vote_receipts",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": "Boolean"
+      }
+    },
+    {
+      "name": "vote_outcomes",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U8"
+        }
+      }
+    },
+    {
+      "name": "vote_weights",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "vote_reward_claimed",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": "Boolean"
+      }
+    },
+    {
       "name": "disputes",
       "key": {
         "Primitive": "Field"
@@ -160,16 +244,88 @@
           "path": [
             "Dispute"
           ],
-          "program": "veilmarkets_oracle_v8"
+          "program": "veilmarkets_oracle_v11.aleo"
+        }
+      }
+    },
+    {
+      "name": "oracle_u64",
+      "key": {
+        "Primitive": {
+          "UInt": "U8"
+        }
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "oracle_u8",
+      "key": {
+        "Primitive": {
+          "UInt": "U8"
+        }
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U8"
+        }
+      }
+    },
+    {
+      "name": "platform_fee_pool",
+      "key": {
+        "Primitive": {
+          "UInt": "U8"
+        }
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "market_voter_reward_pool",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "market_winning_vote_weight",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "resolved_outcomes",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U8"
         }
       }
     }
   ],
   "storage_variables": [],
-  "transitions": [
+  "functions": [
     {
       "name": "register_oracle",
-      "is_async": true,
+      "is_final": true,
       "inputs": [
         {
           "name": "stake_credits",
@@ -178,7 +334,7 @@
               "path": [
                 "credits"
               ],
-              "program": "credits"
+              "program": "credits.aleo"
             }
           },
           "mode": "None"
@@ -202,7 +358,7 @@
               "path": [
                 "credits"
               ],
-              "program": "credits"
+              "program": "credits.aleo"
             }
           },
           "mode": "None"
@@ -213,20 +369,20 @@
               "path": [
                 "OracleCredential"
               ],
-              "program": "veilmarkets_oracle_v8"
+              "program": "veilmarkets_oracle_v11.aleo"
             }
           },
           "mode": "None"
         },
         {
-          "ty": "Future",
+          "ty": "Final",
           "mode": "None"
         }
       ]
     },
     {
       "name": "propose_resolution",
-      "is_async": true,
+      "is_final": true,
       "inputs": [
         {
           "name": "market_id",
@@ -251,14 +407,14 @@
       ],
       "outputs": [
         {
-          "ty": "Future",
+          "ty": "Final",
           "mode": "None"
         }
       ]
     },
     {
       "name": "dispute_resolution",
-      "is_async": true,
+      "is_final": true,
       "inputs": [
         {
           "name": "dispute_stake",
@@ -267,7 +423,7 @@
               "path": [
                 "credits"
               ],
-              "program": "credits"
+              "program": "credits.aleo"
             }
           },
           "mode": "None"
@@ -300,20 +456,20 @@
               "path": [
                 "credits"
               ],
-              "program": "credits"
+              "program": "credits.aleo"
             }
           },
           "mode": "None"
         },
         {
-          "ty": "Future",
+          "ty": "Final",
           "mode": "None"
         }
       ]
     },
     {
-      "name": "vote_on_resolution",
-      "is_async": true,
+      "name": "submit_quorum_vote",
+      "is_final": true,
       "inputs": [
         {
           "name": "credential",
@@ -322,7 +478,7 @@
               "path": [
                 "OracleCredential"
               ],
-              "program": "veilmarkets_oracle_v8"
+              "program": "veilmarkets_oracle_v11.aleo"
             }
           },
           "mode": "None"
@@ -355,20 +511,75 @@
               "path": [
                 "OracleCredential"
               ],
-              "program": "veilmarkets_oracle_v8"
+              "program": "veilmarkets_oracle_v11.aleo"
             }
           },
           "mode": "None"
         },
         {
-          "ty": "Future",
+          "ty": "Final",
           "mode": "None"
         }
       ]
     },
     {
-      "name": "resolve_on_core",
-      "is_async": true,
+      "name": "vote_on_resolution",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "credential",
+          "ty": {
+            "Record": {
+              "path": [
+                "OracleCredential"
+              ],
+              "program": "veilmarkets_oracle_v11.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "market_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "outcome",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U8"
+              }
+            }
+          },
+          "mode": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "OracleCredential"
+              ],
+              "program": "veilmarkets_oracle_v11.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "execute_quorum_resolution",
+      "is_final": true,
       "inputs": [
         {
           "name": "market_id",
@@ -393,14 +604,46 @@
       ],
       "outputs": [
         {
-          "ty": "Future",
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "resolve_on_core",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "market_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "outcome",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U8"
+              }
+            }
+          },
+          "mode": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": "Final",
           "mode": "None"
         }
       ]
     },
     {
       "name": "unstake_credits",
-      "is_async": true,
+      "is_final": true,
       "inputs": [
         {
           "name": "amount",
@@ -421,13 +664,184 @@
               "path": [
                 "credits"
               ],
-              "program": "credits"
+              "program": "credits.aleo"
             }
           },
           "mode": "None"
         },
         {
-          "ty": "Future",
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "claim_vote_reward",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "market_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_platform_fees",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "amount",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "recipient",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Address"
+            }
+          },
+          "mode": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "credits"
+              ],
+              "program": "credits.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "admin_set_pause",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "paused",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Boolean"
+            }
+          },
+          "mode": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "set_protocol_u64",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "proposal_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "param_key",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U8"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "value",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "set_protocol_u8",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "proposal_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "param_key",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U8"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "value",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U8"
+              }
+            }
+          },
+          "mode": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": "Final",
           "mode": "None"
         }
       ]

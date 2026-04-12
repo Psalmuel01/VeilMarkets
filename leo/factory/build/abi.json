@@ -1,5 +1,5 @@
 {
-  "program": "veilmarkets_factory_v8.aleo",
+  "program": "veilmarkets_factory_v11.aleo",
   "structs": [],
   "records": [],
   "mappings": [
@@ -16,10 +16,10 @@
     }
   ],
   "storage_variables": [],
-  "transitions": [
+  "functions": [
     {
       "name": "register_contract",
-      "is_async": true,
+      "is_final": true,
       "inputs": [
         {
           "name": "contract_type",
@@ -44,14 +44,14 @@
       ],
       "outputs": [
         {
-          "ty": "Future",
+          "ty": "Final",
           "mode": "None"
         }
       ]
     },
     {
       "name": "verify_is_registered",
-      "is_async": true,
+      "is_final": true,
       "inputs": [
         {
           "name": "contract_type",
@@ -76,7 +76,7 @@
       ],
       "outputs": [
         {
-          "ty": "Future",
+          "ty": "Final",
           "mode": "None"
         }
       ]

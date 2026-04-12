@@ -18,7 +18,13 @@ import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import { cn } from "@/lib/utils";
 import { resolveTokenDisplayName, resolveTokenTicker } from "@/lib/constants";
 import { getOutcomeLabel, getOutcomeLabels, getOutcomeTone, normalizeOutcomeCount } from "@/lib/outcomes";
-import { useMarketPoolQuery, usePlaceBetMutation, useTokenBalanceQuery } from "@/hooks/useVeilQuery";
+import {
+  useBuyQuoteQuery,
+  useMarketPoolQuery,
+  usePlaceBetMutation,
+  useProtocolConfigQuery,
+  useTokenBalanceQuery,
+} from "@/hooks/useVeilQuery";
 
 interface PlaceBetModalProps {
   open: boolean;
@@ -45,6 +51,7 @@ export const PlaceBetModal = ({
   outcomeLabels,
   onBetPlaced,
 }: PlaceBetModalProps) => {
+  const SLIPPAGE_BPS = 200;
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>("select");
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
@@ -52,35 +59,49 @@ export const PlaceBetModal = ({
   const [txId, setTxId] = useState<string | null>(null);
   const { publicKey } = useAleoPrograms();
   const placeBetMutation = usePlaceBetMutation();
-  const { data: pool } = useMarketPoolQuery(marketId, open);
+  const protocolConfigQuery = useProtocolConfigQuery();
+  const quoteQuery = useBuyQuoteQuery(
+    marketId,
+    selectedOutcome,
+    wagerAmount,
+    SLIPPAGE_BPS,
+    open && Boolean(publicKey),
+  );
+  const poolQuery = useMarketPoolQuery(marketId, open);
   const balanceQuery = useTokenBalanceQuery(tokenId, open && Boolean(publicKey));
   const balances = balanceQuery.data ?? null;
+  const pool = poolQuery.data ?? null;
+  const quote = quoteQuery.data ?? null;
   const tokenTicker = resolveTokenTicker(tokenId);
   const tokenDisplayName = resolveTokenDisplayName(tokenId);
   const normalizedOutcomeCount = normalizeOutcomeCount(outcomeCount);
   const resolvedOutcomeLabels = getOutcomeLabels(marketType, normalizedOutcomeCount, outcomeLabels);
   const availableRequiredBalance = balances ? balances.private : 0;
   const hasLowBalance = !!balances && availableRequiredBalance < wagerAmount;
+  const minTradeMicro = protocolConfigQuery.data?.minTrade ?? 1_000_000;
+  
+  const isTradeTooSmall =
+    selectedOutcome !== null &&
+    Math.floor(wagerAmount * 1_000_000) > 0 &&
+    Math.floor(wagerAmount * 1_000_000) < minTradeMicro;
 
-  const calculateReturn = () => {
-    if (!pool || selectedOutcome === null) return null;
-    const x = wagerAmount * 1_000_000;
-    const totals = [
-      pool.total_outcome_0 ?? pool.total_no ?? 0,
-      pool.total_outcome_1 ?? pool.total_yes ?? 0,
-      pool.total_outcome_2 ?? 0,
-      pool.total_outcome_3 ?? 0,
-    ];
-    const selectedPool = totals[selectedOutcome] ?? 0;
-    const totalPool = totals
-      .slice(0, normalizedOutcomeCount)
-      .reduce((acc, value) => acc + value, 0);
-    const payout = (x / (selectedPool + x)) * (totalPool + x);
+  const isInsufficientLiquidity =
+    selectedOutcome !== null &&
+    pool &&
+    (pool.lp_collateral ?? 0) <= 0;
 
-    return payout / 1_000_000;
-  };
 
-  const potentialReturn = calculateReturn();
+  const quoteUnavailable =
+    selectedOutcome !== null && !quote && !quoteQuery.isFetching;
+
+  // We only show liquidity warnings as information, but it blocks the 'Review' button
+  const quoteErrorMessage = isInsufficientLiquidity
+    ? "Market needs liquidity before trading opens. Please add LP first."
+    : isTradeTooSmall
+    ? `Trade too small. Minimum trade is ${(minTradeMicro / 1_000_000).toFixed(6)} ${tokenTicker}.`
+    : quoteQuery.isError
+    ? "Unable to compute quote right now. Please retry."
+    : null;
 
   const resetForm = () => {
     setStep("select");
@@ -100,6 +121,7 @@ export const PlaceBetModal = ({
         outcome: selectedOutcome,
         amountCredits: wagerAmount,
         tokenId,
+        slippageBps: SLIPPAGE_BPS,
       });
       setTxId(result);
       setStep("success");
@@ -135,7 +157,7 @@ export const PlaceBetModal = ({
                     <Shield className="w-5 h-5 text-white" />
                   </div>
                   <DialogTitle className="text-2xl font-bold tracking-tight text-white">
-                    Place Private <span className="text-gradient">Bet</span>
+                    Buy Private <span className="text-gradient">Shares</span>
                   </DialogTitle>
                 </div>
                 <p className="text-sm text-muted-foreground font-medium pl-10">
@@ -167,7 +189,7 @@ export const PlaceBetModal = ({
                 <div>
                   <h3 className="text-xl font-bold text-white mb-2">Connect Your Wallet</h3>
                   <p className="text-sm text-muted-foreground max-w-xs mx-auto mb-8">
-                    To place a privacy-preserving bet on Aleo, you'll need to link your wallet.
+                    To trade private shares on Aleo, you'll need to link your wallet.
                   </p>
                 </div>
                 <ConnectWalletButton className="w-full max-w-sm mx-auto" />
@@ -184,9 +206,9 @@ export const PlaceBetModal = ({
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 px-1">
                     <div className="w-1 h-4 rounded-full bg-primary" />
-                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                      Select Your Prediction
-                    </label>
+                      <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                        Select Outcome
+                      </label>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <OutcomeCard
@@ -216,10 +238,10 @@ export const PlaceBetModal = ({
                     <div className="flex items-center gap-2">
                       <div className="w-1 h-4 rounded-full bg-accent" />
                       <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                        Wager Amount
+                        Collateral Amount
                       </label>
                     </div>
-                    <span className="text-xs font-mono text-muted-foreground">Max: 10 {tokenTicker}</span>
+                    <span className="text-xs font-mono text-muted-foreground">Max: 20 {tokenTicker}</span>
                   </div>
                   <WagerSlider
                     value={wagerAmount}
@@ -250,14 +272,42 @@ export const PlaceBetModal = ({
                   </motion.div>
                 )}
 
+                {isInsufficientLiquidity && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-5 rounded-3xl bg-primary/5 border border-primary/10 space-y-2"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-xl bg-primary/10 mt-0.5">
+                        <Shield className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-bold text-primary uppercase tracking-wider">
+                          Liquidity Required
+                        </p>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          This market needs initial LP funding before share trading can open. Current LP collateral: <span className="text-white font-bold">{((pool?.lp_collateral ?? 0) / 1_000_000).toFixed(4)} {tokenTicker}</span>.
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
                 <Button
                   onClick={() => setStep("confirm")}
-                  disabled={selectedOutcome === null || hasLowBalance}
+                  disabled={selectedOutcome === null || hasLowBalance || (quoteUnavailable && !isInsufficientLiquidity) || !!quoteErrorMessage || quoteQuery.isFetching}
                   className="w-full btn-premium h-16 rounded-[1.5rem] group"
                 >
-                  <span className="text-base font-bold">Continue to Review</span>
+                  <span className="text-base font-bold">{hasLowBalance ? "Insufficient Balance" : isInsufficientLiquidity ? "Liquidity Needed" : "Review Trade"}</span>
                   <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
+
+                {(quoteErrorMessage || (quoteUnavailable && !isInsufficientLiquidity)) && (
+                  <div className="px-1 text-xs text-warning">
+                    {quoteErrorMessage || "Unable to load share quote for this market right now. Please retry."}
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -287,19 +337,22 @@ export const PlaceBetModal = ({
                     </div>
                   </div>
                   <div className="p-6 rounded-3xl bg-white/[0.03] border border-white/5 space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Wager</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Collateral</span>
                     <div className="text-2xl font-bold text-white font-mono">
                       {wagerAmount} <span className="text-xs text-muted-foreground">{tokenTicker}</span>
                     </div>
                   </div>
                 </div>
 
-                {potentialReturn && (
+                {quote && (
                   <div className="p-6 rounded-3xl bg-success/5 border border-success/10 flex items-center justify-between">
                     <div className="flex flex-col gap-1">
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-success/70">Estimated Max Return</span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-success/70">Estimated Shares / Min Receive</span>
                       <div className="text-2xl font-bold text-success font-mono">
-                        +{potentialReturn.toFixed(2)} <span className="text-xs">{tokenTicker}</span>
+                        {quote.sharesOut.toLocaleString()} <span className="text-xs">shares</span>
+                      </div>
+                      <div className="text-xs text-success/80 font-medium">
+                        Min receive: {quote.minSharesOut.toLocaleString()} shares • Fee: {(quote.feeMicro / 1_000_000).toFixed(4)} {tokenTicker}
                       </div>
                     </div>
                     <TrendingUp className="w-10 h-10 text-success opacity-20" />
@@ -331,7 +384,7 @@ export const PlaceBetModal = ({
                     onClick={handleSubmit}
                     className="flex-[2] btn-premium h-14 rounded-2xl font-bold"
                   >
-                    Confirm Private Bet
+                    Confirm Buy
                   </Button>
                 </div>
               </motion.div>
@@ -352,7 +405,7 @@ export const PlaceBetModal = ({
                   </div>
                 </div>
                 <div className="space-y-3">
-                  <h3 className="text-2xl font-bold text-white tracking-tight">Generating ZK Proof</h3>
+                  <h3 className="text-2xl font-bold text-white tracking-tight">Preparing Private Trade</h3>
                   <p className="text-sm text-muted-foreground max-w-[280px] mx-auto leading-relaxed">
                     Encrypting your transaction and generating a cryptographic proof to ensure your privacy.
                   </p>
@@ -389,9 +442,9 @@ export const PlaceBetModal = ({
                 </motion.div>
 
                 <div className="space-y-3">
-                  <h3 className="text-3xl font-black text-white tracking-tight">Bet Confirmed</h3>
+                  <h3 className="text-3xl font-black text-white tracking-tight">Trade Confirmed</h3>
                   <p className="text-muted-foreground font-medium max-w-sm mx-auto">
-                    Your private bet is now recorded on-chain and secured by ZK proofs.
+                    Your private share purchase is now recorded on-chain and secured by ZK proofs.
                   </p>
                   <div className="flex justify-center pt-2">
                     <ZKBadge variant="verified" size="lg" animated />
@@ -445,7 +498,7 @@ export const PlaceBetModal = ({
                 <div className="space-y-2">
                   <h3 className="text-2xl font-bold text-white tracking-tight">Transaction Failed</h3>
                   <p className="text-sm text-muted-foreground max-w-xs mx-auto leading-relaxed">
-                    We encountered an error while generating your private bet. Please check your wallet and try again.
+                    We encountered an error while submitting your private trade. Please check your wallet and try again.
                   </p>
                 </div>
 

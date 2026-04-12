@@ -63,14 +63,16 @@ export default function MarketsPage() {
   const poolsByMarketId = useMemo(() => {
     const map = new Map<
       string,
-      { participant_count: number; escrowed_amount: number }
+      { trader_count: number; cumulative_volume: number; open_interest: number; tvl: number }
     >();
     chainMarkets.forEach((market, index) => {
       const query = poolQueries[index];
       const pool = query?.data;
       map.set(market.id, {
-        participant_count: pool?.participant_count ?? 0,
-        escrowed_amount: pool?.escrowed_amount ?? 0,
+        trader_count: pool?.trader_count ?? pool?.participant_count ?? 0,
+        cumulative_volume: pool?.cumulative_volume ?? 0,
+        open_interest: pool?.trading_collateral ?? pool?.escrowed_amount ?? 0,
+        tvl: pool?.total_collateral ?? 0,
       });
     });
     return map;
@@ -80,12 +82,15 @@ export default function MarketsPage() {
     const nowTs = Math.floor(Date.now() / 1000);
     return chainMarkets.map((market) => {
       const isSettled = market.is_resolved;
+      const isCancelled = isSettled && isCancelledOutcome(market.winning_outcome);
       const isClosed = !isSettled && nowTs >= market.close_time;
-      const status: Market["status"] = isSettled
-        ? "Settled"
-        : isClosed
-          ? "Closed"
-          : "Open";
+      const status: Market["status"] = isCancelled
+        ? "Cancelled"
+        : isSettled
+          ? "Settled"
+          : isClosed
+            ? "Closed"
+            : "Open";
       const pool = poolsByMarketId.get(market.id);
 
       return {
@@ -95,7 +100,7 @@ export default function MarketsPage() {
         category: mapCategory(market.category),
         status,
         closingTime: formatDateFriendly(market.close_time),
-        betsPlaced: pool?.participant_count ?? 0,
+        betsPlaced: pool?.trader_count ?? 0,
         marketType: market.market_type,
         outcomeCount: normalizeOutcomeCount(market.outcome_count),
         winningOutcome: market.winning_outcome,
@@ -117,11 +122,11 @@ export default function MarketsPage() {
   }, [chainMarkets, poolsByMarketId]);
 
   const totalVolume = useMemo(() => {
-    const totalEscrowed = Array.from(poolsByMarketId.values()).reduce(
-      (acc, pool) => acc + (pool.escrowed_amount || 0),
+    const totalTraded = Array.from(poolsByMarketId.values()).reduce(
+      (acc, pool) => acc + (pool.cumulative_volume || 0),
       0,
     );
-    return totalEscrowed / 1_000_000;
+    return totalTraded / 1_000_000;
   }, [poolsByMarketId]);
 
   const loading = isMarketsLoading && markets.length === 0;

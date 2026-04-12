@@ -1,292 +1,101 @@
-# VeilMarkets – Technical Architecture
+# VeilMarkets v9 Architecture
 
 ## Overview
 
-VeilMarkets is a private prediction market built on Aleo.
+VeilMarkets v9 is a modular prediction market stack on Aleo with:
 
-The core idea is simple:
+- share-trading market core
+- multi-token settlement adapters (Credits, USDCx, USAD)
+- optimistic oracle with dispute/quorum path
+- governance-bound protocol parameters via factory authorization
 
-> Users can prove a valid bet exists **without revealing the bet itself**.
+## Contract modules
 
-This means:
+## 1) Factory (`veilmarkets_factory_v11.aleo`)
 
-- Bet **amounts**, **positions**, and **identities** remain private
-- Market **outcomes** and **aggregate liquidity** remain public and verifiable
+- Registry and trust anchor for cross-program authorization.
+- Registered contract types:
+  - `1` token adapters
+  - `2` oracle
+  - `3` core
+  - `4` governance
 
----
+## 2) Core (`veilmarkets_core_v11.aleo`)
 
-## Problem
+Source of truth for:
 
-Traditional prediction markets on transparent blockchains (e.g. Ethereum) expose:
+- market metadata and lifecycle state
+- pool state and dynamic outcome mappings
+- position ownership commitments and nullifier-based claims
+- LP accounting and withdrawal state
+- protocol parameters and protocol-fee accounting
 
-- User wallet addresses
-- Bet sizes
-- Selected outcomes
+Core enforces quote/execution math and fixed-share settlement semantics:
 
-This leads to:
+- winner claim payout = `shares`
+- loser payout = `0`
+- cancellation refund = position collateral
 
-- Front-running
-- Copy trading
-- Social bias
+## 3) Oracle (`veilmarkets_oracle_v11.aleo`)
 
-VeilMarkets removes these issues by:
+Implements optimistic proposal + dispute flow:
 
-- Keeping individual bets private
-- Exposing only aggregated pool data
-- Maintaining verifiable outcomes
+- propose outcome
+- open challenge window
+- optional dispute bond
+- quorum vote checks in disputed path
+- resolve into core
 
----
+Also handles dispute economics (slash/reward/platform split) and oracle stake tracking.
 
-## System Architecture
+## 4) Governance (`veilmarkets_governance_v11.aleo`)
 
-The system is composed of **five contracts**, each with a single responsibility.
+Governance proposals execute parameter updates directly on core/oracle through registered authorization.
 
-### 1. Factory (Registry)
+## 5) Token adapters
 
-- Maintains registry of trusted contracts:
-  `address => u8 (type)`
+- `veilmarkets_token_credits_v11.aleo`
+- `veilmarkets_token_usdcx_v11.aleo`
+- `veilmarkets_token_usad_v11.aleo`
 
-- `1 = Token Adapter`
-- `2 = Oracle`
-- `3 = Core`
+Responsibilities:
 
-- Provides:
-- `verify_is_registered(type, address)`
+- token-specific private/public transfer rail
+- escrow in adapter
+- route execution to core transitions
+- settle pending claims back to private records
 
-- Responsibilities:
-- Access control for cross-contract calls
-- Extensibility (new adapters/oracles can be added without redeploying core)
+## Privacy model (honest scope)
 
-- Notes:
-- Only contract requiring admin privileges
+Private:
 
----
+- wallet-owned token records
+- claim records/nullifier artifacts
+- position ownership commitments
 
-### 2. Core (Market Engine)
+Public:
 
-The **source of truth** for all markets.
+- aggregate market/pool state
+- resolution/dispute events
+- adapter-level public accounting balances
 
-#### Stores:
+## Interaction flow
 
-- `MarketInfo`
-- creator
-- timing
-- token adapter
-- outcome count
-- resolution state
+1. Create market in core (token rail + outcomes + timing).
+2. Buy/sell/fund via token adapter.
+3. Adapter calls core transition.
+4. Core updates state and writes pending claim artifacts.
+5. User claims via adapter `claim_payout`.
+6. Oracle resolves market (undisputed or disputed quorum path).
+7. Users claim winnings; LPs withdraw liquidity post-resolution.
 
-- `PoolState`
-- total stake per outcome
+## Data model
 
-- `Claims / Nullifiers`
-- prevents double claims
+On-chain:
 
-#### Responsibilities:
+- all live market, pool, and payout logic
 
-- Register bets
-- Track liquidity pools
-- Handle payout authorization
-- Finalize market resolution
+Off-chain (Supabase):
 
-> Core never holds funds. It only tracks state and validates logic.
-
----
-
-### 3. Token Adapters (Escrow Layer)
-
-One adapter per token (e.g. USDCx, USAD).
-
-#### Responsibilities:
-
-- Escrow user funds
-- Release payouts
-- Interface with token contracts
-
-#### Key Properties:
-
-- Core does not know token logic
-- Adapters abstract token behavior
-- Enables multi-token support
-
----
-
-### 4. Oracle (Resolution Engine)
-
-Handles market resolution via an **optimistic mechanism**.
-
-#### Flow:
-
-1. Oracle proposes outcome (with stake)
-2. Dispute window opens
-3. If disputed:
-
-- Other oracles vote (stake-weighted)
-
-4. Final outcome is submitted to Core
-
-#### Responsibilities:
-
-- Resolve markets
-- Manage disputes
-- **Stake-Weighted Voting**: Final outcome is decided by aggregate weight of oracle votes if disputed.
-- **Economic Model (90/10)**: 
-  - **Winners** receive 90% of the loser's stake/bond. 
-  - **Platform** collects 10% in the contract's public balance (admin-managed).
-- **Penalties**:
-  - **Proposers**: Slashed 30 Credits (minimum oracle stake) for incorrect proposals. 
-  - **Disputers**: Lose their entire bond if they lose a challenge. 
-
----
-
-### 5. Stablecoin Layer (USDCx / USAD)
-
-- Private token records
-- Require **Merkle proof compliance checks**
-- Enforce restrictions (e.g. freeze lists)
-
----
-
-## Key Interaction Flows
-
-### 1. Placing a Bet
-
-```
-
-User
-→ token_adapter.place_bet(...)
-→ stablecoin.transfer_private_to_public(...)
-→ core.place_bet(...)
-→ factory.verify_is_registered(...)
-→ update pool state
-→ returns EscrowedBet (private)
-
-```
-
-#### Notes:
-
-- Funds are escrowed in adapter
-- Core records only the bet metadata
-- User receives a **private bet record**
-
----
-
-### 2. Claiming Winnings
-
-#### Step 1 – Request Claim (Core)
-
-```
-
-User
-→ core.claim_winnings(BetPosition)
-→ writes payout to pending_payouts[nullifier]
-→ returns WinningsClaim
-
-```
-
-#### Step 2 – Execute Payout (Adapter)
-
-```
-
-User
-→ token_adapter.claim_payout(amount, nullifier)
-→ core.verify_claim(...)
-→ validates amount
-→ clears nullifier
-→ stablecoin.transfer_public_to_private(...)
-
-```
-
-#### Why this design matters:
-
-- Prevents users from faking payout amounts
-- Core defines payout
-- Adapter executes payout
-
----
-
-## Privacy Model
-
-### Private Data
-
-- Bet positions
-- Bet amounts
-- User identity
-
-Stored as **encrypted Aleo records**:
-
-- `EscrowedBet`
-- `BetPosition`
-
-### Public Data
-
-- Total liquidity per outcome
-- Final market result
-
-### Double-Spend Protection
-
-- Uses **nullifiers**
-- Prevents multiple claims without revealing identity
-
----
-
-## Compliance Layer (Stablecoins)
-
-Stablecoins enforce rules via ZK proofs:
-
-- Users must prove:
-  - They are not on a restricted list
-
-- Implemented via:
-
-```
-
-MerkleProof[2]
-
-```
-
-- Important:
-- This is enforced by the token
-- VeilMarkets simply passes the proof through
-
----
-
-## Data Architecture (On-chain vs Off-chain)
-
-### On-chain
-
-- Market state
-- Pool totals
-- Resolution data
-- `title_hash`
-
-### Off-chain (Supabase)
-
-- Market title
-- Outcome labels
-- Categories
-
-### Flow:
-
-1. Frontend hashes market title → `title_hash`
-2. Hash stored on-chain
-3. Full metadata stored off-chain
-4. UI joins using hash
-
-### Benefits:
-
-- Lower on-chain storage cost
-- Data integrity preserved
-- Immutable linkage between UI and contract state
-
----
-
-## Design Principles
-
-- **Privacy-first**: Individual positions are never exposed
-- **Modular**: Contracts are decoupled and upgradeable
-- **Trust-minimized**: Core enforces all critical logic
-- **Extensible**: New tokens and oracles can be added via Factory
-
-```
-
-```
+- market metadata and UI enrichment
+- no off-chain authority over settlement math

@@ -18,6 +18,26 @@ interface PlaceBetVariables {
   outcome: number;
   amountCredits: number;
   tokenId: string;
+  slippageBps?: number;
+}
+
+interface SellSharesVariables {
+  marketId: string;
+  outcome: number;
+  sharesToSell: number;
+  slippageBps?: number;
+}
+
+interface FundPoolVariables {
+  marketId: string;
+  amountCredits: number;
+  tokenId: string;
+}
+
+interface WithdrawLiquidityVariables {
+  marketId: string;
+  lpShares: number;
+  minPayoutMicro?: number;
 }
 
 interface PlaceBetMutationContext {
@@ -32,9 +52,15 @@ const invalidateCoreQueries = async (
 ) => {
   await invalidate({ queryKey: queryKeys.markets });
   if (marketId) {
+    const normalizedMarketId = (marketId || "").replace(/field$/i, "").trim();
     await invalidate({ queryKey: queryKeys.market(marketId) });
     await invalidate({ queryKey: queryKeys.marketPool(marketId) });
+    await invalidate({ queryKey: ["market", "user-position", normalizedMarketId] });
     await invalidate({ queryKey: queryKeys.marketProposal(marketId) });
+    await invalidate({ queryKey: ["market", "resolution-requirements", normalizedMarketId] });
+    await invalidate({ queryKey: ["market", "outcomes", normalizedMarketId] });
+    await invalidate({ queryKey: ["market", "quote", normalizedMarketId] });
+    await invalidate({ queryKey: ["market", "sell-quote", normalizedMarketId] });
   }
   if (address) {
     await invalidate({ queryKey: queryKeys.userBets(address) });
@@ -43,6 +69,7 @@ const invalidateCoreQueries = async (
     await invalidate({ queryKey: queryKeys.balancesUsad(address) });
     await invalidate({ queryKey: queryKeys.oracleStatus(address) });
     await invalidate({ queryKey: queryKeys.oracleStake(address) });
+    await invalidate({ queryKey: queryKeys.oracleLockedStake(address) });
   }
 };
 
@@ -67,6 +94,18 @@ export const useCurrentHeightQuery = () =>
     refetchOnWindowFocus: true,
   });
 
+export const useProtocolConfigQuery = () => {
+  const { fetchCoreProtocolConfig } = useAleoPrograms();
+
+  return useQuery({
+    queryKey: queryKeys.protocolConfig,
+    queryFn: fetchCoreProtocolConfig,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
+};
+
 export const useMarketPoolQuery = (marketId?: string, enabled = true) => {
   const { fetchPoolStats } = useAleoPrograms();
 
@@ -76,6 +115,81 @@ export const useMarketPoolQuery = (marketId?: string, enabled = true) => {
     enabled: Boolean(marketId) && enabled,
     staleTime: DEFAULT_STALE_MS,
     refetchInterval: POLL_INTERVAL_MS,
+  });
+};
+
+export const useMarketUserPositionQuery = (
+  marketId?: string,
+  outcome?: number | null,
+  enabled = true,
+) => {
+  const { fetchMarketPositionSummary, publicKey } = useAleoPrograms();
+
+  return useQuery({
+    queryKey: queryKeys.marketUserPosition(marketId ?? "", publicKey, outcome ?? null),
+    queryFn: () => fetchMarketPositionSummary(marketId ?? "", typeof outcome === "number" ? outcome : undefined),
+    enabled: Boolean(publicKey) && Boolean(marketId) && enabled,
+    staleTime: DEFAULT_STALE_MS,
+    refetchInterval: POLL_INTERVAL_MS,
+    refetchOnWindowFocus: true,
+  });
+};
+
+export const useOutcomeTotalsQuery = (
+  marketId: string | undefined,
+  outcomeCount: number,
+  programId?: string,
+  enabled = true,
+) => {
+  const { fetchOutcomeTotals } = useAleoPrograms();
+
+  return useQuery({
+    queryKey: queryKeys.marketOutcomeTotals(marketId ?? "", outcomeCount),
+    queryFn: () => fetchOutcomeTotals(marketId ?? "", outcomeCount, programId),
+    enabled: Boolean(marketId) && enabled,
+    staleTime: DEFAULT_STALE_MS,
+    refetchInterval: POLL_INTERVAL_MS,
+    refetchOnWindowFocus: true,
+  });
+};
+
+export const useBuyQuoteQuery = (
+  marketId: string | undefined,
+  outcome: number | null,
+  amountCredits: number,
+  slippageBps = 200,
+  enabled = true,
+) => {
+  const { quoteBuyShares } = useAleoPrograms();
+  const amountMicro = Math.max(0, Math.floor(amountCredits * 1_000_000));
+
+  return useQuery({
+    queryKey: queryKeys.buyQuote(marketId ?? "", outcome ?? -1, amountMicro, slippageBps),
+    queryFn: () => quoteBuyShares(marketId ?? "", outcome ?? 0, amountMicro, slippageBps),
+    enabled: Boolean(marketId) && outcome !== null && enabled,
+    staleTime: 2_000,
+    refetchInterval: 5_000,
+    refetchOnWindowFocus: true,
+  });
+};
+
+export const useSellQuoteQuery = (
+  marketId: string | undefined,
+  outcome: number | null,
+  sharesToSell: number,
+  slippageBps = 200,
+  enabled = true,
+) => {
+  const { quoteSellShares } = useAleoPrograms();
+  const normalizedShares = Math.max(1, Math.floor(sharesToSell));
+
+  return useQuery({
+    queryKey: queryKeys.sellQuote(marketId ?? "", outcome ?? -1, normalizedShares, slippageBps),
+    queryFn: () => quoteSellShares(marketId ?? "", outcome ?? 0, normalizedShares, slippageBps),
+    enabled: Boolean(marketId) && outcome !== null && enabled,
+    staleTime: 2_000,
+    refetchInterval: 5_000,
+    refetchOnWindowFocus: true,
   });
 };
 
@@ -162,11 +276,23 @@ export const useOracleStakeQuery = () => {
   });
 };
 
+export const useOracleLockedStakeQuery = () => {
+  const { fetchOracleLockedStake, publicKey } = useAleoPrograms();
+
+  return useQuery({
+    queryKey: queryKeys.oracleLockedStake(publicKey),
+    queryFn: fetchOracleLockedStake,
+    enabled: Boolean(publicKey),
+    staleTime: DEFAULT_STALE_MS,
+    refetchInterval: POLL_INTERVAL_MS,
+  });
+};
+
 export const useOracleStatusQuery = () => {
   const { publicKey } = useAleoPrograms();
   const stakeQuery = useOracleStakeQuery();
 
-  const isOracle = (stakeQuery.data ?? 0) >= 30_000_000;
+  const isOracle = (stakeQuery.data ?? 0) >= 20_000_000;
 
   return {
     ...stakeQuery,
@@ -174,13 +300,30 @@ export const useOracleStatusQuery = () => {
   };
 };
 
+export const useResolutionFinalizeRequirementsQuery = (
+  marketId?: string,
+  outcomeCount = 2,
+  enabled = true,
+) => {
+  const { fetchResolutionFinalizeRequirements } = useAleoPrograms();
+
+  return useQuery({
+    queryKey: queryKeys.marketResolutionRequirements(marketId ?? "", outcomeCount),
+    queryFn: () => fetchResolutionFinalizeRequirements(marketId ?? "", outcomeCount),
+    enabled: Boolean(marketId) && enabled,
+    staleTime: DEFAULT_STALE_MS,
+    refetchInterval: POLL_INTERVAL_MS,
+    refetchOnWindowFocus: true,
+  });
+};
+
 export const usePlaceBetMutation = () => {
   const queryClient = useQueryClient();
   const { placeBet, publicKey } = useAleoPrograms();
 
   return useMutation({
-    mutationFn: async ({ marketId, outcome, amountCredits, tokenId }: PlaceBetVariables) => {
-      const txId = await placeBet(marketId, outcome, amountCredits, tokenId);
+    mutationFn: async ({ marketId, outcome, amountCredits, tokenId, slippageBps }: PlaceBetVariables) => {
+      const txId = await placeBet(marketId, outcome, amountCredits, tokenId, { slippageBps });
       if (!txId) {
         throw new Error("Bet transaction failed");
       }
@@ -204,14 +347,13 @@ export const usePlaceBetMutation = () => {
       queryClient.setQueryData<PoolInfo | null>(queryKeys.marketPool(marketId), (existing) => {
         if (!existing) return existing;
         const next = { ...existing };
-        if (outcome === 0) next.total_outcome_0 += deltaMicro;
-        if (outcome === 1) next.total_outcome_1 += deltaMicro;
-        if (outcome === 2) next.total_outcome_2 += deltaMicro;
-        if (outcome === 3) next.total_outcome_3 += deltaMicro;
-        next.total_no = next.total_outcome_0;
-        next.total_yes = next.total_outcome_1;
-        next.escrowed_amount += deltaMicro;
-        next.participant_count += 1;
+        void outcome;
+        next.trader_count = (next.trader_count ?? next.participant_count ?? 0) + 1;
+        next.participant_count = next.trader_count + (next.lp_count ?? 0);
+        next.total_collateral = (next.total_collateral ?? 0) + deltaMicro;
+        next.trading_collateral = next.total_collateral;
+        next.cumulative_volume = (next.cumulative_volume ?? 0) + deltaMicro;
+        next.escrowed_amount = next.total_collateral;
         return next;
       });
 
@@ -259,6 +401,86 @@ export const useClaimWinningsMutation = () => {
       const result = await claimWinnings(marketId);
       if (!result) throw new Error("Claim transaction failed");
       return result;
+    },
+    onSettled: async (_data, _error, marketId) => {
+      await invalidateCoreQueries(
+        ({ queryKey }) => queryClient.invalidateQueries({ queryKey }),
+        marketId,
+        publicKey,
+      );
+    },
+  });
+};
+
+export const useSellSharesMutation = () => {
+  const queryClient = useQueryClient();
+  const { sellShares, publicKey } = useAleoPrograms();
+
+  return useMutation({
+    mutationFn: async ({ marketId, outcome, sharesToSell, slippageBps }: SellSharesVariables) => {
+      const result = await sellShares(marketId, sharesToSell, { slippageBps, outcome });
+      if (!result) throw new Error("Sell shares transaction failed");
+      return result;
+    },
+    onSettled: async (_data, _error, variables) => {
+      await invalidateCoreQueries(
+        ({ queryKey }) => queryClient.invalidateQueries({ queryKey }),
+        variables.marketId,
+        publicKey,
+      );
+    },
+  });
+};
+
+export const useFundPoolMutation = () => {
+  const queryClient = useQueryClient();
+  const { fundPool, publicKey } = useAleoPrograms();
+
+  return useMutation({
+    mutationFn: async ({ marketId, amountCredits, tokenId }: FundPoolVariables) => {
+      const txId = await fundPool(marketId, amountCredits, tokenId);
+      if (!txId) throw new Error("Fund pool transaction failed");
+      return txId;
+    },
+    onSettled: async (_data, _error, variables) => {
+      await invalidateCoreQueries(
+        ({ queryKey }) => queryClient.invalidateQueries({ queryKey }),
+        variables.marketId,
+        publicKey,
+      );
+    },
+  });
+};
+
+export const useWithdrawLiquidityMutation = () => {
+  const queryClient = useQueryClient();
+  const { withdrawLiquidity, publicKey } = useAleoPrograms();
+
+  return useMutation({
+    mutationFn: async ({ marketId, lpShares, minPayoutMicro }: WithdrawLiquidityVariables) => {
+      const result = await withdrawLiquidity(marketId, lpShares, { minPayoutMicro });
+      if (!result) throw new Error("Withdraw liquidity transaction failed");
+      return result;
+    },
+    onSettled: async (_data, _error, variables) => {
+      await invalidateCoreQueries(
+        ({ queryKey }) => queryClient.invalidateQueries({ queryKey }),
+        variables.marketId,
+        publicKey,
+      );
+    },
+  });
+};
+
+export const useCancelMarketMutation = () => {
+  const queryClient = useQueryClient();
+  const { cancelMarket, publicKey } = useAleoPrograms();
+
+  return useMutation({
+    mutationFn: async (marketId: string) => {
+      const txId = await cancelMarket(marketId);
+      if (!txId) throw new Error("Cancel market transaction failed");
+      return txId;
     },
     onSettled: async (_data, _error, marketId) => {
       await invalidateCoreQueries(
@@ -364,6 +586,26 @@ export const useUnstakeOracleMutation = () => {
       await invalidateCoreQueries(
         ({ queryKey }) => queryClient.invalidateQueries({ queryKey }),
         undefined,
+        publicKey,
+      );
+    },
+  });
+};
+
+export const useClaimOracleVoteRewardMutation = () => {
+  const queryClient = useQueryClient();
+  const { claimOracleVoteReward, publicKey } = useAleoPrograms();
+
+  return useMutation({
+    mutationFn: async (marketId: string) => {
+      const txId = await claimOracleVoteReward(marketId);
+      if (!txId) throw new Error("Claim oracle vote reward failed");
+      return txId;
+    },
+    onSettled: async (_data, _error, marketId) => {
+      await invalidateCoreQueries(
+        ({ queryKey }) => queryClient.invalidateQueries({ queryKey }),
+        marketId,
         publicKey,
       );
     },

@@ -12,10 +12,10 @@ export function MarketRealtimeProvider({ children }: MarketRealtimeProviderProps
 
   useEffect(() => {
     const channel = supabase
-      .channel("markets_v8_realtime")
+      .channel("markets_v11_realtime")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "markets_v8" },
+        { event: "*", schema: "public", table: "markets_v11" },
         () => {
           queryClient.invalidateQueries({ queryKey: queryKeys.markets });
           queryClient.invalidateQueries({ queryKey: ["market"] });

@@ -1,17 +1,18 @@
 import type { SupportedTokenKind } from "@/lib/constants";
-import { Clock, Users, Timer, ChevronRight, History, CheckCircle2 } from "lucide-react";
+import { Clock, Users, Timer, ChevronRight, History, CheckCircle2, XCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { ZKBadge } from "@/components/ui/ZKBadge";
 import { Badge } from "@/components/ui/badge";
 import { getOutcomeTone, normalizeOutcomeCount } from "@/lib/outcomes";
+import { useMarketPoolQuery } from "@/hooks/useVeilQuery";
 
 export interface Market {
   id: string;
   title: string;
   description: string;
   category: "Sports" | "Finance" | "Crypto" | "Politics" | "Entertainment" | "Tech" | "Other";
-  status: "Open" | "Closed" | "Settled";
+  status: "Open" | "Closed" | "Settled" | "Cancelled";
   closingTime: string;
   creationTime?: string;
   betsPlaced: number;
@@ -43,6 +44,9 @@ export function MarketCard({ market }: MarketCardProps) {
     ? getOutcomeTone(market.marketType, normalizeOutcomeCount(market.outcomeCount), market.winningOutcome)
     : "neutral";
 
+  const { data: pool } = useMarketPoolQuery(market.id);
+    
+
   return (
     <Link
       to={`/market/${market.id}`}
@@ -59,7 +63,9 @@ export function MarketCard({ market }: MarketCardProps) {
             ? "bg-gradient-to-br from-destructive/10 via-transparent to-destructive/5"
             : market.status === "Settled" && outcomeTone === "yes"
               ? "bg-gradient-to-br from-success/10 via-transparent to-success/5"
-              : "bg-gradient-to-br from-primary/5 via-transparent to-accent/5"
+              : market.status === "Cancelled"
+                ? "bg-gradient-to-br from-white/5 via-transparent to-white/3"
+                : "bg-gradient-to-br from-primary/5 via-transparent to-accent/5"
         )} />
         
         {/* Top Header */}
@@ -82,6 +88,11 @@ export function MarketCard({ market }: MarketCardProps) {
             <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-success/10 border border-success/20">
               <CheckCircle2 className="w-3 h-3 text-success" />
               <span className="text-[10px] font-bold uppercase tracking-widest text-success">Settled</span>
+            </div>
+          ) : market.status === "Cancelled" ? (
+            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10">
+              <XCircle className="w-3 h-3 text-white/40" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">Cancelled</span>
             </div>
           ) : market.status === "Closed" ? (
             <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20">
@@ -113,10 +124,10 @@ export function MarketCard({ market }: MarketCardProps) {
         <div className="pt-6 border-t border-white/5 flex items-center justify-between relative z-10">
           <div className="flex items-center gap-5">
             <div className="flex flex-col">
-              <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60 mb-0.5">Participants</span>
+              <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60 mb-0.5">Traders</span>
               <div className="flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-primary" />
-                <span className="text-sm font-bold font-mono text-white">{market.betsPlaced}</span>
+                <span className="text-sm font-bold font-mono text-white">{pool?.trader_count  || 0}</span>
               </div>
             </div>
             <div className="flex flex-col">
@@ -160,6 +171,16 @@ export function MarketCard({ market }: MarketCardProps) {
                     ? "text-destructive"
                     : "text-primary"
               )}>{market.outcome.toUpperCase()}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Cancelled Banner */}
+        {market.status === "Cancelled" && (
+          <div className="absolute top-0 right-0 left-0 bottom-0 bg-black/60 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center p-6 text-center">
+            <div className="px-6 py-3 rounded-2xl border bg-white/5 border-white/10">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.2em] mb-1 text-white/40">Market Status</div>
+              <div className="text-2xl font-bold font-heading text-white/50">CANCELLED</div>
             </div>
           </div>
         )}

@@ -15,7 +15,11 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { OracleRegistrationModal } from "@/components/resolution/OracleRegistrationModal";
 import { getOutcomeLabel, getOutcomeLabels, getOutcomeTone, normalizeOutcomeCount } from "@/lib/outcomes";
-import { useDisputeResolutionMutation, useProposeResolutionMutation } from "@/hooks/useVeilQuery";
+import {
+  useClaimOracleVoteRewardMutation,
+  useDisputeResolutionMutation,
+  useProposeResolutionMutation,
+} from "@/hooks/useVeilQuery";
 
 interface ResolutionModalProps {
   isOpen: boolean;
@@ -38,11 +42,12 @@ interface ResolutionModalProps {
   } | null;
   nowTs: number;
   isOracle: boolean;
+  outcomeTotals?: number[];
   onUpdate: () => void;
 }
 
 type Step = "action" | "processing" | "success" | "failed";
-const DISPUTE_BOND_CREDITS = 30;
+const DISPUTE_BOND_CREDITS = 20;
 
 export function ResolutionModal({
   isOpen,
@@ -51,12 +56,14 @@ export function ResolutionModal({
   proposal,
   nowTs,
   isOracle,
+  outcomeTotals = [],
   onUpdate,
 }: ResolutionModalProps) {
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
   const proposeMutation = useProposeResolutionMutation();
   const disputeMutation = useDisputeResolutionMutation();
-  const loading = proposeMutation.isPending || disputeMutation.isPending;
+  const claimVoterRewardMutation = useClaimOracleVoteRewardMutation();
+  const loading = proposeMutation.isPending || disputeMutation.isPending || claimVoterRewardMutation.isPending;
   const normalizedOutcomeCount = normalizeOutcomeCount(market.outcome_count);
   const outcomeLabels = getOutcomeLabels(market.market_type, normalizedOutcomeCount, market.outcome_labels);
 
@@ -64,7 +71,8 @@ export function ResolutionModal({
   const [txId, setTxId] = useState<string | null>(null);
   const [isOracleModalOpen, setIsOracleModalOpen] = useState(false);
   const [didPropose, setDidPropose] = useState(false);
-  // console.log(isOracle);
+  const selectedOutcomeSupply = selectedOutcome !== null ? (outcomeTotals[selectedOutcome] ?? 0) : null;
+  const isOutcomeEmpty = selectedOutcome !== null && selectedOutcomeSupply === 0;
   useEffect(() => {
     if (!isOpen) {
       setSelectedOutcome(null);
@@ -100,6 +108,10 @@ export function ResolutionModal({
     await handleAction(() =>
       disputeMutation.mutateAsync({ marketId: market.id, amountCredits: DISPUTE_BOND_CREDITS }),
     );
+  };
+
+  const handleClaimVoteReward = async () => {
+    await handleAction(() => claimVoterRewardMutation.mutateAsync(market.id));
   };
 
   const isResolved = market.is_resolved;
@@ -239,6 +251,19 @@ export function ResolutionModal({
                         })}
                       </div>
                     </RadioGroup>
+
+                    {isOutcomeEmpty && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200 flex gap-3"
+                      >
+                        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                        <p>
+                          <strong>Heads up:</strong> This outcome currently has zero matching trader shares. Resolution is still allowed. If it wins, no trader payouts will be created and the remaining pool value stays with LP return accounting.
+                        </p>
+                      </motion.div>
+                    )}
                   </div>
                 )}
 
@@ -332,6 +357,22 @@ export function ResolutionModal({
                         )}
                         <p className="text-[10px] text-center text-muted-foreground">
                           Disputes require a {DISPUTE_BOND_CREDITS} Credit bond during the challenge window.
+                        </p>
+                      </div>
+                    )}
+
+                    {proposal?.is_disputed && isResolved && isOracle && (
+                      <div className="space-y-3">
+                        <Button
+                          variant="outline"
+                          className="w-full border-success/30 hover:bg-success/10 text-success"
+                          onClick={handleClaimVoteReward}
+                          disabled={loading}
+                        >
+                          Claim Dispute Vote Reward
+                        </Button>
+                        <p className="text-[10px] text-center text-muted-foreground">
+                          Winning-side dispute voters can claim rewards credited to oracle stake.
                         </p>
                       </div>
                     )}

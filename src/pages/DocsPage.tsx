@@ -21,11 +21,11 @@ const sections = [
     content: [
       {
         title: "What is VeilMarkets?",
-        description: "VeilMarkets is a privacy-first prediction market platform built on Aleo. It supports binary and categorical markets (2-4 outcomes) with settlement in Aleo Credits, USDCx, or USAD.",
+        description: "VeilMarkets is a privacy-first prediction market platform built on Aleo. It supports binary and categorical markets (2-8 outcomes) with settlement in Aleo Credits, USDCx, or USAD.",
       },
       {
         title: "How do I participate?",
-        description: "Browse markets, choose an outcome, set your wager, and submit through the market's token rail. The app handles private record usage and proof validation during execution.",
+        description: "Browse markets, choose an outcome, review quote/slippage, and buy shares through the market's token rail. The app handles private record usage and proof validation during execution.",
       },
     ],
   },
@@ -55,11 +55,11 @@ const sections = [
     content: [
       {
         title: "Real-time Ratios",
-        description: "Each market now features real-time analytics. You can see the 'Yes' and 'No' ratios calculated directly from the on-chain pools, giving you the current implied probability of each outcome before placing a bet.",
+        description: "Each market features live share-trading analytics. Prices and quote outputs are derived from on-chain pool state, giving a current implied probability view before you trade.",
       },
       {
-        title: "Participant Tracking",
-        description: "We now track and display the actual number of participants in each market by querying the contract mappings, providing social proof of market activity.",
+        title: "Trader + Liquidity Tracking",
+        description: "We track trader activity, liquidity depth, and pool totals directly from contract mappings so market health reflects actual on-chain state.",
       },
       {
         title: "Time Estimations",
@@ -69,7 +69,7 @@ const sections = [
   },
   {
     id: "whats-new",
-    title: "What's New in v8",
+    title: "What's New in v11",
     icon: Zap,
     content: [
       {
@@ -96,8 +96,8 @@ const sections = [
         description: "Markets can settle in Aleo Credits, USDCx, or USAD. Each market is bound to exactly one token adapter and all bet/claim operations follow that market's selected rail.",
       },
       {
-        title: "Wager Limits",
-        description: "Users can choose their wager amount using a simple slider. The potential return is estimated in real-time based on the current pool distribution.",
+        title: "Trade Inputs",
+        description: "Users choose collateral amount and slippage guard. The app estimates shares out (buy) and payout out (sell) directly from the same quote math used on-chain.",
       },
     ],
   },
@@ -112,7 +112,7 @@ const sections = [
       },
       {
         title: "Smart contracts",
-        description: "The v8 suite includes factory, core, oracle, and token adapters (Credits, USDCx, USAD). Together they enforce market creation, escrow, resolution, and payout verification.",
+        description: "The v11 suite includes factory, core, oracle, governance, and token adapters (Credits, USDCx, USAD). Together they enforce market creation, share trading, quorum resolution, governance-bound params, and payout verification.",
       },
     ],
   },
@@ -123,27 +123,27 @@ const sections = [
     content: [
       {
         title: "1) Create Market",
-        description: "A market is created with close_time and resolution_time (timestamps) plus a settlement token. Bets are accepted until close_time.",
+        description: "A market is created with close_time and resolution_time (timestamps) plus a settlement token. Share trading is open until close_time.",
       },
       {
-        title: "2) Place Bets",
-        description: "Bets are escrowed through the market's token adapter, then core pool totals and participant stats are updated.",
+        title: "2) Buy Shares",
+        description: "Collateral is escrowed through the market's token adapter, then core updates share supply, exposure, and pool accounting.",
       },
       {
         title: "3) Propose Resolution",
-        description: "Registered oracles can propose the outcome after the resolution block. This requires a staking bond (min. 30 Credits). Incorrect proposals result in a slash.",
+        description: "Registered oracles can propose the outcome after resolution_time. Proposer must meet minimum active oracle stake (testing default 20 Credits).",
       },
       {
         title: "4) Challenge & Vote",
-        description: "Anyone can dispute a proposal within the challenge window by posting a bond. If disputed, oracle votes determine the winner. The winner (proposer or disputer) receives 90% of the loser's stake, with 10% going to the platform.",
+        description: "Anyone can dispute during the challenge window by posting the dispute bond (at least minimum stake). If disputed, staked oracles vote. Testing defaults use a 10 minute challenge window, 2 unique voters minimum, and fallback finalization after 30 minutes if quorum is still not met.",
       },
       {
         title: "5) Finalize",
-        description: "The oracle owner finalizes on-chain via resolve_on_core. This transition enforces the 90/10 reward split and platform fee collection.",
+        description: "An oracle finalizes on-chain via resolve_on_core / execute_quorum_resolution. If undisputed, finalize must match proposed outcome after deadline. If disputed, finalize must satisfy quorum checks and settle proposer/disputer economics.",
       },
       {
-        title: "6) Claim Winnings",
-        description: "Winners claim in two steps: claim_winnings on core, then claim_payout on the matching token adapter (Credits, USDCx, or USAD).",
+        title: "6) Claim / Withdraw",
+        description: "Winners claim in two steps: claim_winnings on core, then claim_payout on the token adapter. LPs withdraw after market resolution using withdraw_liquidity.",
       },
     ],
   },
@@ -156,15 +156,15 @@ const faqs = [
   },
   {
     question: "How are markets resolved?",
-    answer: "A proposal is written on-chain with a challenge deadline. Finalization must match that proposal: if not disputed, resolve_on_core asserts outcome == proposed_outcome after the challenge window ends. If disputed, resolve_on_core asserts outcome == winning_outcome computed from votes. The proposal is enforced on-chain, not advisory.",
+    answer: "A proposal is written on-chain with a challenge deadline. If undisputed, finalization can happen after deadline and must match the proposed outcome. If disputed, finalization requires quorum checks on oracle votes (minimum voters and minimum total vote weight).",
   },
   {
     question: "What happens if I win?",
-    answer: "If your prediction is correct, you claim through core first and then through the matching token adapter. The payout is returned to your private wallet records.",
+    answer: "If your outcome wins, you claim through core first and then the token adapter. Winner redemption is fixed-share in core (1 payout unit per winning share), not pari-mutuel pool splitting.",
   },
   {
     question: "Are there any fees?",
-    answer: "You pay normal Aleo network transaction fees. Additionally, during resolved disputes, a 10% platform fee is collected from the slashed stake/bond. The remaining 90% is awarded to the winning party.",
+    answer: "You pay normal Aleo network transaction fees. Trading applies protocol-configured fees (currently split between LP fee pool and protocol treasury), while dispute settlement applies 90/10 winner/platform split on slash/bond economics.",
   },
 ];
 
@@ -185,7 +185,7 @@ export default function DocsPage() {
             <h1 className="text-4xl font-bold">Documentation</h1>
           </div>
           <p className="text-muted-foreground text-lg">
-            Learn how VeilMarkets v8 powers private multi-outcome prediction markets with multi-token settlement on Aleo
+            Learn how VeilMarkets v11 powers private multi-outcome prediction markets with multi-token settlement on Aleo
           </p>
         </motion.div>
 
@@ -208,7 +208,7 @@ export default function DocsPage() {
           <div className="grid md:grid-cols-3 gap-4 mt-6">
             <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
               <Lock className="w-5 h-5 text-primary" />
-              <span className="text-sm">Encrypted Bets</span>
+              <span className="text-sm">Private Position Records</span>
             </div>
             <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/30">
               <Eye className="w-5 h-5 text-accent" />

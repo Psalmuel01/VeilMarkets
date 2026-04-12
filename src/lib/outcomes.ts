@@ -1,12 +1,12 @@
 export const CANCELLED_OUTCOME = 255;
-export const LEGACY_CANCELLED_OUTCOME = 3;
+export const MAX_OUTCOME_COUNT = 8;
 
 export const isCancelledOutcome = (outcome: number | null | undefined): boolean =>
-  outcome === CANCELLED_OUTCOME || outcome === LEGACY_CANCELLED_OUTCOME;
+  outcome === CANCELLED_OUTCOME;
 
 export const normalizeOutcomeCount = (value: number | null | undefined): number => {
   if (!Number.isFinite(value)) return 2;
-  return Math.min(4, Math.max(2, Math.floor(value as number)));
+  return Math.min(MAX_OUTCOME_COUNT, Math.max(2, Math.floor(value as number)));
 };
 
 export const normalizeOutcomeLabels = (

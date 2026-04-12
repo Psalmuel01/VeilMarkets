@@ -1,0 +1,20 @@
+{
+  "program": "veilmarkets_governance_v11.aleo",
+  "version": "0.1.0",
+  "description": "",
+  "license": "MIT",
+  "leo": "4.0.0",
+  "dependencies": [
+    {
+      "name": "veilmarkets_core_v11.aleo",
+      "location": "network",
+      "path": null
+    },
+    {
+      "name": "veilmarkets_factory_v11.aleo",
+      "location": "network",
+      "path": null
+    }
+  ],
+  "dev_dependencies": null
+}
