@@ -21,7 +21,7 @@ const sections = [
     content: [
       {
         title: "What is VeilMarkets?",
-        description: "VeilMarkets is a privacy-first prediction market platform built on Aleo. It supports binary and categorical markets (2-32 outcomes) with settlement in Aleo Credits, USDCx, or USAD.",
+        description: "VeilMarkets is a privacy-first prediction market platform built on Aleo. It supports binary and categorical markets (2-8 outcomes) with settlement in Aleo Credits, USDCx, or USAD.",
       },
       {
         title: "How do I participate?",

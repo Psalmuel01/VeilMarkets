@@ -119,17 +119,6 @@
           "mode": "Public"
         },
         {
-          "name": "expected_net_collateral_in",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U64"
-              }
-            }
-          },
-          "mode": "Public"
-        },
-        {
           "name": "expected_shares_out",
           "ty": {
             "Plaintext": {

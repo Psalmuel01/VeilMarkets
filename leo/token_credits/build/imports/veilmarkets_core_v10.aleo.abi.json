@@ -92,70 +92,6 @@
       ],
       "fields": [
         {
-          "name": "total_outcome_0",
-          "ty": {
-            "Primitive": {
-              "UInt": "U64"
-            }
-          }
-        },
-        {
-          "name": "total_outcome_1",
-          "ty": {
-            "Primitive": {
-              "UInt": "U64"
-            }
-          }
-        },
-        {
-          "name": "total_outcome_2",
-          "ty": {
-            "Primitive": {
-              "UInt": "U64"
-            }
-          }
-        },
-        {
-          "name": "total_outcome_3",
-          "ty": {
-            "Primitive": {
-              "UInt": "U64"
-            }
-          }
-        },
-        {
-          "name": "total_outcome_4",
-          "ty": {
-            "Primitive": {
-              "UInt": "U64"
-            }
-          }
-        },
-        {
-          "name": "total_outcome_5",
-          "ty": {
-            "Primitive": {
-              "UInt": "U64"
-            }
-          }
-        },
-        {
-          "name": "total_outcome_6",
-          "ty": {
-            "Primitive": {
-              "UInt": "U64"
-            }
-          }
-        },
-        {
-          "name": "total_outcome_7",
-          "ty": {
-            "Primitive": {
-              "UInt": "U64"
-            }
-          }
-        },
-        {
           "name": "trader_count",
           "ty": {
             "Primitive": {
@@ -178,22 +114,6 @@
           }
         },
         {
-          "name": "trading_collateral",
-          "ty": {
-            "Primitive": {
-              "UInt": "U64"
-            }
-          }
-        },
-        {
-          "name": "lp_collateral",
-          "ty": {
-            "Primitive": {
-              "UInt": "U64"
-            }
-          }
-        },
-        {
           "name": "total_collateral",
           "ty": {
             "Primitive": {
@@ -202,7 +122,7 @@
           }
         },
         {
-          "name": "total_shares",
+          "name": "lp_collateral",
           "ty": {
             "Primitive": {
               "UInt": "U64"
@@ -341,22 +261,6 @@
           "mode": "None"
         },
         {
-          "name": "amount",
-          "ty": {
-            "Primitive": {
-              "UInt": "U64"
-            }
-          },
-          "mode": "None"
-        },
-        {
-          "name": "escrow_id",
-          "ty": {
-            "Primitive": "Field"
-          },
-          "mode": "None"
-        },
-        {
           "name": "shares",
           "ty": {
             "Primitive": {
@@ -458,7 +362,7 @@
       }
     },
     {
-      "name": "outcome_exposure",
+      "name": "outcome_token_qty",
       "key": {
         "Primitive": "Field"
       },
@@ -469,7 +373,7 @@
       }
     },
     {
-      "name": "outcome_share_supply",
+      "name": "outcome_token_supply",
       "key": {
         "Primitive": "Field"
       },
@@ -516,29 +420,7 @@
       }
     },
     {
-      "name": "lp_fee_index",
-      "key": {
-        "Primitive": "Field"
-      },
-      "value": {
-        "Primitive": {
-          "UInt": "U128"
-        }
-      }
-    },
-    {
-      "name": "lp_fee_checkpoint",
-      "key": {
-        "Primitive": "Field"
-      },
-      "value": {
-        "Primitive": {
-          "UInt": "U128"
-        }
-      }
-    },
-    {
-      "name": "lp_pending_fees",
+      "name": "market_winner_payout_pool",
       "key": {
         "Primitive": "Field"
       },
@@ -549,29 +431,7 @@
       }
     },
     {
-      "name": "market_winner_supply_snapshot",
-      "key": {
-        "Primitive": "Field"
-      },
-      "value": {
-        "Primitive": {
-          "UInt": "U64"
-        }
-      }
-    },
-    {
-      "name": "market_winner_payout_remaining",
-      "key": {
-        "Primitive": "Field"
-      },
-      "value": {
-        "Primitive": {
-          "UInt": "U64"
-        }
-      }
-    },
-    {
-      "name": "market_lp_trading_surplus",
+      "name": "market_lp_return_pool",
       "key": {
         "Primitive": "Field"
       },
@@ -776,17 +636,6 @@
           "mode": "Public"
         },
         {
-          "name": "expected_net_collateral_in",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U64"
-              }
-            }
-          },
-          "mode": "Public"
-        },
-        {
           "name": "expected_shares_out",
           "ty": {
             "Plaintext": {
@@ -869,69 +718,6 @@
         }
       ],
       "outputs": [
-        {
-          "ty": "Final",
-          "mode": "None"
-        }
-      ]
-    },
-    {
-      "name": "withdraw_liquidity",
-      "is_final": true,
-      "inputs": [
-        {
-          "name": "market_id",
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Field"
-            }
-          },
-          "mode": "Public"
-        },
-        {
-          "name": "lp_shares",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U64"
-              }
-            }
-          },
-          "mode": "Public"
-        },
-        {
-          "name": "min_payout",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U64"
-              }
-            }
-          },
-          "mode": "Public"
-        },
-        {
-          "name": "withdraw_nonce",
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Field"
-            }
-          },
-          "mode": "Public"
-        }
-      ],
-      "outputs": [
-        {
-          "ty": {
-            "Record": {
-              "path": [
-                "WinningsClaim"
-              ],
-              "program": "veilmarkets_core_v10.aleo"
-            }
-          },
-          "mode": "None"
-        },
         {
           "ty": "Final",
           "mode": "None"
@@ -1030,6 +816,69 @@
             }
           },
           "mode": "Private"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "WinningsClaim"
+              ],
+              "program": "veilmarkets_core_v10.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_liquidity",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "market_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "lp_shares",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "min_payout",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "withdraw_nonce",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
         }
       ],
       "outputs": [

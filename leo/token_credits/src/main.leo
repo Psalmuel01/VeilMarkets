@@ -17,16 +17,14 @@ program veilmarkets_token_credits_v10.aleo {
         public outcome: u8,
         public collateral_in: u64,
         public min_shares_out: u64,
-        public expected_net_collateral_in: u64,
         public expected_shares_out: u64,
         public position_nonce: field,
     ) -> (credits.aleo::credits, veilmarkets_core_v10.aleo::BetPosition, Final) {
         assert(input_credits.microcredits >= collateral_in);
         assert(collateral_in >= MIN_BET);
         assert(min_shares_out > 0u64);
-        assert(expected_net_collateral_in > 0u64);
         assert(expected_shares_out > 0u64);
-        assert(outcome <= 31u8);
+        assert(outcome <= 7u8);
 
         let (change, transfer_future): (credits.aleo::credits, Final) =
             credits.aleo::transfer_private_to_public(
@@ -52,7 +50,6 @@ program veilmarkets_token_credits_v10.aleo {
                 outcome,
                 collateral_in,
                 min_shares_out,
-                expected_net_collateral_in,
                 expected_shares_out,
                 position_id,
                 owner_commitment,

@@ -7,8 +7,8 @@
   "dependencies": [
     {
       "name": "veilmarkets_factory_v10.aleo",
-      "location": "network",
-      "path": null
+      "location": "local",
+      "path": "../factory"
     }
   ],
   "dev_dependencies": null

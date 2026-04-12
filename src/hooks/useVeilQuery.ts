@@ -347,42 +347,13 @@ export const usePlaceBetMutation = () => {
       queryClient.setQueryData<PoolInfo | null>(queryKeys.marketPool(marketId), (existing) => {
         if (!existing) return existing;
         const next = { ...existing };
-        switch (outcome) {
-          case 0:
-            next.total_outcome_0 += deltaMicro;
-            break;
-          case 1:
-            next.total_outcome_1 += deltaMicro;
-            break;
-          case 2:
-            next.total_outcome_2 += deltaMicro;
-            break;
-          case 3:
-            next.total_outcome_3 += deltaMicro;
-            break;
-          case 4:
-            next.total_outcome_4 += deltaMicro;
-            break;
-          case 5:
-            next.total_outcome_5 += deltaMicro;
-            break;
-          case 6:
-            next.total_outcome_6 += deltaMicro;
-            break;
-          case 7:
-            next.total_outcome_7 += deltaMicro;
-            break;
-          default:
-            break;
-        }
-        next.total_no = next.total_outcome_0;
-        next.total_yes = next.total_outcome_1;
+        void outcome;
         next.trader_count = (next.trader_count ?? next.participant_count ?? 0) + 1;
         next.participant_count = next.trader_count + (next.lp_count ?? 0);
-        next.trading_collateral = (next.trading_collateral ?? next.escrowed_amount ?? 0) + deltaMicro;
-        next.total_collateral = next.trading_collateral + (next.lp_collateral ?? 0);
+        next.total_collateral = (next.total_collateral ?? 0) + deltaMicro;
+        next.trading_collateral = next.total_collateral;
         next.cumulative_volume = (next.cumulative_volume ?? 0) + deltaMicro;
-        next.escrowed_amount = next.trading_collateral;
+        next.escrowed_amount = next.total_collateral;
         return next;
       });
 

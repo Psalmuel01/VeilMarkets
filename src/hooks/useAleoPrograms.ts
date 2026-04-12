@@ -96,7 +96,7 @@ interface CoreProtocolConfig {
   lpFeeShareBps: number;
   minTrade: number;
   minLiquidity: number;
-  virtualLiquidity: number;
+  maxMarketCollateral: number;
 }
 
 interface MarketPositionSummary {
@@ -123,6 +123,7 @@ interface BuyQuote {
   sharesOut: number;
   minSharesOut: number;
   slippageBps: number;
+  priceMicro: number;
 }
 
 interface SellQuote {
@@ -206,7 +207,6 @@ const generateRandomField = (): string => {
 const USDCX_FREEZELIST_PROGRAM_ID = "test_usdcx_freezelist.aleo";
 const USAD_FREEZELIST_PROGRAM_ID = "test_usad_freezelist.aleo";
 const MIN_ORACLE_STAKE_MICROCREDITS = 30_000_000;
-const LP_FEE_INDEX_SCALE = 1_000_000_000_000n;
 
 const parseMappingU64 = (value: unknown): number => {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -1024,8 +1024,16 @@ export const useAleoPrograms = () => {
         indices.map(async (index) => {
           const exposureKey = await deriveOutcomeExposureKey(cleanMarketId, index);
           if (!exposureKey) return 0;
-          const raw = await fetchMappingValue(PROGRAM_ID, "outcome_exposure", exposureKey);
-          return parseMappingU64(raw);
+          const [qtyRaw, supplyRaw] = await Promise.all([
+            fetchMappingValue(PROGRAM_ID, "outcome_token_qty", exposureKey),
+            fetchMappingValue(PROGRAM_ID, "outcome_token_supply", exposureKey),
+          ]);
+          const qty = parseMappingBigInt(qtyRaw);
+          const supply = parseMappingBigInt(supplyRaw);
+          const outstanding = supply > qty ? supply - qty : 0n;
+          return outstanding > BigInt(Number.MAX_SAFE_INTEGER)
+            ? Number.MAX_SAFE_INTEGER
+            : Number(outstanding);
         }),
       );
       return totals;
@@ -1039,47 +1047,27 @@ export const useAleoPrograms = () => {
       feeBpsRaw,
       minTradeRaw,
       minLiquidityRaw,
-      virtualLiquidityRaw,
       lpFeeShareBpsRaw,
+      maxMarketCollateralRaw,
     ] =
       await Promise.all([
         fetchMappingValue(PROGRAM_ID, "protocol_u8", "0u8"),
         fetchMappingValue(PROGRAM_ID, "protocol_u64", "1u8"),
         fetchMappingValue(PROGRAM_ID, "protocol_u64", "2u8"),
         fetchMappingValue(PROGRAM_ID, "protocol_u64", "3u8"),
-        fetchMappingValue(PROGRAM_ID, "protocol_u64", "4u8"),
         fetchMappingValue(PROGRAM_ID, "protocol_u64", "5u8"),
+        fetchMappingValue(PROGRAM_ID, "protocol_u64", "6u8"),
       ]);
 
     return {
-      maxOutcomes: Math.min(32, Math.max(2, parseMappingU64(maxOutcomesRaw) || 32)),
+      maxOutcomes: Math.min(8, Math.max(2, parseMappingU64(maxOutcomesRaw) || 8)),
       feeBps: Math.min(10_000, Math.max(0, parseMappingU64(feeBpsRaw) || 100)),
       lpFeeShareBps: Math.min(10_000, Math.max(0, parseMappingU64(lpFeeShareBpsRaw) || 8_000)),
       minTrade: Math.max(1, parseMappingU64(minTradeRaw) || 1_000_000),
       minLiquidity: Math.max(1, parseMappingU64(minLiquidityRaw) || 1_000_000),
-      virtualLiquidity: Math.max(1, parseMappingU64(virtualLiquidityRaw) || 1_000_000),
+      maxMarketCollateral: Math.max(1, parseMappingU64(maxMarketCollateralRaw) || 100_000_000_000),
     };
   }, []);
-
-  const fetchOutcomeExposure = useCallback(
-    async (marketIdField: string, outcome: number): Promise<number> => {
-      const exposureKey = await deriveOutcomeExposureKey(marketIdField, outcome);
-      if (!exposureKey) return 0;
-      const exposureRaw = await fetchMappingValue(PROGRAM_ID, "outcome_exposure", exposureKey);
-      return parseMappingU64(exposureRaw);
-    },
-    [],
-  );
-
-  const fetchOutcomeShareSupply = useCallback(
-    async (marketIdField: string, outcome: number): Promise<number> => {
-      const exposureKey = await deriveOutcomeExposureKey(marketIdField, outcome);
-      if (!exposureKey) return 0;
-      const supplyRaw = await fetchMappingValue(PROGRAM_ID, "outcome_share_supply", exposureKey);
-      return parseMappingU64(supplyRaw);
-    },
-    [],
-  );
 
   const quoteBuyShares = useCallback(
     async (
@@ -1100,51 +1088,43 @@ export const useAleoPrograms = () => {
 
       const protocol = await fetchCoreProtocolConfig();
       if (amountMicro < protocol.minTrade) return null;
-
-      // LP depth gate (keep this — it's good)
-      const outcomeCountNum = Math.max(2, market.outcome_count);
-      // Remove hard LP depth gate to allow "soft warnings" in UI
-
       const amountBI = BigInt(amountMicro);
       const feeBpsBI = BigInt(protocol.feeBps);
       const feeBI = (amountBI * feeBpsBI) / 10000n;
       const netCollateralBI = amountBI - feeBI;
       if (netCollateralBI <= 0n) return null;
 
-      const [outcomeExposure, outcomeShareSupply] = await Promise.all([
-        fetchOutcomeExposure(cleanMarketId, outcome),
-        fetchOutcomeShareSupply(cleanMarketId, outcome),
-      ]);
+      if ((pool.lp_collateral ?? 0) <= 0) return null;
 
-      const outcomeCountBI = BigInt(outcomeCountNum);
-      const virtualLiqBI = BigInt(protocol.virtualLiquidity);
-      // Match contract: uses total_collateral (trading + LP) for depth
-      const totalCollateralBI = BigInt(pool.total_collateral || (pool.trading_collateral + pool.lp_collateral));
-      const outcomeExposureBI = BigInt(outcomeExposure);
-      const outcomeShareSupplyBI = BigInt(outcomeShareSupply);
+      const outcomeCountNum = Math.max(2, Math.min(8, market.outcome_count));
+      const allQty = await Promise.all(
+        Array.from({ length: outcomeCountNum }, async (_, index) => {
+          const key = await deriveOutcomeExposureKey(cleanMarketId, index);
+          if (!key) return 0n;
+          const raw = await fetchMappingValue(PROGRAM_ID, "outcome_token_qty", key);
+          return parseMappingBigInt(raw);
+        }),
+      );
 
-      // Match contract exactly (using total_pool for depth)
-      const totalLiquidityBI = totalCollateralBI + (virtualLiqBI * outcomeCountBI);
-      const outcomeLiquidityBI =
-        (totalCollateralBI / outcomeCountBI) + virtualLiqBI + outcomeExposureBI;
+      const qtyOutcome = allQty[outcome] ?? 0n;
+      if (qtyOutcome <= 0n) return null;
 
-      if (totalLiquidityBI <= 0n || outcomeLiquidityBI <= 0n) {
-        return null;
-      }
+      const totalOtherQty = allQty.reduce(
+        (sum, qty, index) => (index === outcome ? sum : sum + qty),
+        0n,
+      );
+      if (totalOtherQty <= 0n) return null;
 
-      const rawSharesBI = (netCollateralBI * totalLiquidityBI) / outcomeLiquidityBI;
-      const sharesOut = Number(rawSharesBI);
-      if (sharesOut <= 0) return null;
-
-      // Solvency check (Unified Pool Model)
-      const newTotalCollateralBI = totalCollateralBI + netCollateralBI;
-      const newOutcomeSupplyBI = outcomeShareSupplyBI + rawSharesBI;
-      if (newOutcomeSupplyBI > newTotalCollateralBI) {
-        return null;
-      }
+      const sharesOutBI = (qtyOutcome * netCollateralBI) / (totalOtherQty + netCollateralBI);
+      if (sharesOutBI <= 0n || sharesOutBI >= qtyOutcome) return null;
 
       const boundedSlippage = Math.min(5_000, Math.max(0, slippageBps));
-      const minSharesOut = Math.floor((sharesOut * (10_000 - boundedSlippage)) / 10_000);
+      const minSharesOutBI = (sharesOutBI * BigInt(10_000 - boundedSlippage)) / 10000n;
+      if (minSharesOutBI <= 0n) return null;
+
+      const sharesOut = Number(sharesOutBI);
+      const minSharesOut = Number(minSharesOutBI);
+      const priceMicroBI = (netCollateralBI * 1_000_000n) / sharesOutBI;
 
       return {
         marketId: cleanMarketId,
@@ -1155,9 +1135,10 @@ export const useAleoPrograms = () => {
         sharesOut,
         minSharesOut,
         slippageBps: boundedSlippage,
+        priceMicro: Number(priceMicroBI),
       };
     },
-    [fetchCoreProtocolConfig, fetchOutcomeExposure, fetchOutcomeShareSupply],
+    [fetchCoreProtocolConfig],
   );
 
   const quoteSellShares = useCallback(
@@ -1180,23 +1161,26 @@ export const useAleoPrograms = () => {
       if (!pool) return null;
 
       const protocol = await fetchCoreProtocolConfig();
-      const outcomeExposure = await fetchOutcomeExposure(cleanMarketId, outcome);
-
-      const outcomeCountNum = Math.max(2, market.outcome_count);
-      const outcomeCountBI = BigInt(outcomeCountNum);
-      const virtualLiqBI = BigInt(protocol.virtualLiquidity);
-      // Match contract: uses total_collateral (trading + LP) for depth
-      const totalCollateralBI = BigInt(pool.total_collateral || (pool.trading_collateral + pool.lp_collateral));
-      const outcomeExposureBI = BigInt(outcomeExposure);
-
-      const totalLiquidityBI = totalCollateralBI + (virtualLiqBI * outcomeCountBI);
-      const outcomeLiquidityBI =
-        (totalCollateralBI / outcomeCountBI) + virtualLiqBI + outcomeExposureBI;
-
-      if (totalLiquidityBI <= 0n || outcomeLiquidityBI <= 0n) return null;
-
       const sharesBI = BigInt(Math.max(1, Math.floor(sharesToSell)));
-      const grossPayoutBI = (sharesBI * outcomeLiquidityBI) / totalLiquidityBI;
+      const outcomeCountNum = Math.max(2, Math.min(8, market.outcome_count));
+      const allQty = await Promise.all(
+        Array.from({ length: outcomeCountNum }, async (_, index) => {
+          const key = await deriveOutcomeExposureKey(cleanMarketId, index);
+          if (!key) return 0n;
+          const raw = await fetchMappingValue(PROGRAM_ID, "outcome_token_qty", key);
+          return parseMappingBigInt(raw);
+        }),
+      );
+
+      const qtyOutcome = allQty[outcome] ?? 0n;
+      const totalOtherQty = allQty.reduce(
+        (sum, qty, index) => (index === outcome ? sum : sum + qty),
+        0n,
+      );
+      if (totalOtherQty <= 0n) return null;
+
+      const grossPayoutBI = (totalOtherQty * sharesBI) / (qtyOutcome + sharesBI);
+      if (grossPayoutBI <= 0n || grossPayoutBI > BigInt(pool.total_collateral)) return null;
 
       const feeBpsBI = BigInt(protocol.feeBps);
       const feeBI = (grossPayoutBI * feeBpsBI) / 10000n;
@@ -1218,54 +1202,23 @@ export const useAleoPrograms = () => {
         slippageBps: boundedSlippage,
       };
     },
-    [fetchCoreProtocolConfig, fetchOutcomeExposure],
+    [fetchCoreProtocolConfig],
   );
 
   const fetchUserBets = useCallback(async (): Promise<ParsedBetRecord[]> => {
     if (!address) return [];
     setLoading(true);
     try {
-      // Query token adapters for EscrowedBet records (where bets are escrowed)
-      const tokenPrograms = [CREDITS_TOKEN_PROGRAM_ID, USDCX_TOKEN_PROGRAM_ID, USAD_TOKEN_PROGRAM_ID];
-      const unspentRecords: WalletRecord[] = [];
-
-      for (const programId of tokenPrograms) {
-        try {
-          const rawRecords = await requestRecordsWithRetry(requestRecords, programId, "EscrowedBet");
-          const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
-          unspentRecords.push(...records.filter((record) => !record.spent));
-        } catch (error) {
-          console.warn(`[fetchUserBets] Failed to read EscrowedBet records for ${programId}:`, error);
-        }
-      }
-
       const rawPositions = await requestRecordsWithRetry(requestRecords, PROGRAM_ID, "BetPosition");
       const positionRecords = rawPositions.filter(
         (entry): entry is WalletRecord => typeof entry === "object" && entry !== null,
       );
-      const positionSpentByKey = new Map<string, boolean>();
-      for (const record of positionRecords) {
-        const market_id = parseRecordField(record, "market_id");
-        const escrow_id = parseRecordField(record, "escrow_id");
-        if (!market_id || !escrow_id) continue;
-        const key = `${market_id}-${escrow_id}`;
-        positionSpentByKey.set(key, Boolean(record.spent));
-      }
-
-      // console.log(`[fetchUserBets] Found ${unspentRecords.length} unspent EscrowedBet records across token adapters.`);
-
-      const results = unspentRecords
+      const results = positionRecords
         .map((record) => {
           const market_id = parseRecordField(record, "market_id");
           const outcome = parseRecordField(record, "outcome");
-          const amount = parseRecordField(record, "amount");
-          const escrow_id = parseRecordField(record, "escrow_id");
-          const position_key = `${market_id}-${escrow_id}`;
-          const position_spent = positionSpentByKey.get(position_key) ?? false;
-
-          if (market_id) {
-            // bet found; continue
-          }
+          const amount = parseRecordField(record, "collateral_in");
+          const escrow_id = parseRecordField(record, "position_id");
 
           return {
             market_id,
@@ -1273,12 +1226,10 @@ export const useAleoPrograms = () => {
             amount,
             escrow_id,
             spent: Boolean(record.spent),
-            position_spent,
+            position_spent: Boolean(record.spent),
           };
         })
         .filter((record) => Boolean(record.market_id));
-
-      // console.log(`[fetchUserBets] Returning ${results.length} valid bet records.`);
       return results;
     } catch (error) {
       console.error("Failed to fetch user bets:", error);
@@ -1519,8 +1470,7 @@ export const useAleoPrograms = () => {
     const cleanMarketId = marketId.includes("field") ? marketId.replace("field", "") : marketId;
 
     try {
-      // Search CORE program for BetPosition records
-      const rawRecords = await requestRecordsWithRetry(requestRecords, PROGRAM_ID, "Claim");
+      const rawRecords = await requestRecordsWithRetry(requestRecords, PROGRAM_ID, "BetPosition");
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       const unspent = records.filter((record) => !record.spent);
 
@@ -1644,17 +1594,15 @@ export const useAleoPrograms = () => {
             const [
               lpSharesRaw,
               poolRaw,
-              lpPendingFeesRaw,
-              lpFeeIndexRaw,
-              lpFeeCheckpointRaw,
-              surplusRaw,
+              feePoolRaw,
+              lpReturnPoolRaw,
+              marketRaw,
             ] = await Promise.all([
               fetchMappingValue(PROGRAM_ID, "lp_balances", lpBalanceKey),
               fetchMappingValue(PROGRAM_ID, "pools", marketField),
-              fetchMappingValue(PROGRAM_ID, "lp_pending_fees", lpBalanceKey),
-              fetchMappingValue(PROGRAM_ID, "lp_fee_index", marketField),
-              fetchMappingValue(PROGRAM_ID, "lp_fee_checkpoint", lpBalanceKey),
-              fetchMappingValue(PROGRAM_ID, "market_lp_trading_surplus", marketField),
+              fetchMappingValue(PROGRAM_ID, "market_fee_pool", marketField),
+              fetchMappingValue(PROGRAM_ID, "market_lp_return_pool", marketField),
+              fetchMappingValue(PROGRAM_ID, "markets", marketField),
             ]);
             const mappedLpShares = parseMappingU64(lpSharesRaw);
             if (mappedLpShares > 0) {
@@ -1662,32 +1610,23 @@ export const useAleoPrograms = () => {
               lpPositionCount = Math.max(lpPositionCount, 1);
             }
             const poolInfo = poolRaw ? parsePoolInfo(poolRaw as string | object) : null;
+            const marketInfo = marketRaw ? parseMarketInfo(marketRaw as string | object, marketField) : null;
             if (poolInfo && poolInfo.lp_supply > 0 && lpShares > 0) {
-              const pendingFees = parseMappingU64(lpPendingFeesRaw);
-              const feeIndex = parseMappingBigInt(lpFeeIndexRaw);
-              const feeCheckpoint = lpFeeCheckpointRaw
-                ? parseMappingBigInt(lpFeeCheckpointRaw)
-                : feeIndex;
-              const deltaIndex = feeIndex > feeCheckpoint ? feeIndex - feeCheckpoint : 0n;
-              const unsettledAccruedBig =
-                (BigInt(lpShares) * deltaIndex) / LP_FEE_INDEX_SCALE;
-              const unsettledAccrued =
-                unsettledAccruedBig > BigInt(Number.MAX_SAFE_INTEGER)
-                  ? Number.MAX_SAFE_INTEGER
-                  : Number(unsettledAccruedBig);
-
               lpCollateral = Math.floor((lpShares * poolInfo.lp_collateral) / poolInfo.lp_supply);
-              lpFeeAccrued = pendingFees + unsettledAccrued;
-              const lpTradingSurplus = Math.floor(
-                (lpShares * parseMappingU64(surplusRaw)) / poolInfo.lp_supply,
-              );
-              lpWithdrawable = lpCollateral + lpFeeAccrued + lpTradingSurplus;
+              lpFeeAccrued = Math.floor((lpShares * parseMappingU64(feePoolRaw)) / poolInfo.lp_supply);
+              if (marketInfo?.is_resolved) {
+                const lpReturnShare = Math.floor(
+                  (lpShares * parseMappingU64(lpReturnPoolRaw)) / poolInfo.lp_supply,
+                );
+                lpWithdrawable = lpReturnShare + lpFeeAccrued;
+              } else {
+                lpWithdrawable = 0;
+              }
             } else if (lpShares > 0) {
-              lpWithdrawable = lpCollateral;
+              lpWithdrawable = 0;
             }
           }
         }
-        if (lpWithdrawable <= 0 && lpCollateral > 0) lpWithdrawable = lpCollateral;
 
         return {
           marketId: cleanMarketId,
@@ -1711,97 +1650,13 @@ export const useAleoPrograms = () => {
     [address, requestRecords],
   );
 
-  const findEscrowedBetRecord = async (
-    marketId: string,
-    tokenProgramId: string = CREDITS_TOKEN_PROGRAM_ID,
-    options?: { outcome?: number },
-  ): Promise<WalletRecord | null> => {
-    if (!address) return null;
-
-    const cleanMarketId = marketId.includes("field") ? marketId.replace("field", "") : marketId;
-
-    try {
-      // Search TOKEN program for EscrowedBet records
-      const rawRecords = await requestRecordsWithRetry(requestRecords, tokenProgramId, "EscrowedBet");
-      const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
-      const unspent = records.filter((record) => !record.spent);
-
-      const found = unspent.find((record) => {
-        const recordMarketId = parseRecordField(record, "market_id");
-        if (recordMarketId !== cleanMarketId) return false;
-        if (options?.outcome === undefined) return true;
-        const outcomeRaw = Number.parseInt(parseRecordField(record, "outcome"), 10);
-        return Number.isFinite(outcomeRaw) && outcomeRaw === options.outcome;
-      });
-
-      return found ?? null;
-    } catch (error) {
-      if (isWalletNoResponse(error)) {
-        toast.error("Wallet did not respond. Unlock/approve the wallet and retry claim.");
-      }
-      console.error(`Error finding escrowed bet record in ${tokenProgramId}:`, error);
-      return null;
-    }
-  };
-
-  const fetchEscrowedBetRecords = async (
-    marketId: string,
-    options?: { outcome?: number },
-  ): Promise<
-    Array<{ record: WalletRecord; escrowId: string; outcome: number; amount: number; tokenProgramId: string }>
-  > => {
-    if (!address) return [];
-    const cleanMarketId = marketId.includes("field") ? marketId.replace("field", "") : marketId;
-    const tokenPrograms = [CREDITS_TOKEN_PROGRAM_ID, USDCX_TOKEN_PROGRAM_ID, USAD_TOKEN_PROGRAM_ID];
-    const results: Array<{
-      record: WalletRecord;
-      escrowId: string;
-      outcome: number;
-      amount: number;
-      tokenProgramId: string;
-    }> = [];
-
-    for (const tokenProgramId of tokenPrograms) {
-      try {
-        const rawRecords = await requestRecordsWithRetry(requestRecords, tokenProgramId, "EscrowedBet");
-        const records = rawRecords.filter(
-          (entry): entry is WalletRecord => typeof entry === "object" && entry !== null,
-        );
-        const unspent = records.filter((record) => !record.spent);
-
-        for (const record of unspent) {
-          const recordMarketId = parseRecordField(record, "market_id");
-          if (recordMarketId !== cleanMarketId) continue;
-
-          const outcomeRaw = Number.parseInt(parseRecordField(record, "outcome"), 10);
-          const escrowId = parseRecordField(record, "escrow_id");
-          const amountRaw = Number.parseInt(parseRecordField(record, "amount"), 10);
-          if (!escrowId || !Number.isFinite(outcomeRaw)) continue;
-          if (options?.outcome !== undefined && outcomeRaw !== options.outcome) continue;
-
-          results.push({
-            record,
-            escrowId: formatField(escrowId),
-            outcome: outcomeRaw,
-            amount: Number.isFinite(amountRaw) && amountRaw > 0 ? amountRaw : 0,
-            tokenProgramId,
-          });
-        }
-      } catch (error) {
-        console.warn(`[fetchEscrowedBetRecords] Failed for ${tokenProgramId}:`, error);
-      }
-    }
-
-    return results.sort((a, b) => b.amount - a.amount);
-  };
-
   const findWinningsClaimRecord = async (marketId: string): Promise<WalletRecord | null> => {
     if (!address) return null;
 
     const cleanMarketId = marketId.includes("field") ? marketId.replace("field", "") : marketId;
 
     try {
-      const rawRecords = await requestRecords(PROGRAM_ID, true);
+      const rawRecords = await requestRecordsWithRetry(requestRecords, PROGRAM_ID, "WinningsClaim");
       const records = rawRecords.filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null);
       const unspent = records.filter((record) => !record.spent);
 
@@ -1879,10 +1734,8 @@ export const useAleoPrograms = () => {
           );
         } else if (protocol && poolRaw) {
           const pool = parsePoolInfo(poolRaw as any);
-          const market = parseMarketInfo(marketRaw as string | object, cleanMarketId);
-          const outcomeCount = Math.max(2, market.outcome_count);
-          if (pool.lp_collateral < protocol.virtualLiquidity * outcomeCount) {
-            toast.error("Market needs liquidity before trading opens. Please add LP first.");
+          if (pool.lp_collateral <= 0) {
+            toast.error("Market needs LP funding before trading opens. Please add liquidity first.");
           } else {
             toast.error("Unable to compute share quote for this market. Please retry.");
           }
@@ -1959,7 +1812,6 @@ export const useAleoPrograms = () => {
               formatU8(outcome),
               formatU64(amountMicro),
               formatU64(quote.minSharesOut),
-              formatU64(quote.netCollateralMicro),
               formatU64(quote.sharesOut),
               betNonce,
             ],
@@ -1998,7 +1850,6 @@ export const useAleoPrograms = () => {
             formatU8(outcome),
             formatU64(amountMicro),
             formatU64(quote.minSharesOut),
-            formatU64(quote.netCollateralMicro),
             formatU64(quote.sharesOut),
             betNonce,
           ],
@@ -2798,7 +2649,7 @@ export const useAleoPrograms = () => {
           }
           recommendedOutcome = proposal.proposed_outcome;
         } else {
-          const normalizedCount = Math.max(2, Math.min(32, outcomeCount || 2));
+          const normalizedCount = Math.max(2, Math.min(8, outcomeCount || 2));
           const weights = await Promise.all(
             Array.from({ length: normalizedCount }, async (_, index) => {
               const voteKey = await deriveOutcomeVoteKey(cleanMarketId, index);

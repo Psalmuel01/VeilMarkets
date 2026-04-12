@@ -87,9 +87,8 @@ export const PlaceBetModal = ({
 
   const isInsufficientLiquidity =
     selectedOutcome !== null &&
-    protocolConfigQuery.data &&
     pool &&
-    pool.total_collateral < (protocolConfigQuery.data.virtualLiquidity * Math.max(2, outcomeCount) * 0.9);
+    (pool.lp_collateral ?? 0) <= 0;
 
 
   const quoteUnavailable =
@@ -288,7 +287,7 @@ export const PlaceBetModal = ({
                           Liquidity Required
                         </p>
                         <p className="text-xs text-muted-foreground leading-relaxed">
-                          This market requires at least <span className="text-white font-bold">{(protocolConfigQuery.data?.virtualLiquidity ?? 0) * Math.max(2, outcomeCount) / 1_000_000} {tokenTicker}</span> of initial LP collateral to open trading. Currently: <span className="text-white font-bold">{(pool?.total_collateral ?? 0) / 1_000_000} {tokenTicker}</span>.
+                          This market needs initial LP funding before share trading can open. Current LP collateral: <span className="text-white font-bold">{((pool?.lp_collateral ?? 0) / 1_000_000).toFixed(4)} {tokenTicker}</span>.
                         </p>
                       </div>
                     </div>

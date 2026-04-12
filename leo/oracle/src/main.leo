@@ -88,7 +88,7 @@ program veilmarkets_oracle_v10.aleo {
     }
 
     fn propose_resolution(public market_id: field, public proposed_outcome: u8) -> Final {
-        assert(proposed_outcome <= 31u8);
+        assert(proposed_outcome <= 7u8);
         let caller: address = self.caller;
         return final {
             finalize_propose_resolution(market_id, proposed_outcome, caller);
@@ -118,7 +118,7 @@ program veilmarkets_oracle_v10.aleo {
         public market_id: field,
         public outcome: u8,
     ) -> (OracleCredential, Final) {
-        assert(outcome <= 31u8);
+        assert(outcome <= 7u8);
         assert_eq(credential.owner, self.caller);
         let updated_credential: OracleCredential = OracleCredential {
             owner: credential.owner,
@@ -138,7 +138,7 @@ program veilmarkets_oracle_v10.aleo {
         public market_id: field,
         public outcome: u8,
     ) -> (OracleCredential, Final) {
-        assert(outcome <= 31u8);
+        assert(outcome <= 7u8);
         assert_eq(credential.owner, self.caller);
         let updated_credential: OracleCredential = OracleCredential {
             owner: credential.owner,
@@ -154,7 +154,7 @@ program veilmarkets_oracle_v10.aleo {
     }
 
     fn execute_quorum_resolution(public market_id: field, public outcome: u8) -> Final {
-        assert(outcome <= 31u8);
+        assert(outcome <= 7u8);
         let f_core: Final = veilmarkets_core_v10.aleo::resolve_market(
             market_id,
             outcome,
@@ -166,7 +166,7 @@ program veilmarkets_oracle_v10.aleo {
     }
 
     fn resolve_on_core(public market_id: field, public outcome: u8) -> Final {
-        assert(outcome <= 31u8);
+        assert(outcome <= 7u8);
         let f_core: Final = veilmarkets_core_v10.aleo::resolve_market(
             market_id,
             outcome,
@@ -546,7 +546,7 @@ final fn finalize_set_protocol_u8(param_key: u8, value: u8, auth: Final) {
     auth.run();
     if (param_key == PARAM_MIN_VOTERS) {
         assert(value >= 3u8);
-        assert(value <= 32u8);
+        assert(value <= 8u8);
     }
     if (param_key == PARAM_ORACLE_PAUSED) {
         assert(value <= 1u8);

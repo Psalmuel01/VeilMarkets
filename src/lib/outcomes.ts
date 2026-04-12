@@ -1,5 +1,5 @@
 export const CANCELLED_OUTCOME = 255;
-export const MAX_OUTCOME_COUNT = 32;
+export const MAX_OUTCOME_COUNT = 8;
 
 export const isCancelledOutcome = (outcome: number | null | undefined): boolean =>
   outcome === CANCELLED_OUTCOME;

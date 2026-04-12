@@ -24,7 +24,6 @@ program veilmarkets_token_usad_v10.aleo {
         public outcome: u8,
         public collateral_in: u64,
         public min_shares_out: u64,
-        public expected_net_collateral_in: u64,
         public expected_shares_out: u64,
         public position_nonce: field,
     ) -> (
@@ -37,9 +36,8 @@ program veilmarkets_token_usad_v10.aleo {
         assert(input_token.amount >= collateral_in_u128);
         assert(collateral_in >= MIN_BET);
         assert(min_shares_out > 0u64);
-        assert(expected_net_collateral_in > 0u64);
         assert(expected_shares_out > 0u64);
-        assert(outcome <= 31u8);
+        assert(outcome <= 7u8);
 
         let external_proof_0: test_usad_stablecoin.aleo::MerkleProof =
             test_usad_stablecoin.aleo::MerkleProof {
@@ -82,7 +80,6 @@ program veilmarkets_token_usad_v10.aleo {
                 outcome,
                 collateral_in,
                 min_shares_out,
-                expected_net_collateral_in,
                 expected_shares_out,
                 position_id,
                 owner_commitment,
