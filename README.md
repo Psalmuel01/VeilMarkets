@@ -28,6 +28,10 @@ VeilMarkets lets users create markets, trade outcome shares, and claim payouts w
 - Improved place-bet success state animation and flow
 - Oracle registration + unstake flow in UI
 - Oracle status now reflects effective stake threshold (loses status when unstaked below minimum)
+- Fully integrated withdrawal flow for LPs (principal + fees + surplus).
+- Safety valve for market creators to cancel if no trading/liquidity has occurred.
+- Publicly accessible resolution finalization once deadlines pass.
+- Secure, stake-aware dispute flow with clear risk/reward reporting.
 - Governance contract executes param updates directly on core/oracle
 - Clean v10-only runtime (no v8/v9 fallback paths in app/data flow)
 

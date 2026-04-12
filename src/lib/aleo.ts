@@ -203,21 +203,16 @@ export const extractMarketIdFromTx = (tx: AleoTransaction | null): string | null
   try {
     if (!tx) return null;
 
-    console.log('[extractMarketIdFromTx] Full tx:', JSON.stringify(tx, null, 2));
-
     const transitions = tx?.execution?.transitions;
     if (!Array.isArray(transitions)) {
       console.warn('[extractMarketIdFromTx] No transitions found in tx');
       return null;
     }
 
-    console.log('[extractMarketIdFromTx] Transitions:', JSON.stringify(transitions, null, 2));
-
     // Find create_market transition — check both program match and function name
     const createMarketTx = transitions.find((t) => {
       const fnMatch = t.function === 'create_market';
       const programMatch = t.program === PROGRAM_ID || String(t.program).startsWith(PROGRAM_ID.split('.')[0]);
-      console.log(`[extractMarketIdFromTx] Transition: program=${t.program} function=${t.function} fnMatch=${fnMatch} programMatch=${programMatch}`);
       return fnMatch && programMatch;
     });
 
@@ -227,15 +222,11 @@ export const extractMarketIdFromTx = (tx: AleoTransaction | null): string | null
       return null;
     }
 
-    console.log('[extractMarketIdFromTx] Found create_market transition:', JSON.stringify(createMarketTx, null, 2));
-
     const outputs = createMarketTx.outputs;
     if (!Array.isArray(outputs) || outputs.length === 0) {
       console.warn('[extractMarketIdFromTx] No outputs in create_market transition');
       return null;
     }
-
-    console.log('[extractMarketIdFromTx] Outputs:', JSON.stringify(outputs, null, 2));
 
     // Try every output for a field value
     for (const output of outputs) {
@@ -243,7 +234,6 @@ export const extractMarketIdFromTx = (tx: AleoTransaction | null): string | null
 
       // Direct field string
       if (typeof val === 'string' && /^\d+field$/.test(val.trim())) {
-        console.log('[extractMarketIdFromTx] Direct field value:', val.trim());
         return val.trim();
       }
 
@@ -251,26 +241,19 @@ export const extractMarketIdFromTx = (tx: AleoTransaction | null): string | null
       if (typeof val === 'object' && val !== null) {
         const str = JSON.stringify(val);
         const match = str.match(/(\d+field)/);
-        if (match) {
-          console.log('[extractMarketIdFromTx] Field from nested object:', match[1]);
-          return match[1];
-        }
+        if (match) return match[1];
       }
 
       // String containing field somewhere
       if (typeof val === 'string') {
         const match = val.match(/(\d+field)/);
-        if (match) {
-          console.log('[extractMarketIdFromTx] Field from string match:', match[1]);
-          return match[1];
-        }
+        if (match) return match[1];
       }
     }
 
     // Last resort — scan entire transition JSON for field values
     const txStr = JSON.stringify(createMarketTx);
     const allFields = [...txStr.matchAll(/(\d+field)/g)].map(m => m[1]);
-    console.log('[extractMarketIdFromTx] All field values in transition:', allFields);
 
     // First field is usually titleHash (input), second is market_id (output)
     if (allFields.length >= 2) return allFields[1];

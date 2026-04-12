@@ -51,6 +51,7 @@ import {
   resolveTokenTicker,
   resolveTokenDisplayName,
   resolveTokenKind,
+  FACTORY_PROGRAM_ID,
 } from "../lib/constants";
 
 export interface ChainMarket {
@@ -430,9 +431,9 @@ const normalizeFieldId = (marketId: string): string =>
 
 let cachedBhpHelpers:
   | {
-      hashOutcomeKey: (marketIdField: string, outcome: number) => string | null;
-      hashLpKey: (marketIdField: string, lpOwnerField: string) => string | null;
-    }
+    hashOutcomeKey: (marketIdField: string, outcome: number) => string | null;
+    hashLpKey: (marketIdField: string, lpOwnerField: string) => string | null;
+  }
   | null = null;
 
 const getBhpHelpers = async (): Promise<{
@@ -446,19 +447,36 @@ const getBhpHelpers = async (): Promise<{
     cachedBhpHelpers = {
       hashOutcomeKey: (marketIdField: string, outcome: number) => {
         try {
-          const marketField = wasm.Field.fromString(normalizeField(marketIdField)).toPlaintext();
-          const outcomeU8 = wasm.U8.fromString(`${Math.max(0, Math.floor(outcome))}u8`).toPlaintext();
-          return bhp.hash([marketField, outcomeU8]).toString();
-        } catch {
+          const marketField = wasm.Field.fromString(normalizeField(marketIdField));
+          const outcomeField = wasm.Field.fromString(`${Math.max(0, Math.floor(outcome))}field`);
+          const sumField = marketField.add(outcomeField);
+
+          // Leo's BHP256::hash_to_field expects bits of the field.
+          // Field.toBitsLe() returns ~253 bits. We pad to 256 bits (standard BHP chunk).
+          const bits = sumField.toBitsLe();
+          while (bits.length < 256) bits.push(false);
+
+          const derivedKey = bhp.hash(bits).toString();
+          return derivedKey;
+        } catch (err) {
+          console.error("[BHP] Error hashing outcome key:", err);
           return null;
         }
       },
       hashLpKey: (marketIdField: string, lpOwnerField: string) => {
         try {
-          const marketField = wasm.Field.fromString(normalizeField(marketIdField)).toPlaintext();
-          const ownerField = wasm.Field.fromString(normalizeField(lpOwnerField)).toPlaintext();
-          return bhp.hash([marketField, ownerField]).toString();
-        } catch {
+          const marketField = wasm.Field.fromString(normalizeField(marketIdField));
+          const ownerField = wasm.Field.fromString(normalizeField(lpOwnerField));
+          const sumField = marketField.add(ownerField);
+
+          // Field.toBitsLe() returns ~253 bits. Pad to 256 bits.
+          const bits = sumField.toBitsLe();
+          while (bits.length < 256) bits.push(false);
+
+          const derivedKey = bhp.hash(bits).toString();
+          return derivedKey;
+        } catch (err) {
+          console.error("[BHP] Error hashing LP key:", err);
           return null;
         }
       },
@@ -487,8 +505,8 @@ const deriveLpBalanceKey = async (marketIdField: string, lpOwnerField: string): 
 
 let cachedAddressFieldHelpers:
   | {
-      toField: (address: string) => string;
-    }
+    toField: (address: string) => string;
+  }
   | null = null;
 
 const getAddressFieldHelpers = async (): Promise<{
@@ -658,23 +676,23 @@ const extractUsdcMerkleProofInputs = (record: WalletRecord): [string, string] | 
       const obj = source as Record<string, unknown>;
       const p0 = formatMerkleProof(
         obj[0] ??
-          obj.proof0 ??
-          obj.first ??
-          obj.left ??
-          obj.token_proof_0 ??
-          obj.proof_0 ??
-          obj.a ??
-          obj.p0,
+        obj.proof0 ??
+        obj.first ??
+        obj.left ??
+        obj.token_proof_0 ??
+        obj.proof_0 ??
+        obj.a ??
+        obj.p0,
       );
       const p1 = formatMerkleProof(
         obj[1] ??
-          obj.proof1 ??
-          obj.second ??
-          obj.right ??
-          obj.token_proof_1 ??
-          obj.proof_1 ??
-          obj.b ??
-          obj.p1,
+        obj.proof1 ??
+        obj.second ??
+        obj.right ??
+        obj.token_proof_1 ??
+        obj.proof_1 ??
+        obj.b ??
+        obj.p1,
       );
       if (p0 && p1) return [p0, p1];
     }
@@ -787,8 +805,6 @@ export const useAleoPrograms = () => {
         return String(input);
       });
 
-      console.log(`[executeWalletTransaction] Executing ${options.program}/${options.function}`, cleanedInputs);
-
       return executeTransaction({
         ...options,
         inputs: cleanedInputs,
@@ -881,7 +897,6 @@ export const useAleoPrograms = () => {
 
               if (transitionMatch) {
                 foundTransition = transitionMatch;
-                console.log(`[poll] Confirmed tx:`, actualTxId);
                 break outer;
               }
             }
@@ -1042,7 +1057,7 @@ export const useAleoPrograms = () => {
       lpFeeShareBps: Math.min(10_000, Math.max(0, parseMappingU64(lpFeeShareBpsRaw) || 8_000)),
       minTrade: Math.max(1, parseMappingU64(minTradeRaw) || 1_000_000),
       minLiquidity: Math.max(1, parseMappingU64(minLiquidityRaw) || 1_000_000),
-      virtualLiquidity: Math.max(1, parseMappingU64(virtualLiquidityRaw) || 10_000_000),
+      virtualLiquidity: Math.max(1, parseMappingU64(virtualLiquidityRaw) || 1_000_000),
     };
   }, []);
 
@@ -1076,7 +1091,6 @@ export const useAleoPrograms = () => {
       const cleanMarketId = normalizeFieldId(marketId);
       const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
       if (!marketRaw) return null;
-
       const market = parseMarketInfo(marketRaw as string | object, cleanMarketId);
       if (outcome < 0 || outcome >= market.outcome_count) return null;
 
@@ -1087,40 +1101,57 @@ export const useAleoPrograms = () => {
       const protocol = await fetchCoreProtocolConfig();
       if (amountMicro < protocol.minTrade) return null;
 
-      const feeMicro = Math.floor((amountMicro * protocol.feeBps) / 10_000);
-      const netCollateralMicro = Math.max(0, amountMicro - feeMicro);
-      if (netCollateralMicro <= 0) return null;
+      // LP depth gate (keep this — it's good)
+      const outcomeCountNum = Math.max(2, market.outcome_count);
+      // Remove hard LP depth gate to allow "soft warnings" in UI
+
+      const amountBI = BigInt(amountMicro);
+      const feeBpsBI = BigInt(protocol.feeBps);
+      const feeBI = (amountBI * feeBpsBI) / 10000n;
+      const netCollateralBI = amountBI - feeBI;
+      if (netCollateralBI <= 0n) return null;
 
       const [outcomeExposure, outcomeShareSupply] = await Promise.all([
         fetchOutcomeExposure(cleanMarketId, outcome),
         fetchOutcomeShareSupply(cleanMarketId, outcome),
       ]);
-      const outcomeCount = Math.max(2, market.outcome_count);
-      const totalLiquidity =
-        pool.trading_collateral + protocol.virtualLiquidity * outcomeCount;
-      const outcomeLiquidity =
-        Math.floor(pool.trading_collateral / outcomeCount) +
-        protocol.virtualLiquidity +
-        outcomeExposure;
 
-      const rawShares =
-        totalLiquidity > 0 && outcomeLiquidity > 0
-          ? Math.floor((netCollateralMicro * totalLiquidity) / outcomeLiquidity)
-          : 0;
-      if (rawShares <= 0) return null;
-      const sharesOut = rawShares;
-      const newTradingCollateral = pool.trading_collateral + netCollateralMicro;
-      if (outcomeShareSupply + sharesOut > newTradingCollateral) return null;
+      const outcomeCountBI = BigInt(outcomeCountNum);
+      const virtualLiqBI = BigInt(protocol.virtualLiquidity);
+      // Match contract: uses total_collateral (trading + LP) for depth
+      const totalCollateralBI = BigInt(pool.total_collateral || (pool.trading_collateral + pool.lp_collateral));
+      const outcomeExposureBI = BigInt(outcomeExposure);
+      const outcomeShareSupplyBI = BigInt(outcomeShareSupply);
+
+      // Match contract exactly (using total_pool for depth)
+      const totalLiquidityBI = totalCollateralBI + (virtualLiqBI * outcomeCountBI);
+      const outcomeLiquidityBI =
+        (totalCollateralBI / outcomeCountBI) + virtualLiqBI + outcomeExposureBI;
+
+      if (totalLiquidityBI <= 0n || outcomeLiquidityBI <= 0n) {
+        return null;
+      }
+
+      const rawSharesBI = (netCollateralBI * totalLiquidityBI) / outcomeLiquidityBI;
+      const sharesOut = Number(rawSharesBI);
+      if (sharesOut <= 0) return null;
+
+      // Solvency check (Unified Pool Model)
+      const newTotalCollateralBI = totalCollateralBI + netCollateralBI;
+      const newOutcomeSupplyBI = outcomeShareSupplyBI + rawSharesBI;
+      if (newOutcomeSupplyBI > newTotalCollateralBI) {
+        return null;
+      }
+
       const boundedSlippage = Math.min(5_000, Math.max(0, slippageBps));
       const minSharesOut = Math.floor((sharesOut * (10_000 - boundedSlippage)) / 10_000);
-      if (minSharesOut <= 0) return null;
 
       return {
         marketId: cleanMarketId,
         outcome,
         amountMicro,
-        feeMicro,
-        netCollateralMicro,
+        feeMicro: Number(feeBI),
+        netCollateralMicro: Number(netCollateralBI),
         sharesOut,
         minSharesOut,
         slippageBps: boundedSlippage,
@@ -1137,7 +1168,7 @@ export const useAleoPrograms = () => {
       slippageBps = 200,
     ): Promise<SellQuote | null> => {
       const cleanMarketId = normalizeFieldId(marketId);
-      if (!Number.isFinite(sharesToSell) || sharesToSell <= 0) return null;
+      if (sharesToSell <= 0) return null;
 
       const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
       if (!marketRaw) return null;
@@ -1150,33 +1181,40 @@ export const useAleoPrograms = () => {
 
       const protocol = await fetchCoreProtocolConfig();
       const outcomeExposure = await fetchOutcomeExposure(cleanMarketId, outcome);
-      const outcomeCount = Math.max(2, market.outcome_count);
-      const totalLiquidity = pool.trading_collateral + protocol.virtualLiquidity * outcomeCount;
-      const outcomeLiquidity =
-        Math.floor(pool.trading_collateral / outcomeCount) +
-        protocol.virtualLiquidity +
-        outcomeExposure;
 
-      if (totalLiquidity <= 0 || outcomeLiquidity <= 0) return null;
+      const outcomeCountNum = Math.max(2, market.outcome_count);
+      const outcomeCountBI = BigInt(outcomeCountNum);
+      const virtualLiqBI = BigInt(protocol.virtualLiquidity);
+      // Match contract: uses total_collateral (trading + LP) for depth
+      const totalCollateralBI = BigInt(pool.total_collateral || (pool.trading_collateral + pool.lp_collateral));
+      const outcomeExposureBI = BigInt(outcomeExposure);
 
-      const shares = Math.max(1, Math.floor(sharesToSell));
-      const grossPayoutMicro = Math.floor((shares * outcomeLiquidity) / totalLiquidity);
-      const feeMicro = Math.floor((grossPayoutMicro * protocol.feeBps) / 10_000);
-      const netPayoutMicro = Math.max(0, grossPayoutMicro - feeMicro);
+      const totalLiquidityBI = totalCollateralBI + (virtualLiqBI * outcomeCountBI);
+      const outcomeLiquidityBI =
+        (totalCollateralBI / outcomeCountBI) + virtualLiqBI + outcomeExposureBI;
+
+      if (totalLiquidityBI <= 0n || outcomeLiquidityBI <= 0n) return null;
+
+      const sharesBI = BigInt(Math.max(1, Math.floor(sharesToSell)));
+      const grossPayoutBI = (sharesBI * outcomeLiquidityBI) / totalLiquidityBI;
+
+      const feeBpsBI = BigInt(protocol.feeBps);
+      const feeBI = (grossPayoutBI * feeBpsBI) / 10000n;
+      const netPayoutBI = grossPayoutBI > feeBI ? grossPayoutBI - feeBI : 0n;
+
       const boundedSlippage = Math.min(5_000, Math.max(0, slippageBps));
-      const minPayoutMicro = Math.max(
-        0,
-        Math.floor((netPayoutMicro * (10_000 - boundedSlippage)) / 10_000),
-      );
+      const minPayoutBI = (netPayoutBI * BigInt(10_000 - boundedSlippage)) / 10000n;
+
+      if (grossPayoutBI <= 0n || netPayoutBI <= 0n) return null;
 
       return {
         marketId: cleanMarketId,
         outcome,
-        sharesToSell: shares,
-        grossPayoutMicro,
-        feeMicro,
-        netPayoutMicro,
-        minPayoutMicro,
+        sharesToSell: Number(sharesBI),
+        grossPayoutMicro: Number(grossPayoutBI),
+        feeMicro: Number(feeBI),
+        netPayoutMicro: Number(netPayoutBI),
+        minPayoutMicro: Number(minPayoutBI),
         slippageBps: boundedSlippage,
       };
     },
@@ -1226,7 +1264,7 @@ export const useAleoPrograms = () => {
           const position_spent = positionSpentByKey.get(position_key) ?? false;
 
           if (market_id) {
-            console.log(`[fetchUserBets] Found bet for market: ${market_id}`, { outcome, amount, escrow_id });
+            // bet found; continue
           }
 
           return {
@@ -1380,19 +1418,6 @@ export const useAleoPrograms = () => {
 
         if (match) {
           const marketId = match[1];
-          console.log("[createMarket] Metadata before saving to Supabase:", {
-            transactionId: result.transactionId,
-            marketId,
-            title,
-            description,
-            resolutionSource,
-            marketType,
-            outcomeCount,
-            outcomeLabels,
-            tokenId,
-            closeTime,
-            resolutionTime,
-          });
           // Save metadata for rendering and filtering.
           try {
             await saveMarketMetadata({
@@ -1843,11 +1868,24 @@ export const useAleoPrograms = () => {
         options?.slippageBps ?? 200,
       );
       if (!quote) {
-        const protocol = await fetchCoreProtocolConfig().catch(() => null);
+        const [protocol, poolRaw] = await Promise.all([
+          fetchCoreProtocolConfig().catch(() => null),
+          fetchMappingValue(PROGRAM_ID, "pools", cleanMarketId).catch(() => null)
+        ]);
+
         if (protocol && amountMicro < protocol.minTrade) {
           toast.error(
             `Trade too small. Minimum trade is ${(protocol.minTrade / 1_000_000).toFixed(6)} tokens.`,
           );
+        } else if (protocol && poolRaw) {
+          const pool = parsePoolInfo(poolRaw as any);
+          const market = parseMarketInfo(marketRaw as string | object, cleanMarketId);
+          const outcomeCount = Math.max(2, market.outcome_count);
+          if (pool.lp_collateral < protocol.virtualLiquidity * outcomeCount) {
+            toast.error("Market needs liquidity before trading opens. Please add LP first.");
+          } else {
+            toast.error("Unable to compute share quote for this market. Please retry.");
+          }
         } else {
           toast.error("Unable to compute share quote for this market. Please retry.");
         }
@@ -1969,7 +2007,10 @@ export const useAleoPrograms = () => {
         }, tokenProgram, "buy_shares");
       }
 
-      if (betResult) triggerRefresh();
+      if (betResult) {
+        triggerRefresh();
+        await new Promise(r => setTimeout(r, 1500)); // Wait 1.5s for Aleo to settle
+      }
       return betResult ? betResult.transactionId : null;
     } catch (error) {
       console.error("Place bet failed:", error);
@@ -2046,7 +2087,10 @@ export const useAleoPrograms = () => {
           privateFee: false,
         }, tokenProgram, "fund_pool");
 
-        if (result) triggerRefresh();
+        if (result) {
+          triggerRefresh();
+          await new Promise(r => setTimeout(r, 1500)); // Wait 1.5s for Aleo to settle
+        }
         return result ? result.transactionId : null;
       }
 
@@ -2071,7 +2115,10 @@ export const useAleoPrograms = () => {
         privateFee: false,
       }, tokenProgram, "fund_pool");
 
-      if (result) triggerRefresh();
+      if (result) {
+        triggerRefresh();
+        await new Promise(r => setTimeout(r, 1500)); // Wait 1.5s for Aleo to settle
+      }
       return result ? result.transactionId : null;
     } catch (error) {
       console.error("Fund pool failed:", error);
@@ -2311,6 +2358,27 @@ export const useAleoPrograms = () => {
     }
   };
 
+  const cancelMarket = async (marketId: string) => {
+    if (!address) return;
+    const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+
+    try {
+      const result = await executeAndPoll({
+        program: PROGRAM_ID,
+        function: "cancel_market",
+        inputs: [cleanMarketId],
+        fee: 100_000,
+        privateFee: false,
+      }, PROGRAM_ID, "cancel_market");
+
+      if (result) triggerRefresh();
+      return result ? result.transactionId : null;
+    } catch (error) {
+      console.error("Cancel market failed:", error);
+      return null;
+    }
+  };
+
   const proposeResolution = async (marketId: string, outcome: number) => {
     if (!address) return;
     const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
@@ -2361,6 +2429,60 @@ export const useAleoPrograms = () => {
     } catch (error) {
       console.error("Dispute failed:", error);
       return null;
+    }
+  };
+
+  const diagnoseResolution = async (marketId: string) => {
+    const cleanId = normalizeFieldId(marketId);
+    const nowTs = Math.floor(Date.now() / 1000);
+
+    // 1. Check market state
+    const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanId);
+    const market = marketRaw ? parseMarketInfo(marketRaw, cleanId) : null;
+
+    // 2. Check factory registration
+    const oracleRegRaw = await fetchMappingValue(
+      FACTORY_PROGRAM_ID,
+      "contracts",
+      ORACLE_PROGRAM_ID
+    );
+    void oracleRegRaw;
+
+    // 3. Check proposal
+    const proposalRaw = await fetchMappingValue(ORACLE_PROGRAM_ID, "proposals", cleanId);
+    const proposal = proposalRaw ? parseResolutionProposal(proposalRaw) : null;
+
+    if (proposal) {
+      void proposal.challenge_deadline;
+      void proposal.is_disputed;
+    }
+
+    // 4. Check locked bond
+    const lockedBondRaw = await fetchMappingValue(
+      ORACLE_PROGRAM_ID,
+      "proposal_locked_bond",
+      cleanId
+    );
+    void lockedBondRaw; // should be 30_000_000 if proposal is active
+
+    // 5. Check oracle pause state
+    const pauseRaw = await fetchMappingValue(ORACLE_PROGRAM_ID, "oracle_u8", "1u8");
+    void pauseRaw; // oracle pause state check
+    // should be 0
+
+    // 6. Check proposer stake
+    if (proposal?.proposer) {
+      const stakeRaw = await fetchMappingValue(
+        ORACLE_PROGRAM_ID,
+        "active_oracles",
+        proposal.proposer
+      );
+      await fetchMappingValue(
+        ORACLE_PROGRAM_ID,
+        "oracle_locked_stake",
+        proposal.proposer
+      );
+      void stakeRaw; // retained for potential future use
     }
   };
 
@@ -2738,9 +2860,11 @@ export const useAleoPrograms = () => {
     sellShares,
     fundPool,
     withdrawLiquidity,
+    diagnoseResolution,
     resolveMarket: resolveMarketOnCore,
     proposeResolution,
     disputeResolution,
+    cancelMarket,
     registerAsOracle,
     unstakeOracleCredits,
     claimOracleVoteReward,

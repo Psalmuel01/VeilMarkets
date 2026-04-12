@@ -42,6 +42,7 @@ interface ResolutionModalProps {
   } | null;
   nowTs: number;
   isOracle: boolean;
+  outcomeTotals?: number[];
   onUpdate: () => void;
 }
 
@@ -55,6 +56,7 @@ export function ResolutionModal({
   proposal,
   nowTs,
   isOracle,
+  outcomeTotals = [],
   onUpdate,
 }: ResolutionModalProps) {
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null);
@@ -69,7 +71,8 @@ export function ResolutionModal({
   const [txId, setTxId] = useState<string | null>(null);
   const [isOracleModalOpen, setIsOracleModalOpen] = useState(false);
   const [didPropose, setDidPropose] = useState(false);
-  // console.log(isOracle);
+  const selectedOutcomeSupply = selectedOutcome !== null ? (outcomeTotals[selectedOutcome] ?? 0) : null;
+  const isOutcomeEmpty = selectedOutcome !== null && selectedOutcomeSupply === 0;
   useEffect(() => {
     if (!isOpen) {
       setSelectedOutcome(null);
@@ -128,6 +131,7 @@ export function ResolutionModal({
     }
     if (!isOracle) return "Only registered oracles can propose outcomes.";
     if (selectedOutcome === null) return "Select an outcome to propose.";
+    if (isOutcomeEmpty) return "Outcome has zero supply. Cannot resolve.";
     if (didPropose) return "Proposal already submitted.";
     return "";
   })();
@@ -248,6 +252,19 @@ export function ResolutionModal({
                         })}
                       </div>
                     </RadioGroup>
+
+                    {isOutcomeEmpty && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-xs text-destructive flex gap-3"
+                      >
+                        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                        <p>
+                          <strong>Fatal Constraint:</strong> This outcome has ZERO matching shares. The smart contract will reject this resolution because there is nobody to pay out. Please verify the real-world result or choose another outcome.
+                        </p>
+                      </motion.div>
+                    )}
                   </div>
                 )}
 

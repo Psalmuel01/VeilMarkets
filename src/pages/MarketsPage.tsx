@@ -82,12 +82,15 @@ export default function MarketsPage() {
     const nowTs = Math.floor(Date.now() / 1000);
     return chainMarkets.map((market) => {
       const isSettled = market.is_resolved;
+      const isCancelled = isSettled && isCancelledOutcome(market.winning_outcome);
       const isClosed = !isSettled && nowTs >= market.close_time;
-      const status: Market["status"] = isSettled
-        ? "Settled"
-        : isClosed
-          ? "Closed"
-          : "Open";
+      const status: Market["status"] = isCancelled
+        ? "Cancelled"
+        : isSettled
+          ? "Settled"
+          : isClosed
+            ? "Closed"
+            : "Open";
       const pool = poolsByMarketId.get(market.id);
 
       return {

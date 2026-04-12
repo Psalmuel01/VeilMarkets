@@ -27,7 +27,7 @@ program veilmarkets_core_v10.aleo {
     const DEFAULT_FEE_BPS: u64 = 100u64; // 1%
     const DEFAULT_MIN_TRADE: u64 = 1000000u64;
     const DEFAULT_MIN_LIQUIDITY: u64 = 1000000u64;
-    const DEFAULT_VIRTUAL_LIQ: u64 = 10000000u64;
+    const DEFAULT_VIRTUAL_LIQ: u64 = 1000000u64;
     const DEFAULT_LP_FEE_SHARE_BPS: u64 = 8000u64;
     // 100,000 tokens with 6-decimal rails by default.
     const DEFAULT_MAX_MARKET_COLLATERAL: u64 = 100000000000u64;
@@ -742,9 +742,7 @@ final fn finalize_buy_shares(
         DEFAULT_FEE_BPS,
     );
     let quote: BuyQuoteComputation = compute_buy_quote(
-        // Pricing uses trading collateral (not LP principal) to preserve 1-unit winner redemption solvency
-        // without consuming LP principal.
-        pool.trading_collateral,
+        pool.total_collateral,
         market.outcome_count,
         virtual_liq,
         current_exposure,
@@ -774,10 +772,11 @@ final fn finalize_buy_shares(
     assert(pool.total_collateral + net_collateral_in <= max_market_collateral);
 
     let new_trading_collateral: u64 = pool.trading_collateral + net_collateral_in;
+    let new_total_collateral: u64 = pool.total_collateral + net_collateral_in;
     let new_exposure: u64 = current_exposure + net_collateral_in;
     let new_supply: u64 = current_supply + shares_out;
-    // Fixed 1-unit winner redemption requires winner-side supply solvency.
-    assert(new_supply <= new_trading_collateral);
+    // Payout solvency check against combined unified pool (Traders + LPs).
+    assert(new_supply <= new_total_collateral);
     Mapping::set(outcome_exposure, exposure_key, new_exposure);
     Mapping::set(outcome_share_supply, exposure_key, new_supply);
 
@@ -965,8 +964,7 @@ final fn finalize_sell_shares(
     );
 
     let quote: SellQuoteComputation = compute_sell_quote(
-        // Keep sell pricing consistent with buy-side solvency model (trading collateral only).
-        pool.trading_collateral,
+        pool.total_collateral,
         market.outcome_count,
         virtual_liq,
         current_exposure,
@@ -987,7 +985,8 @@ final fn finalize_sell_shares(
     let new_exposure: u64 = current_exposure - gross_payout;
     let new_supply: u64 = current_supply - shares_to_sell;
     let new_trading_collateral: u64 = pool.trading_collateral - gross_payout;
-    assert(new_supply <= new_trading_collateral);
+    let new_total_collateral: u64 = pool.total_collateral - gross_payout;
+    assert(new_supply <= new_total_collateral);
     Mapping::set(outcome_exposure, exposure_key, new_exposure);
     Mapping::set(outcome_share_supply, exposure_key, new_supply);
 
@@ -1290,10 +1289,14 @@ final fn finalize_resolve_market(
     let winner_key: field = outcome_key(market_id, winning_outcome);
     let winner_supply_snapshot: u64 = Mapping::get_or_use(outcome_share_supply, winner_key, 0u64);
     assert(winner_supply_snapshot > 0u64);
-    assert(winner_supply_snapshot <= pool.trading_collateral);
-    // Economic note: if winner supply is very small vs total trading collateral,
-    // the residual loser-side trading collateral is intentionally routed to LP surplus.
-    let lp_trading_surplus: u64 = pool.trading_collateral - winner_supply_snapshot;
+    
+    // Solvency check against total pool collateral (Traders + LPs).
+    assert(winner_supply_snapshot <= pool.total_collateral);
+    
+    let winner_snapshot_payout_pool: u64 = pool.total_collateral;
+    let lp_trading_surplus: u64 = (winner_snapshot_payout_pool >= winner_supply_snapshot)
+        ? winner_snapshot_payout_pool - winner_supply_snapshot
+        : 0u64;
 
     Mapping::set(market_winner_supply_snapshot, market_id, winner_supply_snapshot);
     Mapping::set(market_winner_payout_remaining, market_id, winner_supply_snapshot);

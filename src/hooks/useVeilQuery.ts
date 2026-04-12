@@ -501,6 +501,26 @@ export const useWithdrawLiquidityMutation = () => {
   });
 };
 
+export const useCancelMarketMutation = () => {
+  const queryClient = useQueryClient();
+  const { cancelMarket, publicKey } = useAleoPrograms();
+
+  return useMutation({
+    mutationFn: async (marketId: string) => {
+      const txId = await cancelMarket(marketId);
+      if (!txId) throw new Error("Cancel market transaction failed");
+      return txId;
+    },
+    onSettled: async (_data, _error, marketId) => {
+      await invalidateCoreQueries(
+        ({ queryKey }) => queryClient.invalidateQueries({ queryKey }),
+        marketId,
+        publicKey,
+      );
+    },
+  });
+};
+
 export const useResolveMarketMutation = () => {
   const queryClient = useQueryClient();
   const { resolveMarket, publicKey } = useAleoPrograms();

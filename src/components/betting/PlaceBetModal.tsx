@@ -20,6 +20,7 @@ import { resolveTokenDisplayName, resolveTokenTicker } from "@/lib/constants";
 import { getOutcomeLabel, getOutcomeLabels, getOutcomeTone, normalizeOutcomeCount } from "@/lib/outcomes";
 import {
   useBuyQuoteQuery,
+  useMarketPoolQuery,
   usePlaceBetMutation,
   useProtocolConfigQuery,
   useTokenBalanceQuery,
@@ -66,8 +67,10 @@ export const PlaceBetModal = ({
     SLIPPAGE_BPS,
     open && Boolean(publicKey),
   );
+  const poolQuery = useMarketPoolQuery(marketId, open);
   const balanceQuery = useTokenBalanceQuery(tokenId, open && Boolean(publicKey));
   const balances = balanceQuery.data ?? null;
+  const pool = poolQuery.data ?? null;
   const quote = quoteQuery.data ?? null;
   const tokenTicker = resolveTokenTicker(tokenId);
   const tokenDisplayName = resolveTokenDisplayName(tokenId);
@@ -76,15 +79,30 @@ export const PlaceBetModal = ({
   const availableRequiredBalance = balances ? balances.private : 0;
   const hasLowBalance = !!balances && availableRequiredBalance < wagerAmount;
   const minTradeMicro = protocolConfigQuery.data?.minTrade ?? 1_000_000;
+  
   const isTradeTooSmall =
     selectedOutcome !== null &&
     Math.floor(wagerAmount * 1_000_000) > 0 &&
     Math.floor(wagerAmount * 1_000_000) < minTradeMicro;
+
+  const isInsufficientLiquidity =
+    selectedOutcome !== null &&
+    protocolConfigQuery.data &&
+    pool &&
+    pool.total_collateral < (protocolConfigQuery.data.virtualLiquidity * Math.max(2, outcomeCount) * 0.9);
+
+
   const quoteUnavailable =
     selectedOutcome !== null && !quote && !quoteQuery.isFetching;
-  const quoteUnavailableMessage = isTradeTooSmall
+
+  // We only show liquidity warnings as information, but it blocks the 'Review' button
+  const quoteErrorMessage = isInsufficientLiquidity
+    ? "Market needs liquidity before trading opens. Please add LP first."
+    : isTradeTooSmall
     ? `Trade too small. Minimum trade is ${(minTradeMicro / 1_000_000).toFixed(6)} ${tokenTicker}.`
-    : "Unable to load share quote for this market right now. Please retry.";
+    : quoteQuery.isError
+    ? "Unable to compute quote right now. Please retry."
+    : null;
 
   const resetForm = () => {
     setStep("select");
@@ -255,18 +273,40 @@ export const PlaceBetModal = ({
                   </motion.div>
                 )}
 
+                {isInsufficientLiquidity && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-5 rounded-3xl bg-primary/5 border border-primary/10 space-y-2"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-xl bg-primary/10 mt-0.5">
+                        <Shield className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-bold text-primary uppercase tracking-wider">
+                          Liquidity Required
+                        </p>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          This market requires at least <span className="text-white font-bold">{(protocolConfigQuery.data?.virtualLiquidity ?? 0) * Math.max(2, outcomeCount) / 1_000_000} {tokenTicker}</span> of initial LP collateral to open trading. Currently: <span className="text-white font-bold">{(pool?.total_collateral ?? 0) / 1_000_000} {tokenTicker}</span>.
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
                 <Button
                   onClick={() => setStep("confirm")}
-                  disabled={selectedOutcome === null || hasLowBalance || quoteUnavailable}
+                  disabled={selectedOutcome === null || hasLowBalance || (quoteUnavailable && !isInsufficientLiquidity) || !!quoteErrorMessage || quoteQuery.isFetching}
                   className="w-full btn-premium h-16 rounded-[1.5rem] group"
                 >
-                  <span className="text-base font-bold">Review Trade</span>
+                  <span className="text-base font-bold">{hasLowBalance ? "Insufficient Balance" : isInsufficientLiquidity ? "Liquidity Needed" : "Review Trade"}</span>
                   <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
 
-                {quoteUnavailable && (
+                {(quoteErrorMessage || (quoteUnavailable && !isInsufficientLiquidity)) && (
                   <div className="px-1 text-xs text-warning">
-                    {quoteUnavailableMessage}
+                    {quoteErrorMessage || "Unable to load share quote for this market right now. Please retry."}
                   </div>
                 )}
               </motion.div>
