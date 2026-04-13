@@ -1,124 +1,179 @@
-```markdown
-# VeilMarkets Update Log
+# VeilMarkets Evolution Since v8
 
-## v13 — FPMM Rewrite (Current)
-**Network:** Aleo Testnet | **Status:** Live
+VeilMarkets has changed substantially since the v8 era. What began as an earlier prediction market design has evolved into a modular Aleo protocol centered on share trading, multi-token settlement, oracle-driven resolution, and a more honest privacy model.
 
-### What Changed
+## Current State
 
-**Protocol model replaced entirely.**
-Moved from a broken hybrid AMM to pure Fixed Product Market Maker (FPMM) with
-fixed $1 redemption. Every winning share pays exactly 1 unit of collateral.
-Price equals implied probability. This is the same model Polymarket uses.
+- Current deployed-style program suite uses `v11` program IDs.
+- The protocol now runs as a modular contract stack:
+  - `veilmarkets_factory_v11.aleo`
+  - `veilmarkets_core_v11.aleo`
+  - `veilmarkets_governance_v11.aleo`
+  - `veilmarkets_oracle_v11.aleo`
+  - `veilmarkets_token_credits_v11.aleo`
+  - `veilmarkets_token_usdcx_v11.aleo`
+  - `veilmarkets_token_usad_v11.aleo`
 
-**How it works now:**
-- LP deposits mint equal outcome tokens to all outcomes simultaneously
-- Traders buy outcome tokens from the pool using the constant product formula
-- Pool token quantity decreases for bought outcome, collateral increases
-- At resolution, outstanding tokens (supply minus pool qty) = winner payout pool
-- LPs receive everything remaining after winners are paid
+## 1. Market Model Rewrite
 
-**The formula:**
-```
-Buy:  tokens_out = qty_outcome × net_in / (total_other_qty + net_in)
-Sell: collateral_out = total_other_qty × shares / (qty_outcome + shares)
-```
+The biggest change since v8 was replacing the older market flow with a true share-trading architecture.
 
----
+What changed:
 
-### Bugs Fixed
+- Users now buy and sell outcome shares before market close.
+- Pricing and execution follow a Fixed Product Market Maker style path in core.
+- Settlement is fixed-share, not pari-mutuel:
+  - winning share = `1` payout unit
+  - losing share = `0`
+  - cancelled market = refund of original collateral
+- LPs seed pools by minting equal outcome inventory across all outcomes.
+- Resolution accounting now separates winner payouts, LP returns, and fee pools.
 
-| Bug | Fix |
-|---|---|
-| Share quote always failed | Removed solvency check that blocked trades below 50% price. FPMM math naturally enforces solvency. |
-| Winners claimed LP capital | LP and trading collateral now separated. Winners paid from trading pool only. |
-| No LP withdrawal | `withdraw_liquidity` implemented. Post-resolution only. Pays LP return pool + fee share. |
-| Creator rug vector | `cancel_market` blocked once any liquidity or trading exists. |
-| All contract calls failed with parse error | Removed inter-finalize helper function calls (`assert_protocol_not_paused`, `assert_oracle_not_paused`). Pause checks inlined directly into each finalize. SDK could not parse compiled inter-finalize call instructions. |
-| Protocol fees never withdrawable | `authz_fee_withdrawal` implemented with separate `spent_auth_ids` mapping. No longer mixed with position nullifiers. |
-| LP deposit had no effect on pricing | LP tokens now correctly initialize FPMM pool state via `outcome_token_qty`. |
-| trader_count and lp_count conflated | Separated in PoolState. Volume, OI, TVL now consistent across all UI pages. |
+This made the market semantics much closer to modern prediction exchanges rather than escrowed betting.
 
----
+## 2. Multi-Program Contract Architecture
 
-### Oracle Updates
+Since v8, the protocol was split into dedicated programs with clearer responsibilities.
 
-- Stake locking per proposal — proposer cannot unstake while bond is active
-- Voter rewards — correct-side voters earn 20% of slashed stake
-- Dispute timeout — if quorum not reached within 30 minutes of challenge window, falls back to proposed outcome (prevents stuck markets)
-- Platform fee pool replaces hardcoded admin address
-- Testnet defaults: 20 ALEO min stake, 10 minute dispute window, 2 min voters
+- Factory handles contract registration and role verification.
+- Core owns market creation, pool accounting, trading, claims, and LP withdrawals.
+- Governance authorizes parameter updates.
+- Oracle handles optimistic proposal, disputes, quorum voting, and resolution settlement.
+- Token adapters route settlement through Credits, USDCx, or USAD.
 
----
+This separation reduced circular dependencies and made each workflow easier to reason about.
 
-### Governance Updates
+## 3. Multi-Token Settlement Rails
 
-- Stake-weighted voting (default weight 0 — admin must assign explicitly)
-- 24-hour execution timelock after vote passes
-- Oracle parameter changes authorized via `consume_oracle_u64/u8` pattern
-  (breaks circular import between oracle and governance)
+Markets are no longer limited to a single token path.
 
----
+Supported rails now include:
 
-### Frontend Updates
+- Aleo Credits
+- USDCx
+- USAD
 
-- Quote functions fully rewritten using FPMM formula with BigInt precision
-- Quotes computed client-side from `outcome_token_qty` RPC reads — no transaction needed
-- `fetchMarkets` batched in groups of 8 to avoid RPC rate limits
-- Resolution finalize button visible to all users, not admin only
-- LP balance display reads from `lp_balances` mapping via derived key
-- LP withdrawable estimate = proportional lp_return_pool + fee_pool share
+Each market is bound to one token adapter, and all bet, claim, and liquidity actions must follow that market's selected rail.
 
----
+Stablecoin support added:
 
-### Privacy — What Is Actually Private in v13
+- private token record handling
+- Merkle proof inputs for private spend flows
+- adapter-mediated public settlement and private payout recovery
 
-| Data | Private? |
-|---|---|
-| Outcome you bet on | **No — public on-chain** |
-| Amount you bet | **No — public on-chain** |
-| Shares you hold after purchase | Yes — BetPosition record |
-| Your payout when claiming | Yes — WinningsClaim record |
-| LP deposit amount | **No — public on-chain** |
-| Oracle votes and stake | **No — by design** |
-| Market prices and pool depth | **No — by design** |
+## 4. Oracle Resolution and Disputes
 
-The Aleo finalize model requires outcome and amount to be public inputs
-because validators must read them to update pool state. Full trade privacy
-requires a commit-reveal architecture, out of scope for this version.
+Resolution became much more robust after v8.
 
-**Accurate claim:** Your position contents after purchase and your winnings
-at claim time are private. The trade itself is not.
+New oracle mechanics include:
 
----
+- oracle registration with stake
+- optimistic outcome proposal after `resolution_time`
+- challenge / dispute window
+- quorum voting on disputed markets
+- proposer stake locking while a proposal is active
+- challenger, proposer, voter, and platform reward/slash flows
+- protocol pause control and governance-driven oracle params
 
-### Removed
+The current model supports:
 
-`place_bet` · `refund_bet` · `mint_position_record` · `mint_share_record`
-· quote storage mappings · `outcome_exposure` mapping · `virtual_liq` param
-· `participant_count` · `EscrowedBet` record · `pending_position_*` mappings
-· `escrow_id` field · `assert_protocol_not_paused()` helper fn
-· `assert_oracle_not_paused()` helper fn
+- undisputed finalization after the proposal deadline
+- disputed finalization only after quorum requirements are met
+- fallback finalization to the proposed outcome after timeout if quorum never forms
 
----
+## 5. Governance Layer
 
-### Deployment Order
+Governance is now part of the protocol flow rather than an afterthought.
 
-```
-factory → core → governance → oracle → credits → usdcx → usad
-then register all seven in factory, assign governance voter weights,
-register oracle wallet with ≥ 20 ALEO stake
-```
+What changed:
 
----
+- core and oracle parameters are updated through governance-authorized calls
+- the factory verifies contract type registration before sensitive actions
+- governance execution acts as the source of authorization for protocol changes
 
-### Open for v14
+This removed several tightly coupled admin-only assumptions from earlier versions.
 
-- Fair LP fee distribution using cumulative fee index (current model
-  allows late LPs to claim fees they did not earn)
-- Emergency LP withdrawal for markets stuck 7+ days past resolution time
-- Per-trade position size cap to prevent outcome manipulation
-- On-chain challenger ≠ proposer enforcement
-- Outcome label metadata via IPFS + indexer
-- WithdrawLiquidityModal and CancelMarket UI fully wired
-```
+## 6. Core Economic and Accounting Fixes
+
+Several critical fixes were made after the early versions to align the protocol with correct FPMM behavior.
+
+Important improvements:
+
+- LP funding now actually initializes pool inventory and pricing state
+- buy/sell accounting correctly updates pool collateral and outcome quantities
+- winner payout pool and LP return pool are separated at resolution
+- `withdraw_liquidity` is implemented for post-resolution LP exit
+- cancellation is blocked once liquidity or trading exists
+- protocol fee authorization uses dedicated auth-spend tracking
+- `trader_count` and `lp_count` are tracked separately
+
+These fixes made pricing, LP economics, and settlement much more consistent across the app and contracts.
+
+## 7. Frontend and Product Flow
+
+The frontend was rebuilt around the newer protocol instead of legacy fallback flows.
+
+Major product changes:
+
+- market creation supports token rail selection
+- markets page supports token filtering and token badges
+- buy/sell flows use live on-chain pool state with client-side quote computation
+- LP funding and withdrawal flows are wired into the market experience
+- oracle registration, stake status, and unstaking are exposed in the UI
+- resolution and claims follow the current core/oracle/token-adapter lifecycle
+- metadata storage and reads are aligned around the current `v11` schema
+
+The app runtime is now effectively a current-suite-only flow rather than a mixed legacy compatibility layer.
+
+## 8. Privacy Improvements and Reality Check
+
+Privacy has improved since v8, but the current protocol is privacy-aware, not fully private.
+
+What is private:
+
+- wallet-owned token records
+- `BetPosition` records after purchase
+- claim artifacts such as `WinningsClaim`
+- some ownership commitments stored in core mappings
+
+What is still public:
+
+- market identity
+- chosen outcome when executing a trade
+- collateral amount used in a trade
+- slippage and quote guard values
+- aggregate pool/accounting state
+- oracle actions and most resolution-side economics
+
+Recent privacy hardening reduced some avoidable linkage:
+
+- position and LP ownership are tracked with opaque commitments instead of simpler signer-derived linkage
+- direct user flows such as selling, claiming winnings, and LP withdrawal rely less on explicit caller-address checks in finalize paths
+
+But one hard limit remains: under the current Aleo finalize model, trade execution still needs public inputs for the market state update. Full trade privacy would require a different architecture such as commit-reveal or off-chain matching with on-chain settlement proofs.
+
+## 9. What Was Removed Along the Way
+
+Several earlier concepts were removed as the protocol matured:
+
+- older escrow-style bet flows
+- quote storage mappings
+- pending-position helper state from prior designs
+- virtual liquidity and related legacy market-shaping parameters
+- monolithic assumptions about a single token rail
+- earlier fallback/runtime compatibility paths in the frontend
+
+## 10. Summary
+
+Since v8, VeilMarkets evolved from an earlier prediction market design into a modular Aleo protocol with:
+
+- share trading instead of simple escrowed betting
+- FPMM-style pricing and fixed-share settlement
+- a seven-program contract suite
+- multi-token settlement rails
+- oracle proposal, dispute, and quorum resolution
+- governance-bound parameter control
+- LP funding and withdrawal flows
+- stronger commitment-based privacy for stored positions and LP state
+
+The biggest remaining tradeoff is privacy at execution time: the system now protects records and claims much better than before, but trade direction and size are still public during execution because the market maker needs those values to update state on-chain.
