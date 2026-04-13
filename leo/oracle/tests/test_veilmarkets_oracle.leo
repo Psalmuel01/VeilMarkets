@@ -1,3 +1,19 @@
+fn outcome_vote_key(market_id: field, outcome: u8) -> field {
+    return BHP256::hash_to_field(market_id + outcome as field);
+}
+
+fn vote_receipt_key(market_id: field, voter: address) -> field {
+    return BHP256::hash_to_field(market_id + voter as field);
+}
+
+fn mul_div_u64(a: u64, b: u64, denom: u64) -> u64 {
+    assert(denom > 0u64);
+    let a128: u128 = a as u128;
+    let b128: u128 = b as u128;
+    let d128: u128 = denom as u128;
+    return ((a128 * b128) / d128) as u64;
+}
+
 fn compute_disputed_winner(
     vote_0: u64,
     vote_1: u64,
@@ -26,12 +42,34 @@ fn compute_disputed_winner(
 }
 
 program test_veilmarkets_oracle.aleo {
-    const MIN_ORACLE_STAKE: u64 = 30000000u64;
-    const DISPUTE_WINDOW: u64 = 10800u64;
-    const MIN_VOTERS: u8 = 3u8;
+    const DEFAULT_MIN_ORACLE_STAKE: u64 = 20000000u64;
+    const DEFAULT_DISPUTE_WINDOW: u64 = 600u64;
+    const DEFAULT_DISPUTED_FINAL_TIMEOUT: u64 = 1800u64;
+    const DEFAULT_MIN_VOTERS: u8 = 2u8;
 
     @test
-    fn disputed_vote_max_weight() {
+    fn vote_keys_change() {
+        let market_id: field = 91field;
+        let voter_a: address = aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
+        let voter_b: address = aleo13wreywph6vpjfcn9z3unaulyv7mgepsu5pzwnzd32786j5gzzvqqrw8565;
+
+        let outcome_key_0: field = outcome_vote_key(market_id, 0u8);
+        let outcome_key_1: field = outcome_vote_key(market_id, 1u8);
+        let receipt_a: field = vote_receipt_key(market_id, voter_a);
+        let receipt_b: field = vote_receipt_key(market_id, voter_b);
+
+        assert(outcome_key_0 != outcome_key_1);
+        assert(receipt_a != receipt_b);
+    }
+
+    @test
+    fn default_quorum_weight() {
+        let quorum_weight: u64 = DEFAULT_MIN_ORACLE_STAKE * DEFAULT_MIN_VOTERS as u64;
+        assert_eq(quorum_weight, 40000000u64);
+    }
+
+    @test
+    fn disputed_winner_max_vote() {
         let winner_a: u8 = compute_disputed_winner(10u64, 20u64, 40u64, 25u64, 9u64, 8u64, 7u64, 6u64);
         let winner_b: u8 = compute_disputed_winner(90u64, 20u64, 10u64, 15u64, 16u64, 17u64, 18u64, 19u64);
         let winner_c: u8 = compute_disputed_winner(1u64, 2u64, 3u64, 4u64, 5u64, 6u64, 7u64, 100u64);
@@ -42,51 +80,65 @@ program test_veilmarkets_oracle.aleo {
     }
 
     @test
-    fn split_disputer_wins() {
-        let slashed: u64 = MIN_ORACLE_STAKE;
-        let platform_fee: u64 = slashed / 10u64;
-        let winner_reward: u64 = slashed - platform_fee;
+    fn timeout_defaults() {
+        let now_ts: u64 = 100000u64;
+        let challenge_deadline: u64 = now_ts + DEFAULT_DISPUTE_WINDOW;
+        let fallback_ready_at: u64 = challenge_deadline + DEFAULT_DISPUTED_FINAL_TIMEOUT;
 
-        assert_eq(platform_fee, 3000000u64);
-        assert_eq(winner_reward, 27000000u64);
-        assert_eq(platform_fee + winner_reward, slashed);
+        assert_eq(challenge_deadline, 100600u64);
+        assert_eq(fallback_ready_at, 102400u64);
     }
 
     @test
-    fn split_proposer_wins() {
-        let dispute_bond: u64 = 45000000u64;
+    fn no_vote_split() {
+        let dispute_bond: u64 = DEFAULT_MIN_ORACLE_STAKE;
         let platform_fee: u64 = dispute_bond / 10u64;
         let proposer_reward: u64 = dispute_bond - platform_fee;
 
-        assert_eq(platform_fee, 4500000u64);
-        assert_eq(proposer_reward, 40500000u64);
+        assert_eq(platform_fee, 2000000u64);
+        assert_eq(proposer_reward, 18000000u64);
         assert_eq(platform_fee + proposer_reward, dispute_bond);
     }
 
     @test
-    fn deadline_adds_window() {
-        let now_ts: u64 = 100000u64;
-        let challenge_deadline: u64 = now_ts + DISPUTE_WINDOW;
+    fn disputer_win_split() {
+        let locked_bond: u64 = DEFAULT_MIN_ORACLE_STAKE;
+        let platform_fee: u64 = locked_bond / 10u64;
+        let voter_reward_pool: u64 = locked_bond / 5u64;
+        let disputer_reward: u64 = locked_bond - platform_fee - voter_reward_pool;
+        let challenger_credit: u64 = DEFAULT_MIN_ORACLE_STAKE + disputer_reward;
 
-        assert_eq(challenge_deadline, 110800u64);
+        assert_eq(platform_fee, 2000000u64);
+        assert_eq(voter_reward_pool, 4000000u64);
+        assert_eq(disputer_reward, 14000000u64);
+        assert_eq(challenger_credit, 34000000u64);
     }
 
     @test
-    fn quorum_requires_unique_voters() {
-        let voter_count_low: u64 = 2u64;
-        let voter_count_ok: u64 = 3u64;
-        let min_voters_u64: u64 = MIN_VOTERS as u64;
-        assert_eq(voter_count_low >= min_voters_u64, false);
-        assert_eq(voter_count_ok >= min_voters_u64, true);
+    fn proposer_win_split() {
+        let dispute_bond: u64 = 30000000u64;
+        let platform_fee: u64 = dispute_bond / 10u64;
+        let voter_reward_pool: u64 = dispute_bond / 5u64;
+        let proposer_reward: u64 = dispute_bond - platform_fee - voter_reward_pool;
+
+        assert_eq(platform_fee, 3000000u64);
+        assert_eq(voter_reward_pool, 6000000u64);
+        assert_eq(proposer_reward, 21000000u64);
+        assert_eq(platform_fee + voter_reward_pool + proposer_reward, dispute_bond);
     }
 
     @test
-    fn quorum_requires_weight_floor() {
-        let min_total_weight: u64 = MIN_ORACLE_STAKE * MIN_VOTERS as u64;
-        let insufficient: u64 = min_total_weight - 1u64;
-        let sufficient: u64 = min_total_weight;
-        assert_eq(insufficient >= min_total_weight, false);
-        assert_eq(sufficient >= min_total_weight, true);
+    fn vote_reward_prorata() {
+        let vote_weight: u64 = 20u64;
+        let reward_pool: u64 = 18u64;
+        let winning_vote_weight: u64 = 60u64;
+        let reward: u64 = mul_div_u64(vote_weight, reward_pool, winning_vote_weight);
+        let remaining_pool: u64 = reward_pool - reward;
+        let remaining_weight: u64 = winning_vote_weight - vote_weight;
+
+        assert_eq(reward, 6u64);
+        assert_eq(remaining_pool, 12u64);
+        assert_eq(remaining_weight, 40u64);
     }
 
     @noupgrade
