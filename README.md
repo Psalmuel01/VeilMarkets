@@ -1,47 +1,90 @@
 # VeilMarkets
 
-Privacy-aware prediction markets on Aleo.
+VeilMarkets is a privacy-aware prediction market built on Aleo. It supports share trading, oracle-based market resolution, and multi-token settlement through Aleo Credits, USDCx, and USAD.
 
-VeilMarkets lets users create markets, fund liquidity pools, trade outcome shares, resolve outcomes through an oracle flow, and claim payouts through token-specific settlement rails. The current suite supports binary and categorical markets with settlement in Aleo Credits, USDCx, or USAD.
+## Table of Contents
 
-## What VeilMarkets Is Today
+- [Overview](#overview)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Repository Structure](#repository-structure)
+- [Privacy Model](#privacy-model)
+- [Getting Started](#getting-started)
+- [Deployment](#deployment)
+- [Testing](#testing)
+- [Documentation](#documentation)
+- [License](#license)
 
-- Share-trading prediction markets with FPMM-style pool accounting
-- Binary and categorical markets with `2-8` outcomes
-- Fixed-share settlement:
-  - winning share = `1` payout unit
-  - losing share = `0`
-  - cancelled market = refund of original collateral
-- Multi-token settlement rails:
+## Overview
+
+VeilMarkets uses a modular `v11` contract suite to support:
+
+- binary and categorical markets
+- up to `8` outcomes per market
+- FPMM-style pool accounting
+- LP funding and withdrawal
+- oracle-driven optimistic resolution with disputes and quorum voting
+- governance-authorized protocol parameter updates
+- settlement in:
   - Aleo Credits
   - USDCx
   - USAD
-- Oracle-driven resolution with proposal, challenge, dispute, and quorum voting
-- Governance-authorized protocol parameter updates
-- LP funding before close and LP withdrawal after resolution
 
-## Current Contract Suite
+Settlement is fixed-share:
 
-- Core: `veilmarkets_core_v11.aleo`
-- Factory: `veilmarkets_factory_v11.aleo`
-- Oracle: `veilmarkets_oracle_v11.aleo`
-- Governance: `veilmarkets_governance_v11.aleo`
-- Credits adapter: `veilmarkets_token_credits_v11.aleo`
-- USDCx adapter: `veilmarkets_token_usdcx_v11.aleo`
-- USAD adapter: `veilmarkets_token_usad_v11.aleo`
+- winning share = `1` payout unit
+- losing share = `0`
+- cancelled market = refund of original collateral
 
-## Architecture Overview
+## Features
 
-1. A creator opens a market in core with close time, resolution time, category, outcome count, and token rail.
-2. LPs can seed the pool through the matching token adapter.
-3. Traders buy or sell shares through the market's token adapter.
-4. Core updates pool inventory, fees, positions, and payout state.
-5. Oracles propose and, if needed, dispute/vote on the outcome after `resolution_time`.
-6. Oracle finalization resolves the market on core.
-7. Users claim:
-   - `claim_winnings` on core
-   - `claim_payout` on the matching token adapter
-8. LPs withdraw post-resolution with `withdraw_liquidity`.
+- Multi-program Aleo architecture with a factory trust anchor
+- Share trading with buy and sell flows
+- Categorical markets with enforced outcome bounds
+- Multi-token settlement rails
+- Oracle stake registration, dispute flow, and voter rewards
+- Governance-controlled protocol parameters
+- Market creation, funding, trading, resolution, claim, and LP withdrawal flows in the frontend
+- Client-side quote computation from live on-chain pool state
+
+## Architecture
+
+Current program suite:
+
+- `veilmarkets_factory_v11.aleo`
+- `veilmarkets_core_v11.aleo`
+- `veilmarkets_governance_v11.aleo`
+- `veilmarkets_oracle_v11.aleo`
+- `veilmarkets_token_credits_v11.aleo`
+- `veilmarkets_token_usdcx_v11.aleo`
+- `veilmarkets_token_usad_v11.aleo`
+
+High-level flow:
+
+1. Factory registers trusted token, oracle, core, and governance contracts.
+2. Core creates and manages markets, pool state, positions, claims, and LP withdrawals.
+3. Token adapters escrow collateral in and out of the system for each supported asset rail.
+4. Oracle manages optimistic resolution, disputes, quorum voting, and stake economics.
+5. Governance executes protocol parameter changes on core and oracle.
+
+## Repository Structure
+
+```text
+leo/
+  core/           Core market engine
+  factory/        Contract registry and trust anchor
+  governance/     Protocol parameter execution
+  oracle/         Resolution, disputes, and oracle stake logic
+  token_credits/  Credits settlement adapter
+  token_usdcx/    USDCx settlement adapter
+  token_usad/     USAD settlement adapter
+
+src/
+  components/     React UI components
+  hooks/          Wallet, contract, and query logic
+  lib/            Constants, RPC helpers, metadata helpers
+  pages/          App pages
+```
 
 ## Privacy Model
 
@@ -50,43 +93,39 @@ VeilMarkets is privacy-aware, but not fully private at trade execution time.
 What is private:
 
 - wallet-owned token records
-- position records after purchase
+- private position records after purchase
 - payout claim artifacts
 - some ownership commitments stored in core
 
 What is public:
 
 - market identifier
-- chosen outcome when placing a trade
+- chosen outcome at trade execution time
 - trade amount
-- slippage/quote guard values
+- slippage and quote guard values
 - aggregate pool and fee state
-- oracle proposal and dispute activity
+- oracle proposal, dispute, and resolution activity
 
-That means the current system protects positions and claims better than a fully public market, but it does not yet hide the trade itself.
-
-## Highlights Since v8
-
-- Replaced the older market model with share trading and FPMM-style execution
-- Added a modular contract suite instead of a single tightly coupled flow
-- Added multi-token settlement rails for Credits, USDCx, and USAD
-- Added oracle stake registration, disputes, quorum voting, and slash/reward flows
-- Added governance-authorized parameter updates
-- Implemented LP withdrawal after resolution
-- Improved privacy of stored ownership state through commitment-based linkage
-- Simplified the frontend into a current-suite-only runtime around `v11`
+So the current system protects records and claims better than a fully public market, but it does not yet hide the trade itself.
 
 ## Getting Started
 
-### 1. Install
+### Prerequisites
+
+- Node.js
+- npm
+- Leo `4.x`
+- Aleo-compatible wallet for frontend testing
+
+### Install
 
 ```bash
 npm install
 ```
 
-### 2. Configure Environment
+### Environment
 
-Create `.env`:
+Create a `.env` file:
 
 ```bash
 VITE_SUPABASE_URL=your_supabase_url
@@ -98,9 +137,21 @@ VITE_USDCX_TOKEN_PROGRAM_ADDRESS=aleo1...
 VITE_USAD_TOKEN_PROGRAM_ADDRESS=aleo1...
 ```
 
-### 3. Deploy Contracts
+### Run the Frontend
 
-Suggested order:
+```bash
+npm run dev
+```
+
+### Build the Frontend
+
+```bash
+npm run build
+```
+
+## Deployment
+
+Suggested contract deployment order:
 
 1. `veilmarkets_factory_v11`
 2. `veilmarkets_core_v11`
@@ -110,7 +161,7 @@ Suggested order:
 6. `veilmarkets_token_usdcx_v11`
 7. `veilmarkets_token_usad_v11`
 
-### 4. Register Contracts in Factory
+After deployment, register contracts in factory:
 
 ```bash
 # contract_type 1 = token
@@ -126,27 +177,41 @@ leo execute <factory_address>/register_contract 3u8 <core_address> --broadcast -
 leo execute <factory_address>/register_contract 4u8 <governance_address> --broadcast --network testnet
 ```
 
-Repeat token registration for each adapter you want active.
+Repeat the token registration step for each active settlement rail.
 
-### 5. Run the App
+## Testing
+
+Frontend:
 
 ```bash
-npm run dev
+npm test
 ```
 
-## Operational Notes
+Leo packages:
 
-- Runtime data flow is current-suite-focused around the `v11` programs.
-- Quotes are computed client-side from live on-chain pool state.
-- Winner claims are fixed-share, not pari-mutuel.
-- Stablecoin private spend paths rely on valid private records and proof inputs.
-- LP fee distribution is currently simple proportional withdrawal from the accumulated market fee pool. A more precise fee-index model is still future work.
-- Outcome labels for categorical markets are metadata-driven and support up to `8` outcomes.
+```bash
+cd leo/core && leo test
+cd leo/oracle && leo test
+cd leo/token_credits && leo test
+cd leo/token_usdcx && leo test
+cd leo/token_usad && leo test
+```
+
+Notes:
+
+- The repo now includes v11-aligned Leo invariant tests for core, oracle, and token adapters.
+- In the current local environment, full `leo test` execution may still be blocked by dependency deployment acceptance in the test ledger before runtime test execution begins.
 
 ## Documentation
 
 - [update.md](./update.md)
 - [flow.md](./flow.md)
+- [architecture.md](./architecture.md)
+- [walkthrough.md](./walkthrough.md)
+
+## Links
+
+- GitHub: [Psalmuel01/VeilMarkets](https://github.com/Psalmuel01/VeilMarkets)
 
 ## License
 
