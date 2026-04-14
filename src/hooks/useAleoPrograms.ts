@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import {
   fetchMappingValue,
   fetchTransaction,
+  extractMarketIdFromTx,
   parseMarketInfo,
   PoolInfo,
   parsePoolInfo,
@@ -912,6 +913,108 @@ export const useAleoPrograms = () => {
     [executeWalletTransaction, requestTransactionHistory]
   );
 
+  const executeCreateMarketDirect = useCallback(
+    async (
+      inputs: string[],
+    ): Promise<{ transactionId: string; transition: any } | null> => {
+      try {
+        const existingHistory = await requestTransactionHistory(PROGRAM_ID);
+        const existingAtIds = new Set(
+          (existingHistory?.transactions ?? [])
+            .map((tx: any) => tx.transactionId)
+            .filter((id: string) => id?.startsWith("at1")),
+        );
+
+        const result = await executeTransaction({
+          program: PROGRAM_ID,
+          function: "create_market",
+          inputs: inputs.map((input) => input.trim()),
+          fee: 2_500_000,
+          privateFee: false,
+        } as Parameters<typeof executeTransaction>[0]);
+
+        if (!result?.transactionId) return null;
+
+        toast.info("Create market submitted. Waiting for network confirmation...");
+
+        let actualTxId = result.transactionId.startsWith("at1") ? result.transactionId : undefined;
+        let foundTransition: any = null;
+
+        outer: for (let i = 0; i < 15; i += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 4000));
+
+          try {
+            if (!actualTxId) {
+              const history = await requestTransactionHistory(PROGRAM_ID);
+              const txs = history?.transactions ?? [];
+
+              const shieldMatch = txs.find((tx: any) => tx.id === result.transactionId);
+              if (shieldMatch?.transactionId?.startsWith("at1")) {
+                actualTxId = shieldMatch.transactionId;
+              }
+
+              if (!actualTxId) {
+                const newAtTxIds = txs
+                  .map((tx: any) => tx.transactionId)
+                  .filter((id: string) => id?.startsWith("at1") && !existingAtIds.has(id));
+
+                for (const atTxId of newAtTxIds) {
+                  const txData = await fetchTransaction(atTxId);
+                  if (!txData) continue;
+
+                  const transitions = txData?.execution?.transitions ?? [];
+                  const transitionMatch = transitions.find(
+                    (tx: any) =>
+                      tx.function === "create_market" &&
+                      (tx.program === PROGRAM_ID || String(tx.program).startsWith(PROGRAM_ID.split(".")[0])),
+                  );
+
+                  if (transitionMatch) {
+                    actualTxId = atTxId;
+                    foundTransition = transitionMatch;
+                    break outer;
+                  }
+                }
+              }
+            }
+
+            if (actualTxId && !foundTransition) {
+              const txData = await fetchTransaction(actualTxId);
+              if (!txData) continue;
+
+              const transitions = txData?.execution?.transitions ?? [];
+              const transitionMatch = transitions.find(
+                (tx: any) =>
+                  tx.function === "create_market" &&
+                  (tx.program === PROGRAM_ID || String(tx.program).startsWith(PROGRAM_ID.split(".")[0])),
+              );
+
+              if (transitionMatch) {
+                foundTransition = transitionMatch;
+                break outer;
+              }
+            }
+          } catch (error) {
+            console.warn("[createMarket] poll attempt failed:", error);
+          }
+        }
+
+        if (actualTxId && foundTransition) {
+          toast.success("Create market confirmed!");
+          return { transactionId: actualTxId, transition: foundTransition };
+        }
+
+        toast.error("Create market failed to confirm within time limit.");
+        return null;
+      } catch (error) {
+        console.error("Create market direct execution failed:", error);
+        toast.error(`Create market failed: ${getErrorMessage(error)}`);
+        return null;
+      }
+    },
+    [executeTransaction, requestTransactionHistory],
+  );
+
   /**
    * Fetch all markets by cross-referencing on-chain data with off-chain metadata.
    * Uses Supabase metadata as global source, and wallet tx history as supplementary source.
@@ -1309,29 +1412,27 @@ export const useAleoPrograms = () => {
     const titleHash = `${randomHash}field`;
 
     try {
-      const result = await executeAndPoll({
-        program: PROGRAM_ID,
-        function: "create_market",
-        inputs: [
-          titleHash,
-          formatU8(category),
-          formatU8(marketType),
-          formatU8(outcomeCount),
-          formatU64(closeTime),
-          formatU64(resolutionTime),
-          tokenId,
-        ],
-        fee: 2_500_000,
-        privateFee: false,
-      }, PROGRAM_ID, "create_market");
+      const result = await executeCreateMarketDirect([
+        titleHash,
+        formatU8(category),
+        formatU8(marketType),
+        formatU8(outcomeCount),
+        formatU64(closeTime),
+        formatU64(resolutionTime),
+        tokenId,
+      ]);
 
       if (result) {
-        // Extract marketId
-        const futureOutput = result.transition?.outputs?.find((o: any) => o.type === 'future');
-        const match = String(futureOutput?.value).match(/arguments:\s*\[\s*(\d+field)/);
+        const txData = await fetchTransaction(result.transactionId);
+        const marketId =
+          extractMarketIdFromTx(txData) ??
+          (() => {
+            const futureOutput = result.transition?.outputs?.find((o: any) => o.type === "future");
+            const match = String(futureOutput?.value).match(/arguments:\s*\[\s*(\d+field)/);
+            return match?.[1] ?? null;
+          })();
 
-        if (match) {
-          const marketId = match[1];
+        if (marketId) {
           // Save metadata for rendering and filtering.
           try {
             await saveMarketMetadata({

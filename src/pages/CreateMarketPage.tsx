@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ZKBadge } from "@/components/ui/ZKBadge";
-import { useAleoPrograms } from "@/hooks/useAleoPrograms";
+import { useCreateMarketTransaction } from "@/hooks/useCreateMarketTransaction";
 import { getTimestampFromDate } from "@/lib/aleo";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -72,7 +72,7 @@ export default function CreateMarketPage() {
     tokenId: CREDITS_TOKEN_PROGRAM_ADDRESS,
   });
 
-  const { createMarket } = useAleoPrograms();
+  const { createMarket } = useCreateMarketTransaction();
   const { data: protocolConfig } = useProtocolConfigQuery();
   const maxOutcomeCount = Math.max(
     2,

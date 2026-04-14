@@ -327,11 +327,11 @@ export function ResolutionModal({
                       )}
                     </div>
 
-                    {proposal && (
+                    {/* {proposal && (
                       <div className="p-3 rounded-lg bg-muted/20 border border-border/50 text-xs text-muted-foreground">
                         Finalization is available to the oracle owner on the market page.
                       </div>
-                    )}
+                    )} */}
 
                     {isWindowActive && (
                       <div className="space-y-3">

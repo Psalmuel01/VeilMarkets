@@ -1,7 +1,7 @@
 import { supabase } from "./supabase";
 import { PROGRAM_ID } from "./constants";
 
-const MARKETS_TABLE_V11 = "markets_v11";
+const MARKETS_TABLE_V11 = "markets_v10";
 
 export interface MarketMetadata {
   title: string;
