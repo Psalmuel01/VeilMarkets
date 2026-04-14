@@ -1,0 +1,361 @@
+{
+  "program": "veilmarkets_liquidity_v4.aleo",
+  "structs": [
+    {
+      "path": [
+        "MarketConfig"
+      ],
+      "fields": [
+        {
+          "name": "creator",
+          "ty": {
+            "Primitive": "Address"
+          }
+        },
+        {
+          "name": "outcome_count",
+          "ty": {
+            "Primitive": {
+              "UInt": "U8"
+            }
+          }
+        },
+        {
+          "name": "close_time",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "is_resolved",
+          "ty": {
+            "Primitive": "Boolean"
+          }
+        },
+        {
+          "name": "token_id",
+          "ty": {
+            "Primitive": "Address"
+          }
+        }
+      ]
+    },
+    {
+      "path": [
+        "PoolState"
+      ],
+      "fields": [
+        {
+          "name": "total_outcome_0",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "total_outcome_1",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "total_outcome_2",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "total_outcome_3",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "total_outcome_4",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "total_outcome_5",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "total_outcome_6",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "total_outcome_7",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "outcome_supply",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "trader_count",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "lp_count",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "locked",
+          "ty": {
+            "Primitive": "Boolean"
+          }
+        },
+        {
+          "name": "total_collateral",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "lp_collateral",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "lp_supply",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "cumulative_volume",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "records": [],
+  "mappings": [
+    {
+      "name": "markets",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Struct": {
+          "path": [
+            "MarketConfig"
+          ],
+          "program": "veilmarkets_liquidity_v4.aleo"
+        }
+      }
+    },
+    {
+      "name": "pools",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Struct": {
+          "path": [
+            "PoolState"
+          ],
+          "program": "veilmarkets_liquidity_v4.aleo"
+        }
+      }
+    },
+    {
+      "name": "lp_balances",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Primitive": {
+          "UInt": "U64"
+        }
+      }
+    },
+    {
+      "name": "ping_last_seen",
+      "key": {
+        "Primitive": "Address"
+      },
+      "value": {
+        "Primitive": "Field"
+      }
+    }
+  ],
+  "storage_variables": [],
+  "functions": [
+    {
+      "name": "register_market",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "market_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "outcome_count",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U8"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "close_time",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "token_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Address"
+            }
+          },
+          "mode": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "fund_pool",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "input_credits",
+          "ty": {
+            "Record": {
+              "path": [
+                "credits"
+              ],
+              "program": "credits.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "market_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "amount",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "credits"
+              ],
+              "program": "credits.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "ping",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "nonce",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    }
+  ]
+}

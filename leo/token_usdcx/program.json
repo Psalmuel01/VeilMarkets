@@ -1,5 +1,5 @@
 {
-  "program": "veilmarkets_token_usdcx_v12.aleo",
+  "program": "veilmarkets_token_usdcx_v13.aleo",
   "version": "0.1.0",
   "description": "",
   "license": "MIT",
@@ -12,13 +12,13 @@
       "edition": null
     },
     {
-      "name": "veilmarkets_core_v12.aleo",
+      "name": "veilmarkets_core_v13.aleo",
       "location": "network",
       "path": null,
       "edition": null
     },
     {
-      "name": "veilmarkets_factory_v12.aleo",
+      "name": "veilmarkets_factory_v13.aleo",
       "location": "network",
       "path": null,
       "edition": null

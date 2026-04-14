@@ -1,4 +1,4 @@
-program veilmarkets_factory_v12.aleo;
+program veilmarkets_factory_v13.aleo;
 
 mapping contracts:
     key as address.public;
@@ -8,7 +8,7 @@ function register_contract:
     input r0 as u8.public;
     input r1 as address.public;
     async register_contract r0 r1 self.caller into r2;
-    output r2 as veilmarkets_factory_v12.aleo/register_contract.future;
+    output r2 as veilmarkets_factory_v13.aleo/register_contract.future;
 
 finalize register_contract:
     input r0 as u8.public;
@@ -29,7 +29,7 @@ function verify_is_registered:
     input r0 as u8.public;
     input r1 as address.public;
     async verify_is_registered r0 r1 into r2;
-    output r2 as veilmarkets_factory_v12.aleo/verify_is_registered.future;
+    output r2 as veilmarkets_factory_v13.aleo/verify_is_registered.future;
 
 finalize verify_is_registered:
     input r0 as u8.public;

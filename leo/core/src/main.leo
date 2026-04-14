@@ -1,6 +1,6 @@
-import veilmarkets_factory_v12.aleo;
+import veilmarkets_factory_v13.aleo;
 
-program veilmarkets_core_v12.aleo {
+program veilmarkets_core_v13.aleo {
     const OUTCOME_UNRESOLVED: u8 = 254u8;
     const OUTCOME_CANCELLED: u8 = 255u8;
 
@@ -137,7 +137,7 @@ program veilmarkets_core_v12.aleo {
     ) -> Final {
         let caller: address = self.caller;
         let market_id: field = BHP256::hash_to_field(title_hash + caller as field);
-        let auth: Final = veilmarkets_factory_v12.aleo::verify_is_registered(
+        let auth: Final = veilmarkets_factory_v13.aleo::verify_is_registered(
             TOKEN_CONTRACT_TYPE,
             token_id,
         );
@@ -335,7 +335,7 @@ program veilmarkets_core_v12.aleo {
     ) -> Final {
         assert(resolver != self.address);
         let caller: address = self.caller;
-        let auth: Final = veilmarkets_factory_v12.aleo::verify_is_registered(
+        let auth: Final = veilmarkets_factory_v13.aleo::verify_is_registered(
             ORACLE_CONTRACT_TYPE,
             caller,
         );
@@ -357,7 +357,7 @@ program veilmarkets_core_v12.aleo {
 
     fn set_protocol_u64(public param_key: u8, public value: u64) -> Final {
         let caller: address = self.caller;
-        let auth: Final = veilmarkets_factory_v12.aleo::verify_is_registered(
+        let auth: Final = veilmarkets_factory_v13.aleo::verify_is_registered(
             GOVERNANCE_CONTRACT_TYPE,
             caller,
         );
@@ -369,7 +369,7 @@ program veilmarkets_core_v12.aleo {
 
     fn set_protocol_u8(public param_key: u8, public value: u8) -> Final {
         let caller: address = self.caller;
-        let auth: Final = veilmarkets_factory_v12.aleo::verify_is_registered(
+        let auth: Final = veilmarkets_factory_v13.aleo::verify_is_registered(
             GOVERNANCE_CONTRACT_TYPE,
             caller,
         );

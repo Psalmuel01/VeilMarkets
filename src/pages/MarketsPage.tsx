@@ -53,7 +53,7 @@ export default function MarketsPage() {
   const poolQueries = useQueries({
     queries: chainMarkets.map((market) => ({
       queryKey: queryKeys.marketPool(market.id),
-      queryFn: () => fetchPoolStats(market.id),
+      queryFn: () => fetchPoolStats(market.id, market.program_id),
       enabled: chainMarkets.length > 0,
       refetchInterval: 7_000,
       staleTime: 3_000,
@@ -95,6 +95,7 @@ export default function MarketsPage() {
 
       return {
         id: market.id,
+        programId: market.program_id,
         title: market.title,
         description: market.description,
         category: mapCategory(market.category),

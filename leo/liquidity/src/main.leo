@@ -1,0 +1,194 @@
+import credits.aleo;
+
+program veilmarkets_liquidity_v4.aleo {
+    const MAX_OUTCOMES: u8 = 8u8;
+    const MIN_LIQUIDITY: u64 = 1000000u64;
+
+    struct MarketConfig {
+        creator: address,
+        outcome_count: u8,
+        close_time: u64,
+        is_resolved: bool,
+        token_id: address,
+    }
+
+    struct PoolState {
+        total_outcome_0: u64,
+        total_outcome_1: u64,
+        total_outcome_2: u64,
+        total_outcome_3: u64,
+        total_outcome_4: u64,
+        total_outcome_5: u64,
+        total_outcome_6: u64,
+        total_outcome_7: u64,
+        outcome_supply: u64,
+        trader_count: u64,
+        lp_count: u64,
+        locked: bool,
+        total_collateral: u64,
+        lp_collateral: u64,
+        lp_supply: u64,
+        cumulative_volume: u64,
+    }
+
+    mapping markets: field => MarketConfig;
+    mapping pools: field => PoolState;
+    mapping lp_balances: field => u64;
+    mapping ping_last_seen: address => field;
+
+    @admin(address = "aleo1gg2c0sqseya4f68g6j9qmh455c0pft2m6pnd43rls72ac0pdsvzs5f3v6l")
+    constructor() {}
+
+    fn register_market(
+        public market_id: field,
+        public outcome_count: u8,
+        public close_time: u64,
+        public token_id: address,
+    ) -> Final {
+        let caller: address = self.caller;
+        return final {
+            finalize_register_market(market_id, outcome_count, close_time, token_id, caller);
+        };
+    }
+
+    fn fund_pool(
+        input_credits: credits.aleo::credits,
+        public market_id: field,
+        public amount: u64,
+    ) -> (credits.aleo::credits, Final) {
+        assert(input_credits.microcredits >= amount);
+        assert(amount >= MIN_LIQUIDITY);
+        let (change, transfer_future): (credits.aleo::credits, Final) = credits.aleo::transfer_private_to_public(
+            input_credits,
+            self.address,
+            amount,
+        );
+        let lp_owner_key: field = BHP256::hash_to_field(market_id + self.signer as field);
+        let f: Final = final {
+            transfer_future.run();
+            finalize_fund_pool(market_id, amount, lp_owner_key);
+        };
+        return (change, f);
+    }
+
+    fn ping(public nonce: field) -> Final {
+        let caller: address = self.caller;
+        return final {
+            finalize_ping(caller, nonce);
+        };
+    }
+}
+
+fn lp_balance_key(market_id: field, lp_owner_key: field) -> field {
+    return BHP256::hash_to_field(market_id + lp_owner_key);
+}
+
+final fn finalize_register_market(
+    market_id: field,
+    outcome_count: u8,
+    close_time: u64,
+    token_id: address,
+    creator: address,
+) {
+    assert(outcome_count >= 2u8);
+    assert(outcome_count <= MAX_OUTCOMES);
+    assert(close_time > block.timestamp as u64);
+
+    if Mapping::contains(markets, market_id) {
+        let existing: MarketConfig = Mapping::get(markets, market_id);
+        assert_eq(existing.creator, creator);
+        assert_eq(existing.outcome_count, outcome_count);
+        assert_eq(existing.close_time, close_time);
+        assert_eq(existing.token_id, token_id);
+        if !Mapping::contains(pools, market_id) {
+            let empty_pool: PoolState = PoolState {
+                total_outcome_0: 0u64,
+                total_outcome_1: 0u64,
+                total_outcome_2: 0u64,
+                total_outcome_3: 0u64,
+                total_outcome_4: 0u64,
+                total_outcome_5: 0u64,
+                total_outcome_6: 0u64,
+                total_outcome_7: 0u64,
+                outcome_supply: 0u64,
+                trader_count: 0u64,
+                lp_count: 0u64,
+                locked: false,
+                total_collateral: 0u64,
+                lp_collateral: 0u64,
+                lp_supply: 0u64,
+                cumulative_volume: 0u64,
+            };
+            Mapping::set(pools, market_id, empty_pool);
+        }
+        return;
+    }
+
+    let market: MarketConfig = MarketConfig {
+        creator: creator,
+        outcome_count: outcome_count,
+        close_time: close_time,
+        is_resolved: false,
+        token_id: token_id,
+    };
+    let empty_pool: PoolState = PoolState {
+        total_outcome_0: 0u64,
+        total_outcome_1: 0u64,
+        total_outcome_2: 0u64,
+        total_outcome_3: 0u64,
+        total_outcome_4: 0u64,
+        total_outcome_5: 0u64,
+        total_outcome_6: 0u64,
+        total_outcome_7: 0u64,
+        outcome_supply: 0u64,
+        trader_count: 0u64,
+        lp_count: 0u64,
+        locked: false,
+        total_collateral: 0u64,
+        lp_collateral: 0u64,
+        lp_supply: 0u64,
+        cumulative_volume: 0u64,
+    };
+
+    Mapping::set(markets, market_id, market);
+    Mapping::set(pools, market_id, empty_pool);
+}
+
+final fn finalize_fund_pool(market_id: field, amount: u64, lp_owner_key: field) {
+    let market: MarketConfig = Mapping::get(markets, market_id);
+    assert(!market.is_resolved);
+    assert(block.timestamp as u64 < market.close_time);
+
+    let pool: PoolState = Mapping::get(pools, market_id);
+    assert(!pool.locked);
+    let per_outcome: u64 = amount / market.outcome_count as u64;
+    assert(per_outcome > 0u64);
+
+    let updated_pool: PoolState = PoolState {
+        total_outcome_0: pool.total_outcome_0 + ((market.outcome_count > 0u8) ? per_outcome : 0u64),
+        total_outcome_1: pool.total_outcome_1 + ((market.outcome_count > 1u8) ? per_outcome : 0u64),
+        total_outcome_2: pool.total_outcome_2 + ((market.outcome_count > 2u8) ? per_outcome : 0u64),
+        total_outcome_3: pool.total_outcome_3 + ((market.outcome_count > 3u8) ? per_outcome : 0u64),
+        total_outcome_4: pool.total_outcome_4 + ((market.outcome_count > 4u8) ? per_outcome : 0u64),
+        total_outcome_5: pool.total_outcome_5 + ((market.outcome_count > 5u8) ? per_outcome : 0u64),
+        total_outcome_6: pool.total_outcome_6 + ((market.outcome_count > 6u8) ? per_outcome : 0u64),
+        total_outcome_7: pool.total_outcome_7 + ((market.outcome_count > 7u8) ? per_outcome : 0u64),
+        outcome_supply: pool.outcome_supply + per_outcome,
+        trader_count: pool.trader_count,
+        lp_count: pool.lp_count + 1u64,
+        locked: false,
+        total_collateral: pool.total_collateral + amount,
+        lp_collateral: pool.lp_collateral + amount,
+        lp_supply: pool.lp_supply + amount,
+        cumulative_volume: pool.cumulative_volume,
+    };
+    Mapping::set(pools, market_id, updated_pool);
+
+    let balance_key: field = lp_balance_key(market_id, lp_owner_key);
+    let current_balance: u64 = Mapping::get_or_use(lp_balances, balance_key, 0u64);
+    Mapping::set(lp_balances, balance_key, current_balance + amount);
+}
+
+final fn finalize_ping(caller: address, nonce: field) {
+    Mapping::set(ping_last_seen, caller, nonce);
+}

@@ -32,6 +32,7 @@ interface PlaceBetModalProps {
   marketId: string;
   marketTitle: string;
   tokenId: string; // The specific token contract for this market
+  marketProgramId?: string;
   marketType: number;
   outcomeCount: number;
   outcomeLabels?: string[];
@@ -46,6 +47,7 @@ export const PlaceBetModal = ({
   marketId,
   marketTitle,
   tokenId,
+  marketProgramId,
   marketType,
   outcomeCount,
   outcomeLabels,
@@ -67,7 +69,7 @@ export const PlaceBetModal = ({
     SLIPPAGE_BPS,
     open && Boolean(publicKey),
   );
-  const poolQuery = useMarketPoolQuery(marketId, open);
+  const poolQuery = useMarketPoolQuery(marketId, open, marketProgramId);
   const balanceQuery = useTokenBalanceQuery(tokenId, open && Boolean(publicKey));
   const balances = balanceQuery.data ?? null;
   const pool = poolQuery.data ?? null;

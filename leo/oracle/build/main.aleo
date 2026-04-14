@@ -1,8 +1,8 @@
 import credits.aleo;
-import veilmarkets_factory_v12.aleo;
-import veilmarkets_core_v12.aleo;
-import veilmarkets_governance_v12.aleo;
-program veilmarkets_oracle_v12.aleo;
+import veilmarkets_factory_v13.aleo;
+import veilmarkets_core_v13.aleo;
+import veilmarkets_governance_v13.aleo;
+program veilmarkets_oracle_v13.aleo;
 
 record OracleCredential:
     owner as address.private;
@@ -97,14 +97,14 @@ mapping resolved_outcomes:
 function register_oracle:
     input r0 as credits.aleo/credits.record;
     input r1 as u64.public;
-    call credits.aleo/transfer_private_to_public r0 veilmarkets_oracle_v12.aleo r1 into r2 r3;
+    call credits.aleo/transfer_private_to_public r0 veilmarkets_oracle_v13.aleo r1 into r2 r3;
     cast self.signer into r4 as field;
     hash.bhp256 r4 into r5 as group;
     cast self.signer r1 100u64 r5 into r6 as OracleCredential.record;
     async register_oracle r3 self.caller r1 into r7;
     output r2 as credits.aleo/credits.record;
     output r6 as OracleCredential.record;
-    output r7 as veilmarkets_oracle_v12.aleo/register_oracle.future;
+    output r7 as veilmarkets_oracle_v13.aleo/register_oracle.future;
 
 finalize register_oracle:
     input r0 as credits.aleo/transfer_private_to_public.future;
@@ -127,7 +127,7 @@ function propose_resolution:
     lte r1 7u8 into r2;
     assert.eq r2 true;
     async propose_resolution r0 r1 self.caller into r3;
-    output r3 as veilmarkets_oracle_v12.aleo/propose_resolution.future;
+    output r3 as veilmarkets_oracle_v13.aleo/propose_resolution.future;
 
 finalize propose_resolution:
     input r0 as field.public;
@@ -160,10 +160,10 @@ function dispute_resolution:
     input r0 as credits.aleo/credits.record;
     input r1 as field.public;
     input r2 as u64.public;
-    call credits.aleo/transfer_private_to_public r0 veilmarkets_oracle_v12.aleo r2 into r3 r4;
+    call credits.aleo/transfer_private_to_public r0 veilmarkets_oracle_v13.aleo r2 into r3 r4;
     async dispute_resolution r4 r1 self.caller r2 into r5;
     output r3 as credits.aleo/credits.record;
-    output r5 as veilmarkets_oracle_v12.aleo/dispute_resolution.future;
+    output r5 as veilmarkets_oracle_v13.aleo/dispute_resolution.future;
 
 finalize dispute_resolution:
     input r0 as credits.aleo/transfer_private_to_public.future;
@@ -200,7 +200,7 @@ function submit_quorum_vote:
     cast r0.owner r0.staked_amount r0.reputation_score r5 into r6 as OracleCredential.record;
     async submit_quorum_vote r1 r2 self.caller into r7;
     output r6 as OracleCredential.record;
-    output r7 as veilmarkets_oracle_v12.aleo/submit_quorum_vote.future;
+    output r7 as veilmarkets_oracle_v13.aleo/submit_quorum_vote.future;
 
 finalize submit_quorum_vote:
     input r0 as field.public;
@@ -250,7 +250,7 @@ function vote_on_resolution:
     cast r0.owner r0.staked_amount r0.reputation_score r5 into r6 as OracleCredential.record;
     async vote_on_resolution r1 r2 self.caller into r7;
     output r6 as OracleCredential.record;
-    output r7 as veilmarkets_oracle_v12.aleo/vote_on_resolution.future;
+    output r7 as veilmarkets_oracle_v13.aleo/vote_on_resolution.future;
 
 finalize vote_on_resolution:
     input r0 as field.public;
@@ -293,12 +293,12 @@ function resolve_on_core:
     input r1 as u8.public;
     lte r1 7u8 into r2;
     assert.eq r2 true;
-    call veilmarkets_core_v12.aleo/resolve_market r0 r1 veilmarkets_oracle_v12.aleo into r3;
+    call veilmarkets_core_v13.aleo/resolve_market r0 r1 veilmarkets_oracle_v13.aleo into r3;
     async resolve_on_core r3 r0 r1 into r4;
-    output r4 as veilmarkets_oracle_v12.aleo/resolve_on_core.future;
+    output r4 as veilmarkets_oracle_v13.aleo/resolve_on_core.future;
 
 finalize resolve_on_core:
-    input r0 as veilmarkets_core_v12.aleo/resolve_market.future;
+    input r0 as veilmarkets_core_v13.aleo/resolve_market.future;
     input r1 as field.public;
     input r2 as u8.public;
     await r0;
@@ -425,7 +425,7 @@ function unstake_credits:
     call credits.aleo/transfer_public_to_private self.caller r0 into r1 r2;
     async unstake_credits r2 self.caller r0 into r3;
     output r1 as credits.aleo/credits.record;
-    output r3 as veilmarkets_oracle_v12.aleo/unstake_credits.future;
+    output r3 as veilmarkets_oracle_v13.aleo/unstake_credits.future;
 
 finalize unstake_credits:
     input r0 as credits.aleo/transfer_public_to_private.future;
@@ -450,7 +450,7 @@ finalize unstake_credits:
 function claim_vote_reward:
     input r0 as field.public;
     async claim_vote_reward r0 self.caller into r1;
-    output r1 as veilmarkets_oracle_v12.aleo/claim_vote_reward.future;
+    output r1 as veilmarkets_oracle_v13.aleo/claim_vote_reward.future;
 
 finalize claim_vote_reward:
     input r0 as field.public;
@@ -505,14 +505,14 @@ finalize claim_vote_reward:
 function withdraw_platform_fees:
     input r0 as u64.public;
     input r1 as address.public;
-    call veilmarkets_factory_v12.aleo/verify_is_registered 4u8 self.caller into r2;
+    call veilmarkets_factory_v13.aleo/verify_is_registered 4u8 self.caller into r2;
     call credits.aleo/transfer_public_to_private r1 r0 into r3 r4;
     async withdraw_platform_fees r2 r4 r0 into r5;
     output r3 as credits.aleo/credits.record;
-    output r5 as veilmarkets_oracle_v12.aleo/withdraw_platform_fees.future;
+    output r5 as veilmarkets_oracle_v13.aleo/withdraw_platform_fees.future;
 
 finalize withdraw_platform_fees:
-    input r0 as veilmarkets_factory_v12.aleo/verify_is_registered.future;
+    input r0 as veilmarkets_factory_v13.aleo/verify_is_registered.future;
     input r1 as credits.aleo/transfer_public_to_private.future;
     input r2 as u64.public;
     await r0;
@@ -528,7 +528,7 @@ finalize withdraw_platform_fees:
 function admin_set_pause:
     input r0 as boolean.public;
     async admin_set_pause r0 self.caller into r1;
-    output r1 as veilmarkets_oracle_v12.aleo/admin_set_pause.future;
+    output r1 as veilmarkets_oracle_v13.aleo/admin_set_pause.future;
 
 finalize admin_set_pause:
     input r0 as boolean.public;
@@ -541,12 +541,12 @@ function set_protocol_u64:
     input r0 as field.public;
     input r1 as u8.public;
     input r2 as u64.public;
-    call veilmarkets_governance_v12.aleo/consume_oracle_u64 r0 r1 r2 into r3;
+    call veilmarkets_governance_v13.aleo/consume_oracle_u64 r0 r1 r2 into r3;
     async set_protocol_u64 r3 r1 r2 into r4;
-    output r4 as veilmarkets_oracle_v12.aleo/set_protocol_u64.future;
+    output r4 as veilmarkets_oracle_v13.aleo/set_protocol_u64.future;
 
 finalize set_protocol_u64:
-    input r0 as veilmarkets_governance_v12.aleo/consume_oracle_u64.future;
+    input r0 as veilmarkets_governance_v13.aleo/consume_oracle_u64.future;
     input r1 as u8.public;
     input r2 as u64.public;
     await r0;
@@ -570,12 +570,12 @@ function set_protocol_u8:
     input r0 as field.public;
     input r1 as u8.public;
     input r2 as u8.public;
-    call veilmarkets_governance_v12.aleo/consume_oracle_u8 r0 r1 r2 into r3;
+    call veilmarkets_governance_v13.aleo/consume_oracle_u8 r0 r1 r2 into r3;
     async set_protocol_u8 r3 r1 r2 into r4;
-    output r4 as veilmarkets_oracle_v12.aleo/set_protocol_u8.future;
+    output r4 as veilmarkets_oracle_v13.aleo/set_protocol_u8.future;
 
 finalize set_protocol_u8:
-    input r0 as veilmarkets_governance_v12.aleo/consume_oracle_u8.future;
+    input r0 as veilmarkets_governance_v13.aleo/consume_oracle_u8.future;
     input r1 as u8.public;
     input r2 as u8.public;
     await r0;

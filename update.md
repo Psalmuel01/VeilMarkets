@@ -4,15 +4,15 @@ VeilMarkets has changed substantially since the v8 era. What began as an earlier
 
 ## Current State
 
-- Current deployed-style program suite uses `v12` program IDs.
+- Current deployed-style program suite uses `v13` program IDs.
 - The protocol now runs as a modular contract stack:
-  - `veilmarkets_factory_v12.aleo`
-  - `veilmarkets_core_v12.aleo`
-  - `veilmarkets_governance_v12.aleo`
-  - `veilmarkets_oracle_v12.aleo`
-  - `veilmarkets_token_credits_v12.aleo`
-  - `veilmarkets_token_usdcx_v12.aleo`
-  - `veilmarkets_token_usad_v12.aleo`
+  - `veilmarkets_factory_v13.aleo`
+  - `veilmarkets_core_v13.aleo`
+  - `veilmarkets_governance_v13.aleo`
+  - `veilmarkets_oracle_v13.aleo`
+  - `veilmarkets_token_credits_v13.aleo`
+  - `veilmarkets_token_usdcx_v13.aleo`
+  - `veilmarkets_token_usad_v13.aleo`
 
 ## 1. Market Model Rewrite
 
@@ -121,7 +121,7 @@ Major product changes:
 - LP funding and withdrawal flows are wired into the market experience
 - oracle registration, stake status, and unstaking are exposed in the UI
 - resolution and claims follow the current core/oracle/token-adapter lifecycle
-- metadata storage and reads are aligned around the current `v12` schema
+- metadata storage and reads are aligned around the current `v13` schema
 
 The app runtime is now effectively a current-suite-only flow rather than a mixed legacy compatibility layer.
 

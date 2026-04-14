@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchCurrentBlockHeight, type PoolInfo } from "@/lib/aleo";
 import { queryKeys } from "@/lib/queryKeys";
-import { resolveTokenKind, type SupportedTokenKind } from "@/lib/constants";
+import { CREATE_PROGRAM_ID, resolveTokenKind, type SupportedTokenKind } from "@/lib/constants";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
+import { useFundPoolTransaction } from "@/hooks/useFundPoolTransaction";
 
 const POLL_INTERVAL_MS = 5_000;
 const DEFAULT_STALE_MS = 3_000;
@@ -32,6 +33,7 @@ interface FundPoolVariables {
   marketId: string;
   amountCredits: number;
   tokenId: string;
+  marketProgramId?: string;
 }
 
 interface WithdrawLiquidityVariables {
@@ -106,12 +108,12 @@ export const useProtocolConfigQuery = () => {
   });
 };
 
-export const useMarketPoolQuery = (marketId?: string, enabled = true) => {
+export const useMarketPoolQuery = (marketId?: string, enabled = true, marketProgramId?: string) => {
   const { fetchPoolStats } = useAleoPrograms();
 
   return useQuery({
     queryKey: queryKeys.marketPool(marketId ?? ""),
-    queryFn: () => fetchPoolStats(marketId ?? ""),
+    queryFn: () => fetchPoolStats(marketId ?? "", marketProgramId),
     enabled: Boolean(marketId) && enabled,
     staleTime: DEFAULT_STALE_MS,
     refetchInterval: POLL_INTERVAL_MS,
@@ -122,12 +124,18 @@ export const useMarketUserPositionQuery = (
   marketId?: string,
   outcome?: number | null,
   enabled = true,
+  marketProgramId?: string,
 ) => {
   const { fetchMarketPositionSummary, publicKey } = useAleoPrograms();
 
   return useQuery({
     queryKey: queryKeys.marketUserPosition(marketId ?? "", publicKey, outcome ?? null),
-    queryFn: () => fetchMarketPositionSummary(marketId ?? "", typeof outcome === "number" ? outcome : undefined),
+    queryFn: () =>
+      fetchMarketPositionSummary(
+        marketId ?? "",
+        typeof outcome === "number" ? outcome : undefined,
+        marketProgramId,
+      ),
     enabled: Boolean(publicKey) && Boolean(marketId) && enabled,
     staleTime: DEFAULT_STALE_MS,
     refetchInterval: POLL_INTERVAL_MS,
@@ -435,10 +443,14 @@ export const useSellSharesMutation = () => {
 export const useFundPoolMutation = () => {
   const queryClient = useQueryClient();
   const { fundPool, publicKey } = useAleoPrograms();
+  const { fundPool: fundPoolStageOne } = useFundPoolTransaction();
 
   return useMutation({
-    mutationFn: async ({ marketId, amountCredits, tokenId }: FundPoolVariables) => {
-      const txId = await fundPool(marketId, amountCredits, tokenId);
+    mutationFn: async ({ marketId, amountCredits, tokenId, marketProgramId }: FundPoolVariables) => {
+      const txId =
+        marketProgramId === CREATE_PROGRAM_ID
+          ? await fundPoolStageOne(marketId, amountCredits, tokenId, marketProgramId)
+          : await fundPool(marketId, amountCredits, tokenId);
       if (!txId) throw new Error("Fund pool transaction failed");
       return txId;
     },

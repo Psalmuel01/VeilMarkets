@@ -68,7 +68,7 @@ program test_veilmarkets.aleo {
     const OUTCOME_CANCELLED: u8 = 255u8;
 
     @test
-    fn shape_rules_v12() {
+    fn shape_rules_v13() {
         assert_eq(is_valid_market_shape(0u8, 2u8, DEFAULT_MAX_OUTCOMES), true);
         assert_eq(is_valid_market_shape(1u8, 2u8, DEFAULT_MAX_OUTCOMES), true);
         assert_eq(is_valid_market_shape(1u8, 8u8, DEFAULT_MAX_OUTCOMES), true);

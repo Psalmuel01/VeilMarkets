@@ -1,0 +1,9 @@
+{
+  "program": "veilmarkets_create_v1.aleo",
+  "version": "0.1.0",
+  "description": "Minimal isolated market creation program for Shield-safe frontend testing",
+  "license": "MIT",
+  "leo": "4.0.0",
+  "dependencies": [],
+  "dev_dependencies": null
+}

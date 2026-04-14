@@ -9,6 +9,7 @@ import { useMarketPoolQuery } from "@/hooks/useVeilQuery";
 
 export interface Market {
   id: string;
+  programId?: string;
   title: string;
   description: string;
   category: "Sports" | "Finance" | "Crypto" | "Politics" | "Entertainment" | "Tech" | "Other";
@@ -44,7 +45,7 @@ export function MarketCard({ market }: MarketCardProps) {
     ? getOutcomeTone(market.marketType, normalizeOutcomeCount(market.outcomeCount), market.winningOutcome)
     : "neutral";
 
-  const { data: pool } = useMarketPoolQuery(market.id);
+  const { data: pool } = useMarketPoolQuery(market.id, true, market.programId);
     
 
   return (

@@ -38,6 +38,8 @@ interface ParsedBetRecord {
 // Aleo Program IDs from constants
 import {
   PROGRAM_ID,
+  CREATE_PROGRAM_ID,
+  LIQUIDITY_PROGRAM_ID,
   ORACLE_PROGRAM_ID,
   CREDITS_TOKEN_PROGRAM_ID,
   USDCX_TOKEN_PROGRAM_ID,
@@ -418,6 +420,23 @@ const normalizeField = (value: unknown): string => {
 
 const normalizeFieldId = (marketId: string): string =>
   marketId.includes("field") ? marketId.replace(/\s+/g, "") : `${marketId.replace(/\s+/g, "")}field`;
+
+const resolvePoolProgramId = (marketProgramId?: string): string =>
+  marketProgramId === CREATE_PROGRAM_ID ? LIQUIDITY_PROGRAM_ID : PROGRAM_ID;
+
+const parseLiquidityMarketConfig = (raw: unknown): {
+  outcome_count: number;
+  close_time: number;
+  is_resolved: boolean;
+} | null => {
+  const obj = toObject(raw);
+  if (!obj) return null;
+  return {
+    outcome_count: parseMappingU64(obj.outcome_count),
+    close_time: parseMappingU64(obj.close_time),
+    is_resolved: Boolean(obj.is_resolved === true || obj.is_resolved === "true"),
+  };
+};
 
 let cachedBhpHelpers:
   | BhpHelpers
@@ -1080,10 +1099,10 @@ export const useAleoPrograms = () => {
     }
   }, []);
 
-  const fetchPoolStats = useCallback(async (marketId: string): Promise<PoolInfo | null> => {
+  const fetchPoolStats = useCallback(async (marketId: string, marketProgramId?: string): Promise<PoolInfo | null> => {
     try {
       const cleanedId = marketId.replace("field", "").trim() + "field";
-      const raw = await fetchMappingValue(PROGRAM_ID, "pools", cleanedId);
+      const raw = await fetchMappingValue(resolvePoolProgramId(marketProgramId), "pools", cleanedId);
       if (!raw) return null;
       return parsePoolInfo(raw as any);
     } catch (error) {
@@ -1096,9 +1115,10 @@ export const useAleoPrograms = () => {
     async (
       marketId: string,
       outcomeCount: number,
-      _preferredProgramId?: string,
+      preferredProgramId?: string,
     ): Promise<number[]> => {
       const cleanMarketId = normalizeFieldId(marketId);
+      const poolProgramId = resolvePoolProgramId(preferredProgramId);
       const normalizedCount = Math.max(2, outcomeCount);
       const indices = Array.from({ length: normalizedCount }, (_, index) => index);
       const totals = await Promise.all(
@@ -1106,8 +1126,8 @@ export const useAleoPrograms = () => {
           const exposureKey = await deriveOutcomeExposureKey(cleanMarketId, index);
           if (!exposureKey) return 0;
           const [qtyRaw, supplyRaw] = await Promise.all([
-            fetchMappingValue(PROGRAM_ID, "outcome_token_qty", exposureKey),
-            fetchMappingValue(PROGRAM_ID, "outcome_token_supply", exposureKey),
+            fetchMappingValue(poolProgramId, "outcome_token_qty", exposureKey),
+            fetchMappingValue(poolProgramId, "outcome_token_supply", exposureKey),
           ]);
           const qty = parseMappingBigInt(qtyRaw);
           const supply = parseMappingBigInt(supplyRaw);
@@ -1453,7 +1473,7 @@ export const useAleoPrograms = () => {
           } catch (metadataError) {
             const maybeError = metadataError as { code?: string; message?: string };
             if (maybeError?.code === "42501") {
-              toast.warning("Market created on-chain, but metadata save was blocked by Supabase RLS for markets_v12.");
+              toast.warning("Market created on-chain, but metadata save was blocked by Supabase RLS for markets_v13.");
             } else {
               toast.warning("Market created on-chain, but metadata save failed.");
             }
@@ -1576,7 +1596,7 @@ export const useAleoPrograms = () => {
   };
 
   const fetchMarketPositionSummary = useCallback(
-    async (marketId: string, outcome?: number): Promise<MarketPositionSummary> => {
+    async (marketId: string, outcome?: number, marketProgramId?: string): Promise<MarketPositionSummary> => {
       const cleanMarketId = marketId.replace(/field$/i, "").trim();
       const empty: MarketPositionSummary = {
         marketId: cleanMarketId,
@@ -1595,6 +1615,41 @@ export const useAleoPrograms = () => {
       if (!address || !cleanMarketId) return empty;
 
       try {
+        if (marketProgramId === CREATE_PROGRAM_ID) {
+          const marketField = `${cleanMarketId}field`;
+          const helpers = await getAddressFieldHelpers();
+          if (!helpers) return empty;
+
+          const ownerField = formatField(helpers.toField(address));
+          const lpOwnerCommitment = await deriveLpOwnerCommitment(marketField, ownerField);
+          const lpBalanceKey = lpOwnerCommitment
+            ? await deriveLpBalanceKey(marketField, lpOwnerCommitment)
+            : null;
+          if (!lpBalanceKey) return empty;
+
+          const [lpSharesRaw, poolRaw, marketRaw] = await Promise.all([
+            fetchMappingValue(LIQUIDITY_PROGRAM_ID, "lp_balances", lpBalanceKey),
+            fetchMappingValue(LIQUIDITY_PROGRAM_ID, "pools", marketField),
+            fetchMappingValue(LIQUIDITY_PROGRAM_ID, "markets", marketField),
+          ]);
+
+          const lpShares = parseMappingU64(lpSharesRaw);
+          const poolInfo = poolRaw ? parsePoolInfo(poolRaw as string | object) : null;
+          const marketInfo = parseLiquidityMarketConfig(marketRaw);
+          const lpCollateral =
+            poolInfo && poolInfo.lp_supply > 0 && lpShares > 0
+              ? Math.floor((lpShares * poolInfo.lp_collateral) / poolInfo.lp_supply)
+              : 0;
+
+          return {
+            ...empty,
+            lpShares,
+            lpCollateral,
+            lpWithdrawable: marketInfo?.is_resolved ? lpCollateral : 0,
+            lpPositionCount: lpShares > 0 ? 1 : 0,
+          };
+        }
+
         const rawRecords = await requestRecordsWithRetry(requestRecords, PROGRAM_ID, "BetPosition");
         const records = rawRecords.filter(
           (entry): entry is WalletRecord => typeof entry === "object" && entry !== null,
@@ -1770,7 +1825,7 @@ export const useAleoPrograms = () => {
     try {
       const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
       if (!marketRaw) {
-        toast.error("Market not found on v12.");
+        toast.error("Market not found on v13.");
         return;
       }
 
@@ -1951,7 +2006,7 @@ export const useAleoPrograms = () => {
 
       const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
       if (!marketRaw) {
-        toast.error("Pool funding is only available for deployed v12 markets.");
+        toast.error("Pool funding is only available for deployed v13 markets.");
         return null;
       }
 
@@ -2056,7 +2111,7 @@ export const useAleoPrograms = () => {
 
       const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
       if (!marketRaw) {
-        toast.error("Market not found on v12.");
+        toast.error("Market not found on v13.");
         return null;
       }
       const marketInfo = parseMarketInfo(marketRaw as string | object, cleanMarketId);
@@ -2153,7 +2208,7 @@ export const useAleoPrograms = () => {
       const cleanMarketId = normalizeFieldId(marketId);
       const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
       if (!marketRaw) {
-        toast.error("Market not found on v12.");
+        toast.error("Market not found on v13.");
         return null;
       }
       const marketInfo = parseMarketInfo(marketRaw as string | object, cleanMarketId);
@@ -2537,7 +2592,7 @@ export const useAleoPrograms = () => {
       const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
       const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
       if (!marketRaw) {
-        toast.error("Market not found on v12.");
+        toast.error("Market not found on v13.");
         return null;
       }
       const marketInfo = marketRaw ? parseMarketInfo(marketRaw as string | object, cleanMarketId) : null;

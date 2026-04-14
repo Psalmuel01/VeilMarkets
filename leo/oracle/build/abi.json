@@ -1,5 +1,5 @@
 {
-  "program": "veilmarkets_oracle_v12.aleo",
+  "program": "veilmarkets_oracle_v13.aleo",
   "structs": [
     {
       "path": [
@@ -124,7 +124,7 @@
           "path": [
             "ResolutionProposal"
           ],
-          "program": "veilmarkets_oracle_v12.aleo"
+          "program": "veilmarkets_oracle_v13.aleo"
         }
       }
     },
@@ -244,7 +244,7 @@
           "path": [
             "Dispute"
           ],
-          "program": "veilmarkets_oracle_v12.aleo"
+          "program": "veilmarkets_oracle_v13.aleo"
         }
       }
     },
@@ -369,7 +369,7 @@
               "path": [
                 "OracleCredential"
               ],
-              "program": "veilmarkets_oracle_v12.aleo"
+              "program": "veilmarkets_oracle_v13.aleo"
             }
           },
           "mode": "None"
@@ -478,7 +478,7 @@
               "path": [
                 "OracleCredential"
               ],
-              "program": "veilmarkets_oracle_v12.aleo"
+              "program": "veilmarkets_oracle_v13.aleo"
             }
           },
           "mode": "None"
@@ -511,7 +511,7 @@
               "path": [
                 "OracleCredential"
               ],
-              "program": "veilmarkets_oracle_v12.aleo"
+              "program": "veilmarkets_oracle_v13.aleo"
             }
           },
           "mode": "None"
@@ -533,7 +533,7 @@
               "path": [
                 "OracleCredential"
               ],
-              "program": "veilmarkets_oracle_v12.aleo"
+              "program": "veilmarkets_oracle_v13.aleo"
             }
           },
           "mode": "None"
@@ -566,7 +566,7 @@
               "path": [
                 "OracleCredential"
               ],
-              "program": "veilmarkets_oracle_v12.aleo"
+              "program": "veilmarkets_oracle_v13.aleo"
             }
           },
           "mode": "None"

@@ -98,16 +98,15 @@ export default function MarketDetailPage() {
   const cancelMutation = useCancelMarketMutation();
 
   const { data: allMarkets = [], isLoading: isMarketsLoading } = useMarketsQuery();
-  const { data: pool } = useMarketPoolQuery(id);
-  const { data: proposal = null } = useResolutionProposalQuery(id);
-  const { data: userBets = [] } = useUserBetsQuery();
-  const { data: isOracle = false } = useOracleStatusQuery();
-
   const normalizedRouteId = normalizeMarketIdKey(id ?? "");
   const foundMarket = useMemo(
     () => allMarkets.find((market) => normalizeMarketIdKey(market.id) === normalizedRouteId),
     [allMarkets, normalizedRouteId],
   );
+  const { data: pool } = useMarketPoolQuery(id, true, foundMarket?.program_id);
+  const { data: proposal = null } = useResolutionProposalQuery(id);
+  const { data: userBets = [] } = useUserBetsQuery();
+  const { data: isOracle = false } = useOracleStatusQuery();
 
   const { data: finalizeRequirements = null } = useResolutionFinalizeRequirementsQuery(
     id,
@@ -176,6 +175,7 @@ export default function MarketDetailPage() {
     id,
     null,
     Boolean(publicKey && id),
+    foundMarket?.program_id,
   );
   const sellableOutcomeEntries = useMemo(
     () =>
@@ -975,14 +975,15 @@ export default function MarketDetailPage() {
         </div>
       </div>
 
-      <PlaceBetModal
-        open={showBetModal}
-        onClose={() => setShowBetModal(false)}
-        marketTitle={market.title}
-        marketId={market.id}
-        tokenId={market.token_id}
-        marketType={market.market_type}
-        outcomeCount={market.outcome_count}
+        <PlaceBetModal
+          open={showBetModal}
+          onClose={() => setShowBetModal(false)}
+          marketTitle={market.title}
+          marketId={market.id}
+          tokenId={market.token_id}
+          marketProgramId={foundMarket?.program_id}
+          marketType={market.market_type}
+          outcomeCount={market.outcome_count}
         outcomeLabels={market.outcome_labels}
       />
 
@@ -1010,6 +1011,7 @@ export default function MarketDetailPage() {
         marketTitle={market.title}
         marketId={market.id}
         tokenId={market.token_id}
+        marketProgramId={foundMarket?.program_id}
       />
 
       <CancelMarketModal

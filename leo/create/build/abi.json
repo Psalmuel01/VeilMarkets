@@ -1,0 +1,195 @@
+{
+  "program": "veilmarkets_create_v1.aleo",
+  "structs": [
+    {
+      "path": [
+        "MarketInfo"
+      ],
+      "fields": [
+        {
+          "name": "creator",
+          "ty": {
+            "Primitive": "Address"
+          }
+        },
+        {
+          "name": "title_hash",
+          "ty": {
+            "Primitive": "Field"
+          }
+        },
+        {
+          "name": "category",
+          "ty": {
+            "Primitive": {
+              "UInt": "U8"
+            }
+          }
+        },
+        {
+          "name": "market_type",
+          "ty": {
+            "Primitive": {
+              "UInt": "U8"
+            }
+          }
+        },
+        {
+          "name": "outcome_count",
+          "ty": {
+            "Primitive": {
+              "UInt": "U8"
+            }
+          }
+        },
+        {
+          "name": "close_time",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "resolution_time",
+          "ty": {
+            "Primitive": {
+              "UInt": "U64"
+            }
+          }
+        },
+        {
+          "name": "is_resolved",
+          "ty": {
+            "Primitive": "Boolean"
+          }
+        },
+        {
+          "name": "winning_outcome",
+          "ty": {
+            "Primitive": {
+              "UInt": "U8"
+            }
+          }
+        },
+        {
+          "name": "resolved_by_oracle",
+          "ty": {
+            "Primitive": "Boolean"
+          }
+        },
+        {
+          "name": "token_id",
+          "ty": {
+            "Primitive": "Address"
+          }
+        }
+      ]
+    }
+  ],
+  "records": [],
+  "mappings": [
+    {
+      "name": "markets",
+      "key": {
+        "Primitive": "Field"
+      },
+      "value": {
+        "Struct": {
+          "path": [
+            "MarketInfo"
+          ],
+          "program": "veilmarkets_create_v1.aleo"
+        }
+      }
+    }
+  ],
+  "storage_variables": [],
+  "functions": [
+    {
+      "name": "create_market",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "title_hash",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "category",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U8"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "market_type",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U8"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "outcome_count",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U8"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "close_time",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "resolution_time",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "Public"
+        },
+        {
+          "name": "token_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Address"
+            }
+          },
+          "mode": "Public"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    }
+  ]
+}

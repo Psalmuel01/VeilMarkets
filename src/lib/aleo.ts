@@ -199,7 +199,10 @@ export const getTimestampFromDate = (
   return Math.floor(closeAt.getTime() / 1000);
 };
 
-export const extractMarketIdFromTx = (tx: AleoTransaction | null): string | null => {
+export const extractMarketIdFromTx = (
+  tx: AleoTransaction | null,
+  programId: string = PROGRAM_ID,
+): string | null => {
   try {
     if (!tx) return null;
 
@@ -212,7 +215,7 @@ export const extractMarketIdFromTx = (tx: AleoTransaction | null): string | null
     // Find create_market transition — check both program match and function name
     const createMarketTx = transitions.find((t) => {
       const fnMatch = t.function === 'create_market';
-      const programMatch = t.program === PROGRAM_ID || String(t.program).startsWith(PROGRAM_ID.split('.')[0]);
+      const programMatch = t.program === programId || String(t.program).startsWith(programId.split('.')[0]);
       return fnMatch && programMatch;
     });
 

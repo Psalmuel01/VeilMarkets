@@ -1,6 +1,6 @@
-import veilmarkets_factory_v12.aleo;
+import veilmarkets_factory_v13.aleo;
 
-program veilmarkets_core_v12.aleo;
+program veilmarkets_core_v13.aleo;
 
 record BetPosition:
     owner as address.private;
@@ -132,55 +132,55 @@ function create_market:
     input r4 as u64.public;
     input r5 as u64.public;
     input r6 as address.public;
-    call veilmarkets_factory_v12.aleo/verify_is_registered 1u8 r6 into r7;
-    cast self.caller into r8 as field;
-    add r0 r8 into r9;
-    hash.bhp256 r9 into r10 as field;
-    async create_market r10 self.caller r0 r1 r2 r3 r4 r5 r6 r7 into r11;
-    output r11 as veilmarkets_core_v12.aleo/create_market.future;
+    cast self.caller into r7 as field;
+    add r0 r7 into r8;
+    hash.bhp256 r8 into r9 as field;
+    call veilmarkets_factory_v13.aleo/verify_is_registered 1u8 r6 into r10;
+    async create_market r10 r9 self.caller r0 r1 r2 r3 r4 r5 r6 into r11;
+    output r11 as veilmarkets_core_v13.aleo/create_market.future;
 
 finalize create_market:
-    input r0 as field.public;
-    input r1 as address.public;
-    input r2 as field.public;
-    input r3 as u8.public;
+    input r0 as veilmarkets_factory_v13.aleo/verify_is_registered.future;
+    input r1 as field.public;
+    input r2 as address.public;
+    input r3 as field.public;
     input r4 as u8.public;
     input r5 as u8.public;
-    input r6 as u64.public;
+    input r6 as u8.public;
     input r7 as u64.public;
-    input r8 as address.public;
-    input r9 as veilmarkets_factory_v12.aleo/verify_is_registered.future;
-    await r9;
+    input r8 as u64.public;
+    input r9 as address.public;
+    await r0;
     get.or_use protocol_u8[1u8] 0u8 into r10;
     is.eq r10 0u8 into r11;
     assert.eq r11 true;
-    contains markets[r0] into r12;
+    contains markets[r1] into r12;
     not r12 into r13;
     assert.eq r13 true;
-    lte r3 6u8 into r14;
+    lte r4 6u8 into r14;
     assert.eq r14 true;
-    lte r4 1u8 into r15;
+    lte r5 1u8 into r15;
     assert.eq r15 true;
     get.or_use protocol_u8[0u8] 8u8 into r16;
-    gte r5 2u8 into r17;
+    gte r6 2u8 into r17;
     assert.eq r17 true;
-    lte r5 r16 into r18;
+    lte r6 r16 into r18;
     assert.eq r18 true;
-    is.eq r4 0u8 into r19;
+    is.eq r5 0u8 into r19;
     branch.eq r19 false to end_then_0_0;
-    assert.eq r5 2u8;
+    assert.eq r6 2u8;
     branch.eq true true to end_otherwise_0_1;
     position end_then_0_0;
     position end_otherwise_0_1;
     cast block.timestamp into r20 as u64;
-    gt r6 r20 into r21;
+    gt r7 r20 into r21;
     assert.eq r21 true;
-    gte r7 r6 into r22;
+    gte r8 r7 into r22;
     assert.eq r22 true;
-    cast r1 r2 r3 r4 r5 r6 r7 false 254u8 false r8 into r23 as MarketInfo;
+    cast r2 r3 r4 r5 r6 r7 r8 false 254u8 false r9 into r23 as MarketInfo;
     cast 0u64 0u64 false 0u64 0u64 0u64 0u64 into r24 as PoolState;
-    set r23 into markets[r0];
-    set r24 into pools[r0];
+    set r23 into markets[r1];
+    set r24 into pools[r1];
 
 function buy_shares:
     input r0 as field.private;
@@ -200,7 +200,7 @@ function buy_shares:
     cast self.signer r5 r0 r1 r4 r2 r10 into r11 as BetPosition.record;
     async buy_shares r0 r1 r2 r3 r4 r5 r6 self.caller into r12;
     output r11 as BetPosition.record;
-    output r12 as veilmarkets_core_v12.aleo/buy_shares.future;
+    output r12 as veilmarkets_core_v13.aleo/buy_shares.future;
 
 finalize buy_shares:
     input r0 as field.public;
@@ -395,7 +395,7 @@ function fund_pool:
     input r1 as u64.public;
     input r2 as field.public;
     async fund_pool r0 r1 r2 self.caller into r3;
-    output r3 as veilmarkets_core_v12.aleo/fund_pool.future;
+    output r3 as veilmarkets_core_v13.aleo/fund_pool.future;
 
 finalize fund_pool:
     input r0 as field.public;
@@ -582,7 +582,7 @@ function sell_shares:
     async sell_shares r0.position_id r0.market_id r0.outcome r0.shares r0.collateral_in r1 r2 r13 r14 r21 r24 into r25;
     output r17 as BetPosition.record;
     output r23 as WinningsClaim.record;
-    output r25 as veilmarkets_core_v12.aleo/sell_shares.future;
+    output r25 as veilmarkets_core_v13.aleo/sell_shares.future;
 
 finalize sell_shares:
     input r0 as field.public;
@@ -778,7 +778,7 @@ function claim_winnings:
     hash.bhp256 r0.position_id into r8 as field;
     async claim_winnings r0.position_id r0.market_id r0.outcome r0.shares r0.collateral_in r5 r8 into r9;
     output r7 as WinningsClaim.record;
-    output r9 as veilmarkets_core_v12.aleo/claim_winnings.future;
+    output r9 as veilmarkets_core_v13.aleo/claim_winnings.future;
 
 finalize claim_winnings:
     input r0 as field.public;
@@ -838,7 +838,7 @@ function withdraw_liquidity:
     cast self.signer r0 0u64 r12 r13 into r14 as WinningsClaim.record;
     async withdraw_liquidity r0 r1 r7 r2 r12 into r15;
     output r14 as WinningsClaim.record;
-    output r15 as veilmarkets_core_v12.aleo/withdraw_liquidity.future;
+    output r15 as veilmarkets_core_v13.aleo/withdraw_liquidity.future;
 
 finalize withdraw_liquidity:
     input r0 as field.public;
@@ -902,7 +902,7 @@ function verify_claim:
     input r0 as field.public;
     input r1 as u64.public;
     async verify_claim r0 r1 self.caller into r2;
-    output r2 as veilmarkets_core_v12.aleo/verify_claim.future;
+    output r2 as veilmarkets_core_v13.aleo/verify_claim.future;
 
 finalize verify_claim:
     input r0 as field.public;
@@ -918,7 +918,7 @@ function authz_fee_withdrawal:
     input r0 as u64.public;
     input r1 as field.public;
     async authz_fee_withdrawal r0 r1 self.caller into r2;
-    output r2 as veilmarkets_core_v12.aleo/authz_fee_withdrawal.future;
+    output r2 as veilmarkets_core_v13.aleo/authz_fee_withdrawal.future;
 
 finalize authz_fee_withdrawal:
     input r0 as u64.public;
@@ -938,48 +938,48 @@ function resolve_market:
     input r0 as field.public;
     input r1 as u8.public;
     input r2 as address.public;
-    is.neq r2 veilmarkets_core_v12.aleo into r3;
+    is.neq r2 veilmarkets_core_v13.aleo into r3;
     assert.eq r3 true;
-    call veilmarkets_factory_v12.aleo/verify_is_registered 2u8 self.caller into r4;
-    async resolve_market r0 r1 r4 into r5;
-    output r5 as veilmarkets_core_v12.aleo/resolve_market.future;
+    call veilmarkets_factory_v13.aleo/verify_is_registered 2u8 self.caller into r4;
+    async resolve_market r4 r0 r1 into r5;
+    output r5 as veilmarkets_core_v13.aleo/resolve_market.future;
 
 finalize resolve_market:
-    input r0 as field.public;
-    input r1 as u8.public;
-    input r2 as veilmarkets_factory_v12.aleo/verify_is_registered.future;
-    await r2;
-    get markets[r0] into r3;
+    input r0 as veilmarkets_factory_v13.aleo/verify_is_registered.future;
+    input r1 as field.public;
+    input r2 as u8.public;
+    await r0;
+    get markets[r1] into r3;
     not r3.is_resolved into r4;
     assert.eq r4 true;
     cast block.timestamp into r5 as u64;
     gte r5 r3.resolution_time into r6;
     assert.eq r6 true;
-    lt r1 r3.outcome_count into r7;
+    lt r2 r3.outcome_count into r7;
     assert.eq r7 true;
-    cast r1 into r8 as field;
-    add r0 r8 into r9;
+    cast r2 into r8 as field;
+    add r1 r8 into r9;
     hash.bhp256 r9 into r10 as field;
     get.or_use outcome_token_supply[r10] 0u64 into r11;
     get.or_use outcome_token_qty[r10] 0u64 into r12;
     lte r12 r11 into r13;
     assert.eq r13 true;
     sub r11 r12 into r14;
-    get pools[r0] into r15;
+    get pools[r1] into r15;
     gte r15.total_collateral r14 into r16;
     assert.eq r16 true;
     sub r15.total_collateral r14 into r17;
-    set r14 into market_winner_payout_pool[r0];
-    set r17 into market_lp_return_pool[r0];
-    cast r3.creator r3.title_hash r3.category r3.market_type r3.outcome_count r3.close_time r3.resolution_time true r1 true r3.token_id into r18 as MarketInfo;
-    set r18 into markets[r0];
+    set r14 into market_winner_payout_pool[r1];
+    set r17 into market_lp_return_pool[r1];
+    cast r3.creator r3.title_hash r3.category r3.market_type r3.outcome_count r3.close_time r3.resolution_time true r2 true r3.token_id into r18 as MarketInfo;
+    set r18 into markets[r1];
     cast r15.trader_count r15.lp_count true r15.total_collateral r15.lp_collateral r15.lp_supply r15.cumulative_volume into r19 as PoolState;
-    set r19 into pools[r0];
+    set r19 into pools[r1];
 
 function cancel_market:
     input r0 as field.public;
     async cancel_market r0 self.caller into r1;
-    output r1 as veilmarkets_core_v12.aleo/cancel_market.future;
+    output r1 as veilmarkets_core_v13.aleo/cancel_market.future;
 
 finalize cancel_market:
     input r0 as field.public;
@@ -1005,7 +1005,7 @@ finalize cancel_market:
 function admin_set_pause:
     input r0 as boolean.public;
     async admin_set_pause r0 self.caller into r1;
-    output r1 as veilmarkets_core_v12.aleo/admin_set_pause.future;
+    output r1 as veilmarkets_core_v13.aleo/admin_set_pause.future;
 
 finalize admin_set_pause:
     input r0 as boolean.public;
@@ -1017,81 +1017,81 @@ finalize admin_set_pause:
 function set_protocol_u64:
     input r0 as u8.public;
     input r1 as u64.public;
-    call veilmarkets_factory_v12.aleo/verify_is_registered 4u8 self.caller into r2;
-    async set_protocol_u64 r0 r1 r2 into r3;
-    output r3 as veilmarkets_core_v12.aleo/set_protocol_u64.future;
+    call veilmarkets_factory_v13.aleo/verify_is_registered 4u8 self.caller into r2;
+    async set_protocol_u64 r2 r0 r1 into r3;
+    output r3 as veilmarkets_core_v13.aleo/set_protocol_u64.future;
 
 finalize set_protocol_u64:
-    input r0 as u8.public;
-    input r1 as u64.public;
-    input r2 as veilmarkets_factory_v12.aleo/verify_is_registered.future;
-    await r2;
-    is.eq r0 1u8 into r3;
+    input r0 as veilmarkets_factory_v13.aleo/verify_is_registered.future;
+    input r1 as u8.public;
+    input r2 as u64.public;
+    await r0;
+    is.eq r1 1u8 into r3;
     branch.eq r3 false to end_then_0_20;
-    lte r1 2000u64 into r4;
+    lte r2 2000u64 into r4;
     assert.eq r4 true;
     branch.eq true true to end_otherwise_0_21;
     position end_then_0_20;
     position end_otherwise_0_21;
-    is.eq r0 2u8 into r5;
+    is.eq r1 2u8 into r5;
     branch.eq r5 false to end_then_0_22;
-    gte r1 1u64 into r6;
+    gte r2 1u64 into r6;
     assert.eq r6 true;
     branch.eq true true to end_otherwise_0_23;
     position end_then_0_22;
     position end_otherwise_0_23;
-    is.eq r0 3u8 into r7;
+    is.eq r1 3u8 into r7;
     branch.eq r7 false to end_then_0_24;
-    gte r1 1u64 into r8;
+    gte r2 1u64 into r8;
     assert.eq r8 true;
     branch.eq true true to end_otherwise_0_25;
     position end_then_0_24;
     position end_otherwise_0_25;
-    is.eq r0 5u8 into r9;
+    is.eq r1 5u8 into r9;
     branch.eq r9 false to end_then_0_26;
-    lte r1 10000u64 into r10;
+    lte r2 10000u64 into r10;
     assert.eq r10 true;
     branch.eq true true to end_otherwise_0_27;
     position end_then_0_26;
     position end_otherwise_0_27;
-    is.eq r0 6u8 into r11;
+    is.eq r1 6u8 into r11;
     branch.eq r11 false to end_then_0_28;
-    gt r1 0u64 into r12;
+    gt r2 0u64 into r12;
     assert.eq r12 true;
     branch.eq true true to end_otherwise_0_29;
     position end_then_0_28;
     position end_otherwise_0_29;
-    set r1 into protocol_u64[r0];
+    set r2 into protocol_u64[r1];
 
 function set_protocol_u8:
     input r0 as u8.public;
     input r1 as u8.public;
-    call veilmarkets_factory_v12.aleo/verify_is_registered 4u8 self.caller into r2;
-    async set_protocol_u8 r0 r1 r2 into r3;
-    output r3 as veilmarkets_core_v12.aleo/set_protocol_u8.future;
+    call veilmarkets_factory_v13.aleo/verify_is_registered 4u8 self.caller into r2;
+    async set_protocol_u8 r2 r0 r1 into r3;
+    output r3 as veilmarkets_core_v13.aleo/set_protocol_u8.future;
 
 finalize set_protocol_u8:
-    input r0 as u8.public;
+    input r0 as veilmarkets_factory_v13.aleo/verify_is_registered.future;
     input r1 as u8.public;
-    input r2 as veilmarkets_factory_v12.aleo/verify_is_registered.future;
-    await r2;
-    is.eq r0 0u8 into r3;
+    input r2 as u8.public;
+    await r0;
+    is.eq r1 0u8 into r3;
     branch.eq r3 false to end_then_0_30;
-    gte r1 2u8 into r4;
+    gte r2 2u8 into r4;
     assert.eq r4 true;
-    lte r1 8u8 into r5;
+    lte r2 8u8 into r5;
     assert.eq r5 true;
     branch.eq true true to end_otherwise_0_31;
     position end_then_0_30;
     position end_otherwise_0_31;
-    is.eq r0 1u8 into r6;
+    is.eq r1 1u8 into r6;
     branch.eq r6 false to end_then_0_32;
-    lte r1 1u8 into r7;
+    lte r2 1u8 into r7;
     assert.eq r7 true;
     branch.eq true true to end_otherwise_0_33;
     position end_then_0_32;
     position end_otherwise_0_33;
-    set r1 into protocol_u8[r0];
+    set r2 into protocol_u8[r1];
 
 constructor:
     assert.eq program_owner aleo1gg2c0sqseya4f68g6j9qmh455c0pft2m6pnd43rls72ac0pdsvzs5f3v6l;

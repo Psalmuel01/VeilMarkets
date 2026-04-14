@@ -23,6 +23,7 @@ interface FundPoolModalProps {
   marketId: string;
   marketTitle: string;
   tokenId: string;
+  marketProgramId?: string;
   onFunded?: () => void;
 }
 
@@ -34,13 +35,14 @@ export const FundPoolModal = ({
   marketId,
   marketTitle,
   tokenId,
+  marketProgramId,
   onFunded,
 }: FundPoolModalProps) => {
   const tokenTicker = resolveTokenTicker(tokenId);
   const { publicKey } = useAleoPrograms();
   const fundPoolMutation = useFundPoolMutation();
-  const poolQuery = useMarketPoolQuery(marketId, open && Boolean(publicKey));
-  const positionQuery = useMarketUserPositionQuery(marketId, null, open && Boolean(publicKey));
+  const poolQuery = useMarketPoolQuery(marketId, open && Boolean(publicKey), marketProgramId);
+  const positionQuery = useMarketUserPositionQuery(marketId, null, open && Boolean(publicKey), marketProgramId);
   const [step, setStep] = useState<Step>("form");
   const [amount, setAmount] = useState("10");
   const [txId, setTxId] = useState<string | null>(null);
@@ -71,6 +73,7 @@ export const FundPoolModal = ({
         marketId,
         amountCredits,
         tokenId,
+        marketProgramId,
       });
       setTxId(tx);
       setStep("success");
