@@ -1,6 +1,6 @@
-import veilmarkets_factory_v11.aleo;
-import veilmarkets_core_v11.aleo;
-program veilmarkets_governance_v11.aleo;
+import veilmarkets_factory_v12.aleo;
+import veilmarkets_core_v12.aleo;
+program veilmarkets_governance_v12.aleo;
 
 struct Proposal:
     proposer as address;
@@ -34,7 +34,7 @@ function create_proposal:
     input r4 as boolean.public;
     input r5 as u64.public;
     async create_proposal r0 r1 r2 r3 r4 r5 self.caller into r6;
-    output r6 as veilmarkets_governance_v11.aleo/create_proposal.future;
+    output r6 as veilmarkets_governance_v12.aleo/create_proposal.future;
 
 finalize create_proposal:
     input r0 as field.public;
@@ -69,20 +69,20 @@ function admin_set_voter_weight:
     input r0 as address.public;
     input r1 as u64.public;
     async admin_set_voter_weight r0 r1 self.caller into r2;
-    output r2 as veilmarkets_governance_v11.aleo/admin_set_voter_weight.future;
+    output r2 as veilmarkets_governance_v12.aleo/admin_set_voter_weight.future;
 
 finalize admin_set_voter_weight:
     input r0 as address.public;
     input r1 as u64.public;
     input r2 as address.public;
-    assert.eq r2 aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
+    assert.eq r2 aleo1gg2c0sqseya4f68g6j9qmh455c0pft2m6pnd43rls72ac0pdsvzs5f3v6l;
     set r1 into voter_weights[r0];
 
 function cast_vote:
     input r0 as field.public;
     input r1 as boolean.public;
     async cast_vote r0 r1 self.caller into r2;
-    output r2 as veilmarkets_governance_v11.aleo/cast_vote.future;
+    output r2 as veilmarkets_governance_v12.aleo/cast_vote.future;
 
 finalize cast_vote:
     input r0 as field.public;
@@ -115,16 +115,17 @@ function execute_core_u64:
     input r0 as field.public;
     input r1 as u8.public;
     input r2 as u64.public;
-    call veilmarkets_core_v11.aleo/set_protocol_u64 r1 r2 into r3;
-    async execute_core_u64 r0 r1 r2 r3 into r4;
-    output r4 as veilmarkets_governance_v11.aleo/execute_core_u64.future;
+    call veilmarkets_core_v12.aleo/set_protocol_u64 r1 r2 into r3;
+    async execute_core_u64 r3 r0 r1 r2 into r4;
+    output r4 as veilmarkets_governance_v12.aleo/execute_core_u64.future;
 
 finalize execute_core_u64:
-    input r0 as field.public;
-    input r1 as u8.public;
-    input r2 as u64.public;
-    input r3 as veilmarkets_core_v11.aleo/set_protocol_u64.future;
-    get proposals[r0] into r4;
+    input r0 as veilmarkets_core_v12.aleo/set_protocol_u64.future;
+    input r1 as field.public;
+    input r2 as u8.public;
+    input r3 as u64.public;
+    await r0;
+    get proposals[r1] into r4;
     not r4.executed into r5;
     assert.eq r5 true;
     cast block.timestamp into r6 as u64;
@@ -136,28 +137,28 @@ finalize execute_core_u64:
     gt r4.yes_votes r4.no_votes into r10;
     assert.eq r10 true;
     assert.eq r4.target 0u8;
-    assert.eq r4.param_key r1;
-    assert.eq r4.param_value r2;
+    assert.eq r4.param_key r2;
+    assert.eq r4.param_value r3;
     assert.eq r4.as_u8 false;
-    await r3;
     cast r4.proposer r4.target r4.param_key r4.param_value r4.as_u8 r4.end_time r4.execute_after r4.yes_votes r4.no_votes true into r11 as Proposal;
-    set r11 into proposals[r0];
+    set r11 into proposals[r1];
 
 function execute_core_u8:
     input r0 as field.public;
     input r1 as u8.public;
     input r2 as u8.public;
-    call veilmarkets_core_v11.aleo/set_protocol_u8 r1 r2 into r3;
-    async execute_core_u8 r0 r1 r2 r3 into r4;
-    output r4 as veilmarkets_governance_v11.aleo/execute_core_u8.future;
+    call veilmarkets_core_v12.aleo/set_protocol_u8 r1 r2 into r3;
+    async execute_core_u8 r3 r0 r1 r2 into r4;
+    output r4 as veilmarkets_governance_v12.aleo/execute_core_u8.future;
 
 finalize execute_core_u8:
-    input r0 as field.public;
-    input r1 as u8.public;
+    input r0 as veilmarkets_core_v12.aleo/set_protocol_u8.future;
+    input r1 as field.public;
     input r2 as u8.public;
-    input r3 as veilmarkets_core_v11.aleo/set_protocol_u8.future;
-    cast r2 into r4 as u64;
-    get proposals[r0] into r5;
+    input r3 as u8.public;
+    await r0;
+    cast r3 into r4 as u64;
+    get proposals[r1] into r5;
     not r5.executed into r6;
     assert.eq r6 true;
     cast block.timestamp into r7 as u64;
@@ -169,23 +170,22 @@ finalize execute_core_u8:
     gt r5.yes_votes r5.no_votes into r11;
     assert.eq r11 true;
     assert.eq r5.target 0u8;
-    assert.eq r5.param_key r1;
+    assert.eq r5.param_key r2;
     assert.eq r5.param_value r4;
     assert.eq r5.as_u8 true;
-    await r3;
     cast r5.proposer r5.target r5.param_key r5.param_value r5.as_u8 r5.end_time r5.execute_after r5.yes_votes r5.no_votes true into r12 as Proposal;
-    set r12 into proposals[r0];
+    set r12 into proposals[r1];
 
 function consume_oracle_u64:
     input r0 as field.public;
     input r1 as u8.public;
     input r2 as u64.public;
-    call veilmarkets_factory_v11.aleo/verify_is_registered 2u8 self.caller into r3;
+    call veilmarkets_factory_v12.aleo/verify_is_registered 2u8 self.caller into r3;
     async consume_oracle_u64 r3 r0 r1 r2 into r4;
-    output r4 as veilmarkets_governance_v11.aleo/consume_oracle_u64.future;
+    output r4 as veilmarkets_governance_v12.aleo/consume_oracle_u64.future;
 
 finalize consume_oracle_u64:
-    input r0 as veilmarkets_factory_v11.aleo/verify_is_registered.future;
+    input r0 as veilmarkets_factory_v12.aleo/verify_is_registered.future;
     input r1 as field.public;
     input r2 as u8.public;
     input r3 as u64.public;
@@ -212,12 +212,12 @@ function consume_oracle_u8:
     input r0 as field.public;
     input r1 as u8.public;
     input r2 as u8.public;
-    call veilmarkets_factory_v11.aleo/verify_is_registered 2u8 self.caller into r3;
+    call veilmarkets_factory_v12.aleo/verify_is_registered 2u8 self.caller into r3;
     async consume_oracle_u8 r3 r0 r1 r2 into r4;
-    output r4 as veilmarkets_governance_v11.aleo/consume_oracle_u8.future;
+    output r4 as veilmarkets_governance_v12.aleo/consume_oracle_u8.future;
 
 finalize consume_oracle_u8:
-    input r0 as veilmarkets_factory_v11.aleo/verify_is_registered.future;
+    input r0 as veilmarkets_factory_v12.aleo/verify_is_registered.future;
     input r1 as field.public;
     input r2 as u8.public;
     input r3 as u8.public;
@@ -242,4 +242,4 @@ finalize consume_oracle_u8:
     set r12 into proposals[r1];
 
 constructor:
-    assert.eq program_owner aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
+    assert.eq program_owner aleo1gg2c0sqseya4f68g6j9qmh455c0pft2m6pnd43rls72ac0pdsvzs5f3v6l;

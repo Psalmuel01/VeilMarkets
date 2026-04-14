@@ -1,5 +1,5 @@
 {
-  "program": "veilmarkets_token_credits_v11.aleo",
+  "program": "veilmarkets_token_credits_v12.aleo",
   "structs": [],
   "records": [],
   "mappings": [],
@@ -102,7 +102,7 @@
               "path": [
                 "BetPosition"
               ],
-              "program": "veilmarkets_core_v11.aleo"
+              "program": "veilmarkets_core_v12.aleo"
             }
           },
           "mode": "None"

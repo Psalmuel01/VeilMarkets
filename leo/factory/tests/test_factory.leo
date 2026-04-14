@@ -25,7 +25,7 @@ program test_factory.aleo {
     fn registry_keys_distinct() {
         // The registry uses `address => u8`; this test checks that two
         // addresses are never conflated in deterministic key derivation.
-        let contract_a: address = aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
+        let contract_a: address = aleo1gg2c0sqseya4f68g6j9qmh455c0pft2m6pnd43rls72ac0pdsvzs5f3v6l;
         let contract_b: address = aleo13wreywph6vpjfcn9z3unaulyv7mgepsu5pzwnzd32786j5gzzvqqrw8565;
 
         let key_a: field = BHP256::hash_to_field(contract_a as field + 1u8 as field);

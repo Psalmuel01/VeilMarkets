@@ -1453,7 +1453,7 @@ export const useAleoPrograms = () => {
           } catch (metadataError) {
             const maybeError = metadataError as { code?: string; message?: string };
             if (maybeError?.code === "42501") {
-              toast.warning("Market created on-chain, but metadata save was blocked by Supabase RLS for markets_v11.");
+              toast.warning("Market created on-chain, but metadata save was blocked by Supabase RLS for markets_v12.");
             } else {
               toast.warning("Market created on-chain, but metadata save failed.");
             }
@@ -1770,7 +1770,7 @@ export const useAleoPrograms = () => {
     try {
       const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
       if (!marketRaw) {
-        toast.error("Market not found on v11.");
+        toast.error("Market not found on v12.");
         return;
       }
 
@@ -1951,7 +1951,7 @@ export const useAleoPrograms = () => {
 
       const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
       if (!marketRaw) {
-        toast.error("Pool funding is only available for deployed v11 markets.");
+        toast.error("Pool funding is only available for deployed v12 markets.");
         return null;
       }
 
@@ -2056,7 +2056,7 @@ export const useAleoPrograms = () => {
 
       const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
       if (!marketRaw) {
-        toast.error("Market not found on v11.");
+        toast.error("Market not found on v12.");
         return null;
       }
       const marketInfo = parseMarketInfo(marketRaw as string | object, cleanMarketId);
@@ -2153,7 +2153,7 @@ export const useAleoPrograms = () => {
       const cleanMarketId = normalizeFieldId(marketId);
       const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
       if (!marketRaw) {
-        toast.error("Market not found on v11.");
+        toast.error("Market not found on v12.");
         return null;
       }
       const marketInfo = parseMarketInfo(marketRaw as string | object, cleanMarketId);
@@ -2537,7 +2537,7 @@ export const useAleoPrograms = () => {
       const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
       const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
       if (!marketRaw) {
-        toast.error("Market not found on v11.");
+        toast.error("Market not found on v12.");
         return null;
       }
       const marketInfo = marketRaw ? parseMarketInfo(marketRaw as string | object, cleanMarketId) : null;

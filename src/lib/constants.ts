@@ -1,11 +1,11 @@
-export const PROGRAM_ID = "veilmarkets_core_v11.aleo";
-export const CREDITS_TOKEN_PROGRAM_ID = "veilmarkets_token_credits_v11.aleo";
-export const USDCX_TOKEN_PROGRAM_ID = "veilmarkets_token_usdcx_v11.aleo";
-export const USAD_TOKEN_PROGRAM_ID = "veilmarkets_token_usad_v11.aleo";
-export const ORACLE_PROGRAM_ID = "veilmarkets_oracle_v11.aleo";
-export const FACTORY_PROGRAM_ID = "veilmarkets_factory_v11.aleo";
-export const GOVERNANCE_PROGRAM_ID = "veilmarkets_governance_v11.aleo";
-export const ADMIN_ADDRESS = "aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n";
+export const PROGRAM_ID = "veilmarkets_core_v12.aleo";
+export const CREDITS_TOKEN_PROGRAM_ID = "veilmarkets_token_credits_v12.aleo";
+export const USDCX_TOKEN_PROGRAM_ID = "veilmarkets_token_usdcx_v12.aleo";
+export const USAD_TOKEN_PROGRAM_ID = "veilmarkets_token_usad_v12.aleo";
+export const ORACLE_PROGRAM_ID = "veilmarkets_oracle_v12.aleo";
+export const FACTORY_PROGRAM_ID = "veilmarkets_factory_v12.aleo";
+export const GOVERNANCE_PROGRAM_ID = "veilmarkets_governance_v12.aleo";
+export const ADMIN_ADDRESS = "aleo1gg2c0sqseya4f68g6j9qmh455c0pft2m6pnd43rls72ac0pdsvzs5f3v6l";
 
 // Canonical on-chain addresses for token adapter programs.
 // These are what core markets store in `token_id`.

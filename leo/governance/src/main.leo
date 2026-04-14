@@ -1,7 +1,7 @@
-import veilmarkets_core_v11.aleo;
-import veilmarkets_factory_v11.aleo;
+import veilmarkets_core_v12.aleo;
+import veilmarkets_factory_v12.aleo;
 
-program veilmarkets_governance_v11.aleo {
+program veilmarkets_governance_v12.aleo {
     struct Proposal {
         proposer: address,
         target: u8, // 0 = core, 1 = oracle
@@ -24,9 +24,9 @@ program veilmarkets_governance_v11.aleo {
     const ORACLE_CONTRACT_TYPE: u8 = 2u8;
     const MIN_VOTE_WINDOW: u64 = 60u64;
     const EXECUTION_TIMELOCK: u64 = 86400u64; // 24h
-    const ADMIN: address = aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
+    const ADMIN: address = aleo1gg2c0sqseya4f68g6j9qmh455c0pft2m6pnd43rls72ac0pdsvzs5f3v6l;
 
-    @admin(address = "aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n")
+    @admin(address = "aleo1gg2c0sqseya4f68g6j9qmh455c0pft2m6pnd43rls72ac0pdsvzs5f3v6l")
     constructor() {}
 
     fn create_proposal(
@@ -53,16 +53,12 @@ program veilmarkets_governance_v11.aleo {
 
     fn admin_set_voter_weight(public voter: address, public weight: u64) -> Final {
         let caller: address = self.caller;
-        return final {
-            finalize_admin_set_voter_weight(voter, weight, caller);
-        };
+        return final { finalize_admin_set_voter_weight(voter, weight, caller); };
     }
 
     fn cast_vote(public proposal_id: field, public support: bool) -> Final {
         let caller: address = self.caller;
-        return final {
-            finalize_cast_vote(proposal_id, support, caller);
-        };
+        return final { finalize_cast_vote(proposal_id, support, caller); };
     }
 
     fn execute_core_u64(
@@ -70,27 +66,18 @@ program veilmarkets_governance_v11.aleo {
         public param_key: u8,
         public value: u64,
     ) -> Final {
-        let f_target: Final = veilmarkets_core_v11.aleo::set_protocol_u64(param_key, value);
+        let f_target: Final = veilmarkets_core_v12.aleo::set_protocol_u64(param_key, value);
         return final {
-            finalize_execute(proposal_id, TARGET_CORE, param_key, value, false, f_target);
+            f_target.run();
+            finalize_execute(proposal_id, TARGET_CORE, param_key, value, false);
         };
     }
 
-    fn execute_core_u8(
-        public proposal_id: field,
-        public param_key: u8,
-        public value: u8,
-    ) -> Final {
-        let f_target: Final = veilmarkets_core_v11.aleo::set_protocol_u8(param_key, value);
+    fn execute_core_u8(public proposal_id: field, public param_key: u8, public value: u8) -> Final {
+        let f_target: Final = veilmarkets_core_v12.aleo::set_protocol_u8(param_key, value);
         return final {
-            finalize_execute(
-                proposal_id,
-                TARGET_CORE,
-                param_key,
-                value as u64,
-                true,
-                f_target,
-            );
+            f_target.run();
+            finalize_execute(proposal_id, TARGET_CORE, param_key, value as u64, true);
         };
     }
 
@@ -100,7 +87,7 @@ program veilmarkets_governance_v11.aleo {
         public value: u64,
     ) -> Final {
         let caller: address = self.caller;
-        let oracle_auth: Final = veilmarkets_factory_v11.aleo::verify_is_registered(
+        let oracle_auth: Final = veilmarkets_factory_v12.aleo::verify_is_registered(
             ORACLE_CONTRACT_TYPE,
             caller,
         );
@@ -116,22 +103,15 @@ program veilmarkets_governance_v11.aleo {
         public value: u8,
     ) -> Final {
         let caller: address = self.caller;
-        let oracle_auth: Final = veilmarkets_factory_v11.aleo::verify_is_registered(
+        let oracle_auth: Final = veilmarkets_factory_v12.aleo::verify_is_registered(
             ORACLE_CONTRACT_TYPE,
             caller,
         );
         return final {
             oracle_auth.run();
-            finalize_consume_execute(
-                proposal_id,
-                TARGET_ORACLE,
-                param_key,
-                value as u64,
-                true,
-            );
+            finalize_consume_execute(proposal_id, TARGET_ORACLE, param_key, value as u64, true);
         };
     }
-
 }
 
 fn vote_key(proposal_id: field, voter: address) -> field {
@@ -171,26 +151,17 @@ final fn finalize_create_proposal(
     Mapping::set(proposals, proposal_id, proposal);
 }
 
-final fn finalize_cast_vote(
-    proposal_id: field,
-    support: bool,
-    voter: address,
-) {
+final fn finalize_cast_vote(proposal_id: field, support: bool, voter: address) {
     let proposal: Proposal = Mapping::get(proposals, proposal_id);
     assert(!proposal.executed);
     assert(block.timestamp as u64 < proposal.end_time);
-    let voter_weight: u64 = Mapping::get_or_use(
-        voter_weights,
-        voter,
-        0u64,
-    );
+    let voter_weight: u64 = Mapping::get_or_use(voter_weights, voter, 0u64);
     assert(voter_weight > 0u64);
 
     let receipt_key: field = vote_key(proposal_id, voter);
     let voted: bool = Mapping::get_or_use(vote_receipts, receipt_key, false);
     assert(!voted);
     Mapping::set(vote_receipts, receipt_key, true);
-
     let updated: Proposal = Proposal {
         proposer: proposal.proposer,
         target: proposal.target,
@@ -212,7 +183,6 @@ final fn finalize_execute(
     expected_param_key: u8,
     expected_value: u64,
     expected_as_u8: bool,
-    f_target: Final,
 ) {
     let proposal: Proposal = Mapping::get(proposals, proposal_id);
     assert(!proposal.executed);
@@ -224,9 +194,6 @@ final fn finalize_execute(
     assert_eq(proposal.param_key, expected_param_key);
     assert_eq(proposal.param_value, expected_value);
     assert_eq(proposal.as_u8, expected_as_u8);
-
-    f_target.run();
-
     let executed: Proposal = Proposal {
         proposer: proposal.proposer,
         target: proposal.target,
@@ -264,7 +231,6 @@ final fn finalize_consume_execute(
     assert_eq(proposal.param_key, expected_param_key);
     assert_eq(proposal.param_value, expected_value);
     assert_eq(proposal.as_u8, expected_as_u8);
-
     let executed: Proposal = Proposal {
         proposer: proposal.proposer,
         target: proposal.target,

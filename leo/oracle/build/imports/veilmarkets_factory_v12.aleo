@@ -1,4 +1,4 @@
-program veilmarkets_factory_v11.aleo;
+program veilmarkets_factory_v12.aleo;
 
 mapping contracts:
     key as address.public;
@@ -8,13 +8,13 @@ function register_contract:
     input r0 as u8.public;
     input r1 as address.public;
     async register_contract r0 r1 self.caller into r2;
-    output r2 as veilmarkets_factory_v11.aleo/register_contract.future;
+    output r2 as veilmarkets_factory_v12.aleo/register_contract.future;
 
 finalize register_contract:
     input r0 as u8.public;
     input r1 as address.public;
     input r2 as address.public;
-    assert.eq r2 aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
+    assert.eq r2 aleo1gg2c0sqseya4f68g6j9qmh455c0pft2m6pnd43rls72ac0pdsvzs5f3v6l;
     is.eq r0 1u8 into r3;
     is.eq r0 2u8 into r4;
     or r3 r4 into r5;
@@ -29,7 +29,7 @@ function verify_is_registered:
     input r0 as u8.public;
     input r1 as address.public;
     async verify_is_registered r0 r1 into r2;
-    output r2 as veilmarkets_factory_v11.aleo/verify_is_registered.future;
+    output r2 as veilmarkets_factory_v12.aleo/verify_is_registered.future;
 
 finalize verify_is_registered:
     input r0 as u8.public;
@@ -38,4 +38,4 @@ finalize verify_is_registered:
     assert.eq r2 r0;
 
 constructor:
-    assert.eq program_owner aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
+    assert.eq program_owner aleo1gg2c0sqseya4f68g6j9qmh455c0pft2m6pnd43rls72ac0pdsvzs5f3v6l;

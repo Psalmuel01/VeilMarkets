@@ -68,7 +68,7 @@ program test_veilmarkets.aleo {
     const OUTCOME_CANCELLED: u8 = 255u8;
 
     @test
-    fn shape_rules_v11() {
+    fn shape_rules_v12() {
         assert_eq(is_valid_market_shape(0u8, 2u8, DEFAULT_MAX_OUTCOMES), true);
         assert_eq(is_valid_market_shape(1u8, 2u8, DEFAULT_MAX_OUTCOMES), true);
         assert_eq(is_valid_market_shape(1u8, 8u8, DEFAULT_MAX_OUTCOMES), true);
@@ -129,7 +129,7 @@ program test_veilmarkets.aleo {
 
     @test
     fn lp_keys_depend_on_inputs() {
-        let owner_a: address = aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
+        let owner_a: address = aleo1gg2c0sqseya4f68g6j9qmh455c0pft2m6pnd43rls72ac0pdsvzs5f3v6l;
         let owner_b: address = aleo13wreywph6vpjfcn9z3unaulyv7mgepsu5pzwnzd32786j5gzzvqqrw8565;
         let market_a: field = 77field;
         let market_b: field = 78field;

@@ -75,28 +75,28 @@ export const useCreateMarketTransaction = () => {
 
         const result = isShieldWallet && shieldApi?.requestTransaction
           ? await (async () => {
-              const shieldResult = await shieldApi.requestTransaction({
-                programId: PROGRAM_ID,
-                functionName: "create_market",
-                inputs,
-                fee: 2_500_000,
-                privateFee: false,
-              });
-
-              return {
-                transactionId:
-                  typeof shieldResult === "string"
-                    ? shieldResult
-                    : (shieldResult?.transactionId ?? ""),
-              };
-            })()
-          : await executeTransaction({
-              program: PROGRAM_ID,
-              function: "create_market",
+            const shieldResult = await shieldApi.requestTransaction({
+              programId: PROGRAM_ID,
+              functionName: "create_market",
               inputs,
               fee: 2_500_000,
               privateFee: false,
-            } as Parameters<typeof executeTransaction>[0]);
+            });
+
+            return {
+              transactionId:
+                typeof shieldResult === "string"
+                  ? shieldResult
+                  : (shieldResult?.transactionId ?? ""),
+            };
+          })()
+          : await executeTransaction({
+            program: PROGRAM_ID,
+            function: "create_market",
+            inputs,
+            fee: 2_500_000,
+            privateFee: false,
+          } as Parameters<typeof executeTransaction>[0]);
 
         if (!result?.transactionId) return null;
 
@@ -148,7 +148,7 @@ export const useCreateMarketTransaction = () => {
         } catch (metadataError) {
           const maybeError = metadataError as { code?: string };
           if (maybeError?.code === "42501") {
-            toast.warning("Market created on-chain, but metadata save was blocked by Supabase RLS for markets_v11.");
+            toast.warning("Market created on-chain, but metadata save was blocked by Supabase RLS for markets_v12.");
           } else {
             toast.warning("Market created on-chain, but metadata save failed.");
           }

@@ -1,6 +1,6 @@
 # VeilMarkets Flow
 
-This document describes the current VeilMarkets lifecycle and protocol flow for the `v11` contract suite.
+This document describes the current VeilMarkets lifecycle and protocol flow for the `v12` contract suite.
 
 ## Overview
 
@@ -22,13 +22,13 @@ Settlement is fixed-share, not pari-mutuel:
 
 The current suite is composed of:
 
-- `veilmarkets_factory_v11.aleo`
-- `veilmarkets_core_v11.aleo`
-- `veilmarkets_governance_v11.aleo`
-- `veilmarkets_oracle_v11.aleo`
-- `veilmarkets_token_credits_v11.aleo`
-- `veilmarkets_token_usdcx_v11.aleo`
-- `veilmarkets_token_usad_v11.aleo`
+- `veilmarkets_factory_v12.aleo`
+- `veilmarkets_core_v12.aleo`
+- `veilmarkets_governance_v12.aleo`
+- `veilmarkets_oracle_v12.aleo`
+- `veilmarkets_token_credits_v12.aleo`
+- `veilmarkets_token_usdcx_v12.aleo`
+- `veilmarkets_token_usad_v12.aleo`
 
 ## 1. Trust and Registration Flow
 

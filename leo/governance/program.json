@@ -1,19 +1,21 @@
 {
-  "program": "veilmarkets_governance_v11.aleo",
+  "program": "veilmarkets_governance_v12.aleo",
   "version": "0.1.0",
   "description": "",
   "license": "MIT",
   "leo": "4.0.0",
   "dependencies": [
     {
-      "name": "veilmarkets_core_v11.aleo",
+      "name": "veilmarkets_factory_v12.aleo",
       "location": "network",
-      "path": null
+      "path": null,
+      "edition": null
     },
     {
-      "name": "veilmarkets_factory_v11.aleo",
+      "name": "veilmarkets_core_v12.aleo",
       "location": "network",
-      "path": null
+      "path": null,
+      "edition": null
     }
   ],
   "dev_dependencies": null

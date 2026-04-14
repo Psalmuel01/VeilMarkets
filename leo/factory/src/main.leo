@@ -1,15 +1,15 @@
-// VeilMarkets Factory (v11 buildathon)
+// VeilMarkets Factory (v12 buildathon)
 // Canonical registry + trust anchor for cross-program authorization.
-program veilmarkets_factory_v11.aleo {
+program veilmarkets_factory_v12.aleo {
     mapping contracts: address => u8;
 
     const TYPE_TOKEN: u8 = 1u8;
     const TYPE_ORACLE: u8 = 2u8;
     const TYPE_CORE: u8 = 3u8;
     const TYPE_GOVERNANCE: u8 = 4u8;
-    const ADMIN: address = aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n;
+    const ADMIN: address = aleo1gg2c0sqseya4f68g6j9qmh455c0pft2m6pnd43rls72ac0pdsvzs5f3v6l;
 
-    @admin(address = "aleo1cnd2pmg8g4htpuegy8eyer9s33h0shs2yxtt8au5hl9sl566qggskfcu3n")
+    @admin(address = "aleo1gg2c0sqseya4f68g6j9qmh455c0pft2m6pnd43rls72ac0pdsvzs5f3v6l")
     constructor() {}
 
     fn register_contract(public contract_type: u8, public contract_address: address) -> Final {
@@ -29,9 +29,7 @@ program veilmarkets_factory_v11.aleo {
     }
 
     fn verify_is_registered(public contract_type: u8, public caller_address: address) -> Final {
-        return final {
-            finalize_verify_is_registered(contract_type, caller_address);
-        };
+        return final { finalize_verify_is_registered(contract_type, caller_address); };
     }
 }
 
@@ -46,12 +44,11 @@ final fn finalize_register_contract(
     type_governance: u8,
 ) {
     assert_eq(caller, admin);
-    assert(
-        contract_type == type_token
-            || contract_type == type_oracle
-            || contract_type == type_core
-            || contract_type == type_governance
-    );
+    assert(contract_type
+        == type_token
+        || contract_type == type_oracle
+        || contract_type == type_core
+        || contract_type == type_governance);
     Mapping::set(contracts, contract_address, contract_type);
 }
 

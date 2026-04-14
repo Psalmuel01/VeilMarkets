@@ -1,5 +1,5 @@
 {
-  "program": "veilmarkets_oracle_v11.aleo",
+  "program": "veilmarkets_oracle_v12.aleo",
   "structs": [
     {
       "path": [
@@ -124,7 +124,7 @@
           "path": [
             "ResolutionProposal"
           ],
-          "program": "veilmarkets_oracle_v11.aleo"
+          "program": "veilmarkets_oracle_v12.aleo"
         }
       }
     },
@@ -244,7 +244,7 @@
           "path": [
             "Dispute"
           ],
-          "program": "veilmarkets_oracle_v11.aleo"
+          "program": "veilmarkets_oracle_v12.aleo"
         }
       }
     },
@@ -369,7 +369,7 @@
               "path": [
                 "OracleCredential"
               ],
-              "program": "veilmarkets_oracle_v11.aleo"
+              "program": "veilmarkets_oracle_v12.aleo"
             }
           },
           "mode": "None"
@@ -478,7 +478,7 @@
               "path": [
                 "OracleCredential"
               ],
-              "program": "veilmarkets_oracle_v11.aleo"
+              "program": "veilmarkets_oracle_v12.aleo"
             }
           },
           "mode": "None"
@@ -511,7 +511,7 @@
               "path": [
                 "OracleCredential"
               ],
-              "program": "veilmarkets_oracle_v11.aleo"
+              "program": "veilmarkets_oracle_v12.aleo"
             }
           },
           "mode": "None"
@@ -533,7 +533,7 @@
               "path": [
                 "OracleCredential"
               ],
-              "program": "veilmarkets_oracle_v11.aleo"
+              "program": "veilmarkets_oracle_v12.aleo"
             }
           },
           "mode": "None"
@@ -566,43 +566,11 @@
               "path": [
                 "OracleCredential"
               ],
-              "program": "veilmarkets_oracle_v11.aleo"
+              "program": "veilmarkets_oracle_v12.aleo"
             }
           },
           "mode": "None"
         },
-        {
-          "ty": "Final",
-          "mode": "None"
-        }
-      ]
-    },
-    {
-      "name": "execute_quorum_resolution",
-      "is_final": true,
-      "inputs": [
-        {
-          "name": "market_id",
-          "ty": {
-            "Plaintext": {
-              "Primitive": "Field"
-            }
-          },
-          "mode": "Public"
-        },
-        {
-          "name": "outcome",
-          "ty": {
-            "Plaintext": {
-              "Primitive": {
-                "UInt": "U8"
-              }
-            }
-          },
-          "mode": "Public"
-        }
-      ],
-      "outputs": [
         {
           "ty": "Final",
           "mode": "None"
