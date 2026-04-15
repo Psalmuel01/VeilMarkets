@@ -6,13 +6,13 @@ VeilMarkets has changed substantially since the v8 era. What began as an earlier
 
 - Current deployed-style program suite uses `v13` program IDs.
 - The protocol now runs as a modular contract stack:
-  - `veilmarkets_factory_v14.aleo`
-  - `veilmarkets_core_v14.aleo`
-  - `veilmarkets_governance_v14.aleo`
-  - `veilmarkets_oracle_v14.aleo`
-  - `veilmarkets_token_credits_v14.aleo`
-  - `veilmarkets_token_usdcx_v14.aleo`
-  - `veilmarkets_token_usad_v14.aleo`
+  - `veilmarkets_factory_v15.aleo`
+  - `veilmarkets_core_v15.aleo`
+  - `veilmarkets_governance_v15.aleo`
+  - `veilmarkets_oracle_v15.aleo`
+  - `veilmarkets_token_credits_v15.aleo`
+  - `veilmarkets_token_usdcx_v15.aleo`
+  - `veilmarkets_token_usad_v15.aleo`
 
 ## 1. Market Model Rewrite
 

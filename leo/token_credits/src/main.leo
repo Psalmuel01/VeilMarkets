@@ -1,10 +1,10 @@
 // VeilMarkets Token — Credits Adapter (v14)
 // Private credits rail for buy/fund/claim + governance-gated protocol fee withdrawals.
 import credits.aleo;
-import veilmarkets_core_v14.aleo;
-import veilmarkets_factory_v14.aleo;
+import veilmarkets_core_v15.aleo;
+import veilmarkets_factory_v15.aleo;
 
-program veilmarkets_token_credits_v14.aleo {
+program veilmarkets_token_credits_v15.aleo {
     const GOVERNANCE_CONTRACT_TYPE: u8 = 4u8;
     const MIN_BET: u64 = 1000000u64;
 
@@ -19,7 +19,7 @@ program veilmarkets_token_credits_v14.aleo {
         min_shares_out: u64,
         expected_shares_out: u64,
         position_nonce: field,
-    ) -> (credits.aleo::credits, veilmarkets_core_v14.aleo::BetPosition, Final) {
+    ) -> (credits.aleo::credits, veilmarkets_core_v15.aleo::BetPosition, Final) {
         assert(input_credits.microcredits >= collateral_in);
         assert(collateral_in >= MIN_BET);
         assert(min_shares_out > 0u64);
@@ -38,7 +38,8 @@ program veilmarkets_token_credits_v14.aleo {
                 + position_nonce,
         );
         let owner_commitment: field = BHP256::hash_to_field(position_id);
-        let (position, core_future): (veilmarkets_core_v14.aleo::BetPosition, Final) = veilmarkets_core_v14.aleo::buy_shares(
+        let trader_market_key: field = BHP256::hash_to_field(self.signer as field + market_id);
+        let (position, core_future): (veilmarkets_core_v15.aleo::BetPosition, Final) = veilmarkets_core_v15.aleo::buy_shares(
             market_id,
             outcome,
             collateral_in,
@@ -46,6 +47,7 @@ program veilmarkets_token_credits_v14.aleo {
             expected_shares_out,
             position_id,
             owner_commitment,
+            trader_market_key,
         );
         let f: Final = final {
             transfer_future.run();
@@ -67,7 +69,7 @@ program veilmarkets_token_credits_v14.aleo {
             amount,
         );
         let lp_owner_key: field = BHP256::hash_to_field(market_id + self.signer as field);
-        let core_future: Final = veilmarkets_core_v14.aleo::fund_pool(
+        let core_future: Final = veilmarkets_core_v15.aleo::fund_pool(
             market_id,
             amount,
             lp_owner_key,
@@ -83,7 +85,7 @@ program veilmarkets_token_credits_v14.aleo {
         payout_amount: u64,
         nullifier: field,
     ) -> (credits.aleo::credits, Final) {
-        let core_result: Final = veilmarkets_core_v14.aleo::verify_claim(nullifier, payout_amount);
+        let core_result: Final = veilmarkets_core_v15.aleo::verify_claim(nullifier, payout_amount);
         let (payout_record, transfer_future): (credits.aleo::credits, Final) = credits.aleo::transfer_public_to_private(
             self.caller,
             payout_amount,
@@ -100,11 +102,11 @@ program veilmarkets_token_credits_v14.aleo {
         authorization_id: field,
         recipient: address,
     ) -> (credits.aleo::credits, Final) {
-        let gov_auth: Final = veilmarkets_factory_v14.aleo::verify_is_registered(
+        let gov_auth: Final = veilmarkets_factory_v15.aleo::verify_is_registered(
             GOVERNANCE_CONTRACT_TYPE,
             self.caller,
         );
-        let core_auth: Final = veilmarkets_core_v14.aleo::authz_fee_withdrawal(
+        let core_auth: Final = veilmarkets_core_v15.aleo::authz_fee_withdrawal(
             amount,
             authorization_id,
         );

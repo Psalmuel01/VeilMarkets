@@ -1,0 +1,267 @@
+{
+  "program": "veilmarkets_token_credits_v15.aleo",
+  "structs": [],
+  "records": [],
+  "mappings": [],
+  "storage_variables": [],
+  "functions": [
+    {
+      "name": "buy_shares",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "input_credits",
+          "ty": {
+            "Record": {
+              "path": [
+                "credits"
+              ],
+              "program": "credits.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "market_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "outcome",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U8"
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "collateral_in",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "min_shares_out",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "expected_shares_out",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "position_nonce",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "None"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "credits"
+              ],
+              "program": "credits.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "BetPosition"
+              ],
+              "program": "veilmarkets_core_v15.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "fund_pool",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "input_credits",
+          "ty": {
+            "Record": {
+              "path": [
+                "credits"
+              ],
+              "program": "credits.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "market_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "amount",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "None"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "credits"
+              ],
+              "program": "credits.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "claim_payout",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "payout_amount",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "nullifier",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "None"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "credits"
+              ],
+              "program": "credits.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_protocol_fees",
+      "is_final": true,
+      "inputs": [
+        {
+          "name": "amount",
+          "ty": {
+            "Plaintext": {
+              "Primitive": {
+                "UInt": "U64"
+              }
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "authorization_id",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Field"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "name": "recipient",
+          "ty": {
+            "Plaintext": {
+              "Primitive": "Address"
+            }
+          },
+          "mode": "None"
+        }
+      ],
+      "outputs": [
+        {
+          "ty": {
+            "Record": {
+              "path": [
+                "credits"
+              ],
+              "program": "credits.aleo"
+            }
+          },
+          "mode": "None"
+        },
+        {
+          "ty": "Final",
+          "mode": "None"
+        }
+      ]
+    }
+  ]
+}

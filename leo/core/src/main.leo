@@ -1,6 +1,6 @@
-import veilmarkets_factory_v14.aleo;
+import veilmarkets_factory_v15.aleo;
 
-program veilmarkets_core_v14.aleo {
+program veilmarkets_core_v15.aleo {
     const OUTCOME_UNRESOLVED: u8 = 254u8;
     const OUTCOME_CANCELLED: u8 = 255u8;
 
@@ -82,6 +82,7 @@ program veilmarkets_core_v14.aleo {
 
     struct PositionState {
         holder_commitment: field,
+        trader_market_key: field,
         market_id: field,
         outcome: u8,
         shares: u64,
@@ -113,6 +114,8 @@ program veilmarkets_core_v14.aleo {
 
     mapping positions: field => PositionState;
     mapping lp_balances: field => u64;
+    mapping trader_market_outcomes: field => u8;
+    mapping trader_market_position_counts: field => u64;
     mapping market_fee_pool: field => u64;
 
     mapping market_winner_payout_pool: field => u64;
@@ -140,7 +143,7 @@ program veilmarkets_core_v14.aleo {
     ) -> Final {
         let caller: address = self.caller;
         let market_id: field = BHP256::hash_to_field(title_hash + caller as field);
-        let auth: Final = veilmarkets_factory_v14.aleo::verify_is_registered(
+        let auth: Final = veilmarkets_factory_v15.aleo::verify_is_registered(
             TOKEN_CONTRACT_TYPE,
             token_id,
         );
@@ -170,6 +173,7 @@ program veilmarkets_core_v14.aleo {
         expected_shares_out: u64,
         position_id: field,
         owner_commitment: field,
+        trader_market_key: field,
     ) -> (BetPosition, Final) {
         assert(min_shares_out > 0u64);
         assert(expected_shares_out > 0u64);
@@ -193,6 +197,7 @@ program veilmarkets_core_v14.aleo {
                 expected_shares_out,
                 position_id,
                 owner_commitment,
+                trader_market_key,
                 caller,
             );
         };
@@ -338,7 +343,7 @@ program veilmarkets_core_v14.aleo {
     ) -> Final {
         assert(resolver != self.address);
         let caller: address = self.caller;
-        let auth: Final = veilmarkets_factory_v14.aleo::verify_is_registered(
+        let auth: Final = veilmarkets_factory_v15.aleo::verify_is_registered(
             ORACLE_CONTRACT_TYPE,
             caller,
         );
@@ -360,7 +365,7 @@ program veilmarkets_core_v14.aleo {
 
     fn set_protocol_u64(public param_key: u8, public value: u64) -> Final {
         let caller: address = self.caller;
-        let auth: Final = veilmarkets_factory_v14.aleo::verify_is_registered(
+        let auth: Final = veilmarkets_factory_v15.aleo::verify_is_registered(
             GOVERNANCE_CONTRACT_TYPE,
             caller,
         );
@@ -372,7 +377,7 @@ program veilmarkets_core_v14.aleo {
 
     fn set_protocol_u8(public param_key: u8, public value: u8) -> Final {
         let caller: address = self.caller;
-        let auth: Final = veilmarkets_factory_v14.aleo::verify_is_registered(
+        let auth: Final = veilmarkets_factory_v15.aleo::verify_is_registered(
             GOVERNANCE_CONTRACT_TYPE,
             caller,
         );
@@ -654,6 +659,7 @@ final fn finalize_buy_shares(
     expected_shares_out: u64,
     position_id: field,
     owner_commitment: field,
+    trader_market_key: field,
     caller: address,
 ) {
     let paused: u8 = Mapping::get_or_use(
@@ -719,6 +725,19 @@ final fn finalize_buy_shares(
     assert_eq(owner_commitment, expected_owner_commitment);
     let already_exists: bool = Mapping::contains(positions, position_id);
     assert(!already_exists);
+    let existing_trader_positions: u64 = Mapping::get_or_use(
+        trader_market_position_counts,
+        trader_market_key,
+        0u64,
+    );
+    if (existing_trader_positions > 0u64) {
+        let existing_outcome: u8 = Mapping::get_or_use(
+            trader_market_outcomes,
+            trader_market_key,
+            OUTCOME_CANCELLED,
+        );
+        assert_eq(existing_outcome, outcome);
+    }
 
     let new_qty_outcome: u64 = current_qty_outcome - shares_out;
     let updated_pool: PoolState = PoolState {
@@ -753,6 +772,7 @@ final fn finalize_buy_shares(
     Mapping::set(protocol_fees, caller, accrued_proto + protocol_fee);
     let state: PositionState = PositionState {
         holder_commitment: owner_commitment,
+        trader_market_key: trader_market_key,
         market_id: market_id,
         outcome: outcome,
         shares: shares_out,
@@ -761,6 +781,12 @@ final fn finalize_buy_shares(
         is_closed: false,
     };
     Mapping::set(positions, position_id, state);
+    Mapping::set(trader_market_outcomes, trader_market_key, outcome);
+    Mapping::set(
+        trader_market_position_counts,
+        trader_market_key,
+        existing_trader_positions + 1u64,
+    );
 }
 
 // FPMM sell_shares finalize:
@@ -863,6 +889,7 @@ final fn finalize_sell_shares(
     Mapping::set(protocol_fees, market.token_id, accrued_proto + protocol_fee);
     let updated_state: PositionState = PositionState {
         holder_commitment: state.holder_commitment,
+        trader_market_key: state.trader_market_key,
         market_id: state.market_id,
         outcome: state.outcome,
         shares: remaining_shares,
@@ -871,6 +898,19 @@ final fn finalize_sell_shares(
         is_closed: remaining_shares == 0u64,
     };
     Mapping::set(positions, position_id, updated_state);
+    if (remaining_shares == 0u64) {
+        let open_position_count: u64 = Mapping::get_or_use(
+            trader_market_position_counts,
+            state.trader_market_key,
+            0u64,
+        );
+        assert(open_position_count > 0u64);
+        Mapping::set(
+            trader_market_position_counts,
+            state.trader_market_key,
+            open_position_count - 1u64,
+        );
+    }
     let claim: PayoutClaim = PayoutClaim { amount: net_payout, token_id: market.token_id };
     Mapping::set(pending_payouts, nullifier, claim);
 }
@@ -918,6 +958,7 @@ final fn finalize_claim_winnings(
     Mapping::set(pending_payouts, nullifier, claim);
     let closed: PositionState = PositionState {
         holder_commitment: state.holder_commitment,
+        trader_market_key: state.trader_market_key,
         market_id: state.market_id,
         outcome: state.outcome,
         shares: 0u64,
@@ -926,6 +967,17 @@ final fn finalize_claim_winnings(
         is_closed: true,
     };
     Mapping::set(positions, position_id, closed);
+    let open_position_count: u64 = Mapping::get_or_use(
+        trader_market_position_counts,
+        state.trader_market_key,
+        0u64,
+    );
+    assert(open_position_count > 0u64);
+    Mapping::set(
+        trader_market_position_counts,
+        state.trader_market_key,
+        open_position_count - 1u64,
+    );
 }
 
 // Resolution: lock pool, compute winner payout pool and LP return pool

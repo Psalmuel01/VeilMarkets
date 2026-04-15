@@ -53,13 +53,13 @@ Settlement is fixed-share:
 
 Current program suite:
 
-- `veilmarkets_factory_v14.aleo`
-- `veilmarkets_core_v14.aleo`
-- `veilmarkets_governance_v14.aleo`
-- `veilmarkets_oracle_v14.aleo`
-- `veilmarkets_token_credits_v14.aleo`
-- `veilmarkets_token_usdcx_v14.aleo`
-- `veilmarkets_token_usad_v14.aleo`
+- `veilmarkets_factory_v15.aleo`
+- `veilmarkets_core_v15.aleo`
+- `veilmarkets_governance_v15.aleo`
+- `veilmarkets_oracle_v15.aleo`
+- `veilmarkets_token_credits_v15.aleo`
+- `veilmarkets_token_usdcx_v15.aleo`
+- `veilmarkets_token_usad_v15.aleo`
 
 High-level flow:
 
@@ -155,13 +155,13 @@ npm run build
 
 Suggested contract deployment order:
 
-1. `veilmarkets_factory_v14`
-2. `veilmarkets_core_v14`
-3. `veilmarkets_governance_v14`
-4. `veilmarkets_oracle_v14`
-5. `veilmarkets_token_credits_v14`
-6. `veilmarkets_token_usdcx_v14`
-7. `veilmarkets_token_usad_v14`
+1. `veilmarkets_factory_v15`
+2. `veilmarkets_core_v15`
+3. `veilmarkets_governance_v15`
+4. `veilmarkets_oracle_v15`
+5. `veilmarkets_token_credits_v15`
+6. `veilmarkets_token_usdcx_v15`
+7. `veilmarkets_token_usad_v15`
 
 After deployment, register contracts in factory:
 

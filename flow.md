@@ -22,13 +22,13 @@ Settlement is fixed-share, not pari-mutuel:
 
 The current suite is composed of:
 
-- `veilmarkets_factory_v14.aleo`
-- `veilmarkets_core_v14.aleo`
-- `veilmarkets_governance_v14.aleo`
-- `veilmarkets_oracle_v14.aleo`
-- `veilmarkets_token_credits_v14.aleo`
-- `veilmarkets_token_usdcx_v14.aleo`
-- `veilmarkets_token_usad_v14.aleo`
+- `veilmarkets_factory_v15.aleo`
+- `veilmarkets_core_v15.aleo`
+- `veilmarkets_governance_v15.aleo`
+- `veilmarkets_oracle_v15.aleo`
+- `veilmarkets_token_credits_v15.aleo`
+- `veilmarkets_token_usdcx_v15.aleo`
+- `veilmarkets_token_usad_v15.aleo`
 
 ## 1. Trust and Registration Flow
 

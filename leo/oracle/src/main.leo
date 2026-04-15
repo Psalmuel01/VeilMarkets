@@ -1,11 +1,11 @@
 // VeilMarkets Oracle (v14)
 // Quorum-aware optimistic resolution with proposer stake locks, dispute slashing, and pause controls.
 import credits.aleo;
-import veilmarkets_core_v14.aleo;
-import veilmarkets_factory_v14.aleo;
-import veilmarkets_governance_v14.aleo;
+import veilmarkets_core_v15.aleo;
+import veilmarkets_factory_v15.aleo;
+import veilmarkets_governance_v15.aleo;
 
-program veilmarkets_oracle_v14.aleo {
+program veilmarkets_oracle_v15.aleo {
     struct ResolutionProposal {
         market_id: field,
         proposed_outcome: u8,
@@ -152,7 +152,7 @@ program veilmarkets_oracle_v14.aleo {
 
     fn resolve_on_core(public market_id: field, public outcome: u8) -> Final {
         assert(outcome <= 7u8);
-        let f_core: Final = veilmarkets_core_v14.aleo::resolve_market(
+        let f_core: Final = veilmarkets_core_v15.aleo::resolve_market(
             market_id,
             outcome,
             self.address,
@@ -201,7 +201,7 @@ program veilmarkets_oracle_v14.aleo {
         public amount: u64,
         public recipient: address,
     ) -> (credits.aleo::credits, Final) {
-        let gov_auth: Final = veilmarkets_factory_v14.aleo::verify_is_registered(
+        let gov_auth: Final = veilmarkets_factory_v15.aleo::verify_is_registered(
             GOVERNANCE_CONTRACT_TYPE,
             self.caller,
         );
@@ -227,7 +227,7 @@ program veilmarkets_oracle_v14.aleo {
         public param_key: u8,
         public value: u64,
     ) -> Final {
-        let auth: Final = veilmarkets_governance_v14.aleo::consume_oracle_u64(
+        let auth: Final = veilmarkets_governance_v15.aleo::consume_oracle_u64(
             proposal_id,
             param_key,
             value,
@@ -239,7 +239,7 @@ program veilmarkets_oracle_v14.aleo {
     }
 
     fn set_protocol_u8(public proposal_id: field, public param_key: u8, public value: u8) -> Final {
-        let auth: Final = veilmarkets_governance_v14.aleo::consume_oracle_u8(
+        let auth: Final = veilmarkets_governance_v15.aleo::consume_oracle_u8(
             proposal_id,
             param_key,
             value,

@@ -1,5 +1,5 @@
 {
-  "program": "veilmarkets_oracle_v14.aleo",
+  "program": "veilmarkets_oracle_v15.aleo",
   "version": "0.1.0",
   "description": "",
   "license": "MIT",
@@ -12,19 +12,19 @@
       "edition": null
     },
     {
-      "name": "veilmarkets_core_v14.aleo",
+      "name": "veilmarkets_core_v15.aleo",
       "location": "network",
       "path": null,
       "edition": null
     },
     {
-      "name": "veilmarkets_factory_v14.aleo",
+      "name": "veilmarkets_factory_v15.aleo",
       "location": "network",
       "path": null,
       "edition": null
     },
     {
-      "name": "veilmarkets_governance_v14.aleo",
+      "name": "veilmarkets_governance_v15.aleo",
       "location": "network",
       "path": null,
       "edition": null
