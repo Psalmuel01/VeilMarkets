@@ -1,10 +1,10 @@
-export const PROGRAM_ID = "veilmarkets_core_v14.aleo";
-export const CREDITS_TOKEN_PROGRAM_ID = "veilmarkets_token_credits_v14.aleo";
-export const USDCX_TOKEN_PROGRAM_ID = "veilmarkets_token_usdcx_v14.aleo";
-export const USAD_TOKEN_PROGRAM_ID = "veilmarkets_token_usad_v14.aleo";
-export const ORACLE_PROGRAM_ID = "veilmarkets_oracle_v14_0.aleo";
-export const FACTORY_PROGRAM_ID = "veilmarkets_factory_v14.aleo";
-export const GOVERNANCE_PROGRAM_ID = "veilmarkets_governance_v14.aleo";
+export const PROGRAM_ID = "veilmarkets_core_v15.aleo";
+export const CREDITS_TOKEN_PROGRAM_ID = "veilmarkets_token_credits_v15.aleo";
+export const USDCX_TOKEN_PROGRAM_ID = "veilmarkets_token_usdcx_v15.aleo";
+export const USAD_TOKEN_PROGRAM_ID = "veilmarkets_token_usad_v15.aleo";
+export const ORACLE_PROGRAM_ID = "veilmarkets_oracle_v15.aleo";
+export const FACTORY_PROGRAM_ID = "veilmarkets_factory_v15.aleo";
+export const GOVERNANCE_PROGRAM_ID = "veilmarkets_governance_v15.aleo";
 export const ADMIN_ADDRESS = "aleo1gg2c0sqseya4f68g6j9qmh455c0pft2m6pnd43rls72ac0pdsvzs5f3v6l";
 
 // Canonical on-chain addresses for token adapter programs.
@@ -19,7 +19,7 @@ const normalizeTokenId = (tokenId: string) => tokenId.trim().toLowerCase();
 
 const CREDITS_ALIASES = new Set<string>([
   CREDITS_TOKEN_PROGRAM_ID,
-  "veilmarkets_token_credits_v14.aleo",
+  "veilmarkets_token_credits_v15.aleo",
   CREDITS_TOKEN_PROGRAM_ADDRESS,
   "credits.aleo",
   "aleo credits",
@@ -28,7 +28,7 @@ const CREDITS_ALIASES = new Set<string>([
 
 const USDCX_ALIASES = new Set<string>([
   USDCX_TOKEN_PROGRAM_ID,
-  "veilmarkets_token_usdcx_v14.aleo",
+  "veilmarkets_token_usdcx_v15.aleo",
   USDCX_CREDITS_TOKEN_PROGRAM_ADDRESS,
   "test_usdcx_stablecoin.aleo",
   "usdcx",
@@ -36,7 +36,7 @@ const USDCX_ALIASES = new Set<string>([
 
 const USAD_ALIASES = new Set<string>([
   USAD_TOKEN_PROGRAM_ID,
-  "veilmarkets_token_usad_v14.aleo",
+  "veilmarkets_token_usad_v15.aleo",
   USAD_CREDITS_TOKEN_PROGRAM_ADDRESS,
   "test_usad_stablecoin.aleo",
   "usad",
@@ -45,10 +45,9 @@ const USAD_ALIASES = new Set<string>([
 export const resolveTokenKind = (tokenId: string): SupportedTokenKind | null => {
   const normalized = normalizeTokenId(tokenId);
   if (!normalized) return null;
+  if (CREDITS_ALIASES.has(normalized) || normalized.includes("token_credits")) return "credits";
   if (USDCX_ALIASES.has(normalized) || normalized.includes("usdcx")) return "usdcx";
   if (USAD_ALIASES.has(normalized) || normalized.includes("usad")) return "usad";
-  if (CREDITS_ALIASES.has(normalized) || normalized.includes("token_credits")) return "credits";
-  if (normalized.startsWith("aleo1")) return "credits";
   return null;
 };
 
