@@ -50,6 +50,7 @@ export interface PoolInfo {
   total_outcome_5: number;
   total_outcome_6: number;
   total_outcome_7: number;
+  outcome_supply: number;
   // Legacy aliases kept for backwards compatibility in existing UI.
   total_no: number;
   total_yes: number;
@@ -365,6 +366,7 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
     total_outcome_5: 0,
     total_outcome_6: 0,
     total_outcome_7: 0,
+    outcome_supply: 0,
     total_no: 0,
     total_yes: 0,
     trader_count: 0,
@@ -392,6 +394,7 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
     const totalOutcome5 = parseAleoInt(obj.total_outcome_5);
     const totalOutcome6 = parseAleoInt(obj.total_outcome_6);
     const totalOutcome7 = parseAleoInt(obj.total_outcome_7);
+    const outcomeSupply = parseAleoInt(obj.outcome_supply);
     const traderCount = parseAleoInt(obj.trader_count ?? obj.participant_count);
     const lpCount = parseAleoInt(obj.lp_count);
     const tradingCollateral = parseAleoInt(obj.trading_collateral ?? obj.total_collateral);
@@ -409,6 +412,7 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
       total_outcome_5: totalOutcome5,
       total_outcome_6: totalOutcome6,
       total_outcome_7: totalOutcome7,
+      outcome_supply: outcomeSupply,
       total_no: totalOutcome0,
       total_yes: totalOutcome1,
       trader_count: traderCount,
@@ -451,6 +455,7 @@ export const parsePoolInfo = (raw: string | object): PoolInfo => {
       key === "total_outcome_5" ||
       key === "total_outcome_6" ||
       key === "total_outcome_7" ||
+      key === "outcome_supply" ||
       key === "total_no" ||
       key === "total_yes" ||
       key === "trader_count" ||

@@ -1,7 +1,7 @@
-import veilmarkets_core_v13.aleo;
-import veilmarkets_factory_v13.aleo;
+import veilmarkets_core_v14.aleo;
+import veilmarkets_factory_v14.aleo;
 
-program veilmarkets_governance_v13.aleo {
+program veilmarkets_governance_v14.aleo {
     struct Proposal {
         proposer: address,
         target: u8, // 0 = core, 1 = oracle
@@ -66,7 +66,7 @@ program veilmarkets_governance_v13.aleo {
         public param_key: u8,
         public value: u64,
     ) -> Final {
-        let f_target: Final = veilmarkets_core_v13.aleo::set_protocol_u64(param_key, value);
+        let f_target: Final = veilmarkets_core_v14.aleo::set_protocol_u64(param_key, value);
         return final {
             f_target.run();
             finalize_execute(proposal_id, TARGET_CORE, param_key, value, false);
@@ -74,7 +74,7 @@ program veilmarkets_governance_v13.aleo {
     }
 
     fn execute_core_u8(public proposal_id: field, public param_key: u8, public value: u8) -> Final {
-        let f_target: Final = veilmarkets_core_v13.aleo::set_protocol_u8(param_key, value);
+        let f_target: Final = veilmarkets_core_v14.aleo::set_protocol_u8(param_key, value);
         return final {
             f_target.run();
             finalize_execute(proposal_id, TARGET_CORE, param_key, value as u64, true);
@@ -87,7 +87,7 @@ program veilmarkets_governance_v13.aleo {
         public value: u64,
     ) -> Final {
         let caller: address = self.caller;
-        let oracle_auth: Final = veilmarkets_factory_v13.aleo::verify_is_registered(
+        let oracle_auth: Final = veilmarkets_factory_v14.aleo::verify_is_registered(
             ORACLE_CONTRACT_TYPE,
             caller,
         );
@@ -103,7 +103,7 @@ program veilmarkets_governance_v13.aleo {
         public value: u8,
     ) -> Final {
         let caller: address = self.caller;
-        let oracle_auth: Final = veilmarkets_factory_v13.aleo::verify_is_registered(
+        let oracle_auth: Final = veilmarkets_factory_v14.aleo::verify_is_registered(
             ORACLE_CONTRACT_TYPE,
             caller,
         );

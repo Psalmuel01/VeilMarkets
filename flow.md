@@ -22,13 +22,13 @@ Settlement is fixed-share, not pari-mutuel:
 
 The current suite is composed of:
 
-- `veilmarkets_factory_v13.aleo`
-- `veilmarkets_core_v13.aleo`
-- `veilmarkets_governance_v13.aleo`
-- `veilmarkets_oracle_v13.aleo`
-- `veilmarkets_token_credits_v13.aleo`
-- `veilmarkets_token_usdcx_v13.aleo`
-- `veilmarkets_token_usad_v13.aleo`
+- `veilmarkets_factory_v14.aleo`
+- `veilmarkets_core_v14.aleo`
+- `veilmarkets_governance_v14.aleo`
+- `veilmarkets_oracle_v14.aleo`
+- `veilmarkets_token_credits_v14.aleo`
+- `veilmarkets_token_usdcx_v14.aleo`
+- `veilmarkets_token_usad_v14.aleo`
 
 ## 1. Trust and Registration Flow
 
@@ -83,8 +83,8 @@ LP funding is routed through the market's token adapter.
    - validates market is open and unresolved
    - validates token rail via `self.caller`
    - splits LP amount evenly across all outcomes
-   - increases `outcome_token_qty`
-   - increases `outcome_token_supply`
+   - increases pooled `total_outcome_*` inventory
+   - increases shared `outcome_supply`
    - updates `lp_supply`, `lp_collateral`, and `total_collateral`
    - credits `lp_balances` using the derived LP owner key
 

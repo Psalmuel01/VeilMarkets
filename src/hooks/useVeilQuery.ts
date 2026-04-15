@@ -1,9 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchCurrentBlockHeight, type PoolInfo } from "@/lib/aleo";
 import { queryKeys } from "@/lib/queryKeys";
-import { CREATE_PROGRAM_ID, resolveTokenKind, type SupportedTokenKind } from "@/lib/constants";
+import { resolveTokenKind, type SupportedTokenKind } from "@/lib/constants";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
-import { useFundPoolTransaction } from "@/hooks/useFundPoolTransaction";
 
 const POLL_INTERVAL_MS = 5_000;
 const DEFAULT_STALE_MS = 3_000;
@@ -443,14 +442,11 @@ export const useSellSharesMutation = () => {
 export const useFundPoolMutation = () => {
   const queryClient = useQueryClient();
   const { fundPool, publicKey } = useAleoPrograms();
-  const { fundPool: fundPoolStageOne } = useFundPoolTransaction();
 
   return useMutation({
     mutationFn: async ({ marketId, amountCredits, tokenId, marketProgramId }: FundPoolVariables) => {
-      const txId =
-        marketProgramId === CREATE_PROGRAM_ID
-          ? await fundPoolStageOne(marketId, amountCredits, tokenId, marketProgramId)
-          : await fundPool(marketId, amountCredits, tokenId);
+      void marketProgramId;
+      const txId = await fundPool(marketId, amountCredits, tokenId);
       if (!txId) throw new Error("Fund pool transaction failed");
       return txId;
     },

@@ -26,8 +26,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ZKBadge } from "@/components/ui/ZKBadge";
-import { useCreateMarketTransaction } from "@/hooks/useCreateMarketTransaction";
-import { useLiquidityPingTransaction } from "@/hooks/useLiquidityPingTransaction";
 import { getTimestampFromDate } from "@/lib/aleo";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -39,6 +37,7 @@ import {
 import { queryKeys } from "@/lib/queryKeys";
 import { MAX_OUTCOME_COUNT } from "@/lib/outcomes";
 import { useProtocolConfigQuery } from "@/hooks/useVeilQuery";
+import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 
 const categories = [
   { value: "crypto", label: "Crypto" },
@@ -73,8 +72,7 @@ export default function CreateMarketPage() {
     tokenId: CREDITS_TOKEN_PROGRAM_ADDRESS,
   });
 
-  const { createMarket } = useCreateMarketTransaction();
-  const { runPing, loading: liquidityPingLoading } = useLiquidityPingTransaction();
+  const { createMarket } = useAleoPrograms();
   const { data: protocolConfig } = useProtocolConfigQuery();
   const maxOutcomeCount = Math.max(
     2,
@@ -224,24 +222,6 @@ export default function CreateMarketPage() {
           <p className="text-muted-foreground text- max-w-lg mx-auto leading-relaxed">
             Deploy a private, ZK-powered prediction market on Aleo in seconds.
           </p>
-          <div className="mt-5 flex justify-center">
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-full border-white/10 bg-white/5 text-xs font-semibold uppercase tracking-[0.16em] text-white/80 hover:bg-white/10"
-              onClick={() => void runPing()}
-              disabled={liquidityPingLoading}
-            >
-              {liquidityPingLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                  Testing Liquidity
-                </>
-              ) : (
-                "Test Liquidity Ping"
-              )}
-            </Button>
-          </div>
         </motion.div>
 
         {step === "form" && (

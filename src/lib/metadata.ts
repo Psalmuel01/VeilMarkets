@@ -1,7 +1,7 @@
 import { supabase } from "./supabase";
 import { PROGRAM_ID } from "./constants";
 
-const MARKETS_TABLE_v13 = "markets_v13";
+const MARKETS_TABLE_v14 = "markets_v14";
 
 export interface MarketMetadata {
   title: string;
@@ -51,7 +51,7 @@ export const saveMarketMetadata = async (payload: SaveMarketMetadataInput) => {
     .filter((label) => label.length > 0);
 
   const { data, error } = await supabase
-    .from(MARKETS_TABLE_v13)
+    .from(MARKETS_TABLE_v14)
     .insert([
       {
         program_id: payload.program_id ?? PROGRAM_ID,
@@ -83,7 +83,7 @@ export const saveMarketMetadata = async (payload: SaveMarketMetadataInput) => {
 export const getAllMarketMetadata = async (): Promise<MarketMetadataRow[]> => {
   try {
     const v13Result = await supabase
-      .from(MARKETS_TABLE_v13)
+      .from(MARKETS_TABLE_v14)
       .select(
         "program_id, market_id, transaction_id, title, description, source, category, market_type, outcome_count, outcome_labels, token_id, close_time, resolution_time, created_by, created_at, expiry_time",
       )
@@ -134,7 +134,7 @@ export const getAllMarketMetadata = async (): Promise<MarketMetadataRow[]> => {
 export const getMarketMetadata = async (marketId: string): Promise<MarketMetadataRow | null> => {
   try {
     const { data, error } = await supabase
-      .from(MARKETS_TABLE_v13)
+      .from(MARKETS_TABLE_v14)
       .select(
         "program_id, market_id, transaction_id, title, description, source, category, market_type, outcome_count, outcome_labels, token_id, close_time, resolution_time, created_by, created_at, expiry_time",
       )

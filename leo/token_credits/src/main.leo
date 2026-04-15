@@ -1,10 +1,10 @@
-// VeilMarkets Token — Credits Adapter (v13 buildathon)
+// VeilMarkets Token — Credits Adapter (v14)
 // Private credits rail for buy/fund/claim + governance-gated protocol fee withdrawals.
 import credits.aleo;
-import veilmarkets_core_v13.aleo;
-import veilmarkets_factory_v13.aleo;
+import veilmarkets_core_v14.aleo;
+import veilmarkets_factory_v14.aleo;
 
-program veilmarkets_token_credits_v13.aleo {
+program veilmarkets_token_credits_v14.aleo {
     const GOVERNANCE_CONTRACT_TYPE: u8 = 4u8;
     const MIN_BET: u64 = 1000000u64;
 
@@ -13,13 +13,13 @@ program veilmarkets_token_credits_v13.aleo {
 
     fn buy_shares(
         input_credits: credits.aleo::credits,
-        public market_id: field,
-        public outcome: u8,
-        public collateral_in: u64,
-        public min_shares_out: u64,
-        public expected_shares_out: u64,
+        market_id: field,
+        outcome: u8,
+        collateral_in: u64,
+        min_shares_out: u64,
+        expected_shares_out: u64,
         position_nonce: field,
-    ) -> (credits.aleo::credits, veilmarkets_core_v13.aleo::BetPosition, Final) {
+    ) -> (credits.aleo::credits, veilmarkets_core_v14.aleo::BetPosition, Final) {
         assert(input_credits.microcredits >= collateral_in);
         assert(collateral_in >= MIN_BET);
         assert(min_shares_out > 0u64);
@@ -38,7 +38,7 @@ program veilmarkets_token_credits_v13.aleo {
                 + position_nonce,
         );
         let owner_commitment: field = BHP256::hash_to_field(position_id);
-        let (position, core_future): (veilmarkets_core_v13.aleo::BetPosition, Final) = veilmarkets_core_v13.aleo::buy_shares(
+        let (position, core_future): (veilmarkets_core_v14.aleo::BetPosition, Final) = veilmarkets_core_v14.aleo::buy_shares(
             market_id,
             outcome,
             collateral_in,
@@ -56,8 +56,8 @@ program veilmarkets_token_credits_v13.aleo {
 
     fn fund_pool(
         input_credits: credits.aleo::credits,
-        public market_id: field,
-        public amount: u64,
+        market_id: field,
+        amount: u64,
     ) -> (credits.aleo::credits, Final) {
         assert(input_credits.microcredits >= amount);
         assert(amount >= MIN_BET);
@@ -67,7 +67,7 @@ program veilmarkets_token_credits_v13.aleo {
             amount,
         );
         let lp_owner_key: field = BHP256::hash_to_field(market_id + self.signer as field);
-        let core_future: Final = veilmarkets_core_v13.aleo::fund_pool(
+        let core_future: Final = veilmarkets_core_v14.aleo::fund_pool(
             market_id,
             amount,
             lp_owner_key,
@@ -80,10 +80,10 @@ program veilmarkets_token_credits_v13.aleo {
     }
 
     fn claim_payout(
-        public payout_amount: u64,
-        public nullifier: field,
+        payout_amount: u64,
+        nullifier: field,
     ) -> (credits.aleo::credits, Final) {
-        let core_result: Final = veilmarkets_core_v13.aleo::verify_claim(nullifier, payout_amount);
+        let core_result: Final = veilmarkets_core_v14.aleo::verify_claim(nullifier, payout_amount);
         let (payout_record, transfer_future): (credits.aleo::credits, Final) = credits.aleo::transfer_public_to_private(
             self.caller,
             payout_amount,
@@ -96,15 +96,15 @@ program veilmarkets_token_credits_v13.aleo {
     }
 
     fn withdraw_protocol_fees(
-        public amount: u64,
-        public authorization_id: field,
-        public recipient: address,
+        amount: u64,
+        authorization_id: field,
+        recipient: address,
     ) -> (credits.aleo::credits, Final) {
-        let gov_auth: Final = veilmarkets_factory_v13.aleo::verify_is_registered(
+        let gov_auth: Final = veilmarkets_factory_v14.aleo::verify_is_registered(
             GOVERNANCE_CONTRACT_TYPE,
             self.caller,
         );
-        let core_auth: Final = veilmarkets_core_v13.aleo::authz_fee_withdrawal(
+        let core_auth: Final = veilmarkets_core_v14.aleo::authz_fee_withdrawal(
             amount,
             authorization_id,
         );

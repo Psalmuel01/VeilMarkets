@@ -4,8 +4,6 @@ import { ShieldWalletAdapter } from "@provablehq/aleo-wallet-adaptor-shield";
 import { Network } from "@provablehq/aleo-types";
 import { DecryptPermission } from "@provablehq/aleo-wallet-adaptor-core";
 import {
-    CREATE_PROGRAM_ID,
-    LIQUIDITY_PROGRAM_ID,
     PROGRAM_ID,
     CREDITS_TOKEN_PROGRAM_ID,
     USDCX_TOKEN_PROGRAM_ID,
@@ -25,8 +23,6 @@ export const WalletWrapper = ({ children }) => {
     );
     const allowedPrograms = useMemo(
         () => [
-            CREATE_PROGRAM_ID,
-            LIQUIDITY_PROGRAM_ID,
             PROGRAM_ID,
             CREDITS_TOKEN_PROGRAM_ID,
             USDCX_TOKEN_PROGRAM_ID,

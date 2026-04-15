@@ -17,7 +17,7 @@ VeilMarkets is a privacy-aware prediction market built on Aleo. It supports shar
 
 ## Overview
 
-VeilMarkets uses a modular `v13` contract suite to support:
+VeilMarkets uses a modular `v14` contract suite to support:
 
 - binary and categorical markets
 - up to `8` outcomes per market
@@ -51,13 +51,13 @@ Settlement is fixed-share:
 
 Current program suite:
 
-- `veilmarkets_factory_v13.aleo`
-- `veilmarkets_core_v13.aleo`
-- `veilmarkets_governance_v13.aleo`
-- `veilmarkets_oracle_v13.aleo`
-- `veilmarkets_token_credits_v13.aleo`
-- `veilmarkets_token_usdcx_v13.aleo`
-- `veilmarkets_token_usad_v13.aleo`
+- `veilmarkets_factory_v14.aleo`
+- `veilmarkets_core_v14.aleo`
+- `veilmarkets_governance_v14.aleo`
+- `veilmarkets_oracle_v14.aleo`
+- `veilmarkets_token_credits_v14.aleo`
+- `veilmarkets_token_usdcx_v14.aleo`
+- `veilmarkets_token_usad_v14.aleo`
 
 High-level flow:
 
@@ -153,13 +153,13 @@ npm run build
 
 Suggested contract deployment order:
 
-1. `veilmarkets_factory_v13`
-2. `veilmarkets_core_v13`
-3. `veilmarkets_governance_v13`
-4. `veilmarkets_oracle_v13`
-5. `veilmarkets_token_credits_v13`
-6. `veilmarkets_token_usdcx_v13`
-7. `veilmarkets_token_usad_v13`
+1. `veilmarkets_factory_v14`
+2. `veilmarkets_core_v14`
+3. `veilmarkets_governance_v14`
+4. `veilmarkets_oracle_v14`
+5. `veilmarkets_token_credits_v14`
+6. `veilmarkets_token_usdcx_v14`
+7. `veilmarkets_token_usad_v14`
 
 After deployment, register contracts in factory:
 
@@ -199,7 +199,7 @@ cd leo/token_usad && leo test
 
 Notes:
 
-- The repo now includes v13-aligned Leo invariant tests for core, oracle, and token adapters.
+- The repo now includes Leo invariant tests for core, oracle, and token adapters.
 - In the current local environment, full `leo test` execution may still be blocked by dependency deployment acceptance in the test ledger before runtime test execution begins.
 
 ## Documentation

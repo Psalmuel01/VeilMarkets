@@ -1,10 +1,10 @@
-// VeilMarkets Token — USDCx Adapter (v13 buildathon)
+// VeilMarkets Token — USDCx Adapter (v14)
 // Private stablecoin rail for buy/fund/claim + governance-gated protocol fee withdrawals.
 import test_usdcx_stablecoin.aleo;
-import veilmarkets_core_v13.aleo;
-import veilmarkets_factory_v13.aleo;
+import veilmarkets_core_v14.aleo;
+import veilmarkets_factory_v14.aleo;
 
-program veilmarkets_token_usdcx_v13.aleo {
+program veilmarkets_token_usdcx_v14.aleo {
     struct TokenMerkleProof {
         siblings: [field; 16u32],
         leaf_index: u32,
@@ -20,15 +20,15 @@ program veilmarkets_token_usdcx_v13.aleo {
         input_token: test_usdcx_stablecoin.aleo::Token,
         token_proof_0: TokenMerkleProof,
         token_proof_1: TokenMerkleProof,
-        public market_id: field,
-        public outcome: u8,
-        public collateral_in: u64,
-        public min_shares_out: u64,
-        public expected_shares_out: u64,
+        market_id: field,
+        outcome: u8,
+        collateral_in: u64,
+        min_shares_out: u64,
+        expected_shares_out: u64,
         position_nonce: field,
     ) -> (
         test_usdcx_stablecoin.aleo::ComplianceRecord, test_usdcx_stablecoin.aleo::Token,
-        veilmarkets_core_v13.aleo::BetPosition, Final,
+        veilmarkets_core_v14.aleo::BetPosition, Final,
     ) {
         let collateral_in_u128: u128 = collateral_in as u128;
         assert(input_token.amount >= collateral_in_u128);
@@ -64,7 +64,7 @@ program veilmarkets_token_usdcx_v13.aleo {
                 + position_nonce,
         );
         let owner_commitment: field = BHP256::hash_to_field(position_id);
-        let (position, core_future): (veilmarkets_core_v13.aleo::BetPosition, Final) = veilmarkets_core_v13.aleo::buy_shares(
+        let (position, core_future): (veilmarkets_core_v14.aleo::BetPosition, Final) = veilmarkets_core_v14.aleo::buy_shares(
             market_id,
             outcome,
             collateral_in,
@@ -84,8 +84,8 @@ program veilmarkets_token_usdcx_v13.aleo {
         input_token: test_usdcx_stablecoin.aleo::Token,
         token_proof_0: TokenMerkleProof,
         token_proof_1: TokenMerkleProof,
-        public market_id: field,
-        public amount: u64,
+        market_id: field,
+        amount: u64,
     ) -> (test_usdcx_stablecoin.aleo::ComplianceRecord, test_usdcx_stablecoin.aleo::Token, Final) {
         let amount_u128: u128 = amount as u128;
         assert(input_token.amount >= amount_u128);
@@ -111,7 +111,7 @@ program veilmarkets_token_usdcx_v13.aleo {
             token_proof,
         );
         let lp_owner_key: field = BHP256::hash_to_field(market_id + self.signer as field);
-        let core_future: Final = veilmarkets_core_v13.aleo::fund_pool(
+        let core_future: Final = veilmarkets_core_v14.aleo::fund_pool(
             market_id,
             amount,
             lp_owner_key,
@@ -124,11 +124,11 @@ program veilmarkets_token_usdcx_v13.aleo {
     }
 
     fn claim_payout(
-        public payout_amount: u64,
-        public nullifier: field,
+        payout_amount: u64,
+        nullifier: field,
     ) -> (test_usdcx_stablecoin.aleo::ComplianceRecord, test_usdcx_stablecoin.aleo::Token, Final) {
         let payout_amount_u128: u128 = payout_amount as u128;
-        let core_result: Final = veilmarkets_core_v13.aleo::verify_claim(nullifier, payout_amount);
+        let core_result: Final = veilmarkets_core_v14.aleo::verify_claim(nullifier, payout_amount);
         let (compliance_record, payout_record, transfer_future): (
             test_usdcx_stablecoin.aleo::ComplianceRecord, test_usdcx_stablecoin.aleo::Token, Final,
         ) = test_usdcx_stablecoin.aleo::transfer_public_to_private(self.caller, payout_amount_u128);
@@ -140,16 +140,16 @@ program veilmarkets_token_usdcx_v13.aleo {
     }
 
     fn withdraw_protocol_fees(
-        public amount: u64,
-        public authorization_id: field,
-        public recipient: address,
+        amount: u64,
+        authorization_id: field,
+        recipient: address,
     ) -> (test_usdcx_stablecoin.aleo::ComplianceRecord, test_usdcx_stablecoin.aleo::Token, Final) {
         let amount_u128: u128 = amount as u128;
-        let gov_auth: Final = veilmarkets_factory_v13.aleo::verify_is_registered(
+        let gov_auth: Final = veilmarkets_factory_v14.aleo::verify_is_registered(
             GOVERNANCE_CONTRACT_TYPE,
             self.caller,
         );
-        let core_auth: Final = veilmarkets_core_v13.aleo::authz_fee_withdrawal(
+        let core_auth: Final = veilmarkets_core_v14.aleo::authz_fee_withdrawal(
             amount,
             authorization_id,
         );
