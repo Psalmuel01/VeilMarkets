@@ -75,6 +75,12 @@ export interface ResolutionProposal {
   proposer: string;
 }
 
+export interface ResolutionDispute {
+  challenger: string;
+  stake: number;
+  proposal_outcome: number;
+}
+
 const asRecord = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 
@@ -539,6 +545,50 @@ export const parseResolutionProposal = (raw: string | object): ResolutionProposa
       parsed.is_disputed = parseAleoBool(value);
     } else if (key === "market_id" || key === "proposer") {
       parsed[key] = stripTypeSuffixes(value) as never;
+    }
+  }
+
+  return { ...base, ...parsed };
+};
+
+export const parseResolutionDispute = (raw: string | object): ResolutionDispute | null => {
+  const base: ResolutionDispute = {
+    challenger: "",
+    stake: 0,
+    proposal_outcome: 0,
+  };
+
+  if (!raw) return null;
+
+  const unwrapped = unwrapMappingValue(raw);
+
+  if (typeof unwrapped === "object" && unwrapped !== null) {
+    const obj = asRecord(unwrapped);
+    return {
+      challenger: stripTypeSuffixes(String(obj.challenger ?? "")),
+      stake: parseAleoInt(obj.stake),
+      proposal_outcome: parseAleoInt(obj.proposal_outcome),
+    };
+  }
+
+  if (typeof unwrapped !== "string") return null;
+
+  const cleaned = unwrapped.replace(/\{|\}/g, "");
+  const pairs = cleaned.split(",");
+  const parsed: Partial<ResolutionDispute> = {};
+
+  for (const pair of pairs) {
+    const colonIdx = pair.indexOf(":");
+    if (colonIdx === -1) continue;
+
+    const key = pair.slice(0, colonIdx).trim();
+    const value = pair.slice(colonIdx + 1).trim();
+    if (!key || !value) continue;
+
+    if (key === "stake" || key === "proposal_outcome") {
+      parsed[key] = parseAleoInt(value) as never;
+    } else if (key === "challenger") {
+      parsed.challenger = stripTypeSuffixes(value);
     }
   }
 

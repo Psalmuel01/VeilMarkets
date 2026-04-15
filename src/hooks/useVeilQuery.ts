@@ -58,10 +58,12 @@ const invalidateCoreQueries = async (
     await invalidate({ queryKey: queryKeys.marketPool(marketId) });
     await invalidate({ queryKey: ["market", "user-position", normalizedMarketId] });
     await invalidate({ queryKey: queryKeys.marketProposal(marketId) });
+    await invalidate({ queryKey: queryKeys.marketDispute(marketId) });
     await invalidate({ queryKey: ["market", "resolution-requirements", normalizedMarketId] });
     await invalidate({ queryKey: ["market", "outcomes", normalizedMarketId] });
     await invalidate({ queryKey: ["market", "quote", normalizedMarketId] });
     await invalidate({ queryKey: ["market", "sell-quote", normalizedMarketId] });
+    await invalidate({ queryKey: queryKeys.marketOracleVoteStatus(marketId, address) });
   }
   if (address) {
     await invalidate({ queryKey: queryKeys.userBets(address) });
@@ -212,6 +214,19 @@ export const useResolutionProposalQuery = (marketId?: string) => {
   });
 };
 
+export const useResolutionDisputeQuery = (marketId?: string, enabled = true) => {
+  const { fetchResolutionDispute } = useAleoPrograms();
+
+  return useQuery({
+    queryKey: queryKeys.marketDispute(marketId ?? ""),
+    queryFn: () => fetchResolutionDispute(marketId ?? ""),
+    enabled: Boolean(marketId) && enabled,
+    staleTime: DEFAULT_STALE_MS,
+    refetchInterval: POLL_INTERVAL_MS,
+    refetchOnWindowFocus: true,
+  });
+};
+
 export const useUserBetsQuery = () => {
   const { fetchUserBets, publicKey } = useAleoPrograms();
 
@@ -318,6 +333,19 @@ export const useResolutionFinalizeRequirementsQuery = (
     queryKey: queryKeys.marketResolutionRequirements(marketId ?? "", outcomeCount),
     queryFn: () => fetchResolutionFinalizeRequirements(marketId ?? "", outcomeCount),
     enabled: Boolean(marketId) && enabled,
+    staleTime: DEFAULT_STALE_MS,
+    refetchInterval: POLL_INTERVAL_MS,
+    refetchOnWindowFocus: true,
+  });
+};
+
+export const useOracleVoteStatusQuery = (marketId?: string, enabled = true) => {
+  const { fetchOracleVoteStatus, publicKey } = useAleoPrograms();
+
+  return useQuery({
+    queryKey: queryKeys.marketOracleVoteStatus(marketId ?? "", publicKey),
+    queryFn: () => fetchOracleVoteStatus(marketId ?? ""),
+    enabled: Boolean(marketId) && Boolean(publicKey) && enabled,
     staleTime: DEFAULT_STALE_MS,
     refetchInterval: POLL_INTERVAL_MS,
     refetchOnWindowFocus: true,
@@ -548,6 +576,26 @@ export const useDisputeResolutionMutation = () => {
     mutationFn: async ({ marketId, amountCredits }: { marketId: string; amountCredits: number }) => {
       const txId = await disputeResolution(marketId, amountCredits);
       if (!txId) throw new Error("Dispute transaction failed");
+      return txId;
+    },
+    onSettled: async (_data, _error, { marketId }) => {
+      await invalidateCoreQueries(
+        ({ queryKey }) => queryClient.invalidateQueries({ queryKey }),
+        marketId,
+        publicKey,
+      );
+    },
+  });
+};
+
+export const useVoteOnResolutionMutation = () => {
+  const queryClient = useQueryClient();
+  const { voteOnResolution, publicKey } = useAleoPrograms();
+
+  return useMutation({
+    mutationFn: async ({ marketId, outcome }: { marketId: string; outcome: number }) => {
+      const txId = await voteOnResolution(marketId, outcome);
+      if (!txId) throw new Error("Vote transaction failed");
       return txId;
     },
     onSettled: async (_data, _error, { marketId }) => {

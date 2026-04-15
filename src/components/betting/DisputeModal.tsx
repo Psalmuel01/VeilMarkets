@@ -78,7 +78,8 @@ export const DisputeModal = ({
                 </p>
                 <div className="pt-2">
                   <p className="text-[11px] text-amber-500/60 font-medium">
-                    If the proposal is found incorrect, your bond is returned plus a portion of the proposer's slashed stake.
+                    Disputing makes you the challenger. Oracle registration is only required if you also want to vote in quorum.
+                    If the proposal is found incorrect, your bond is returned plus a portion of the proposer&apos;s slashed stake.
                     If the proposal was correct, your bond may be slashed.
                   </p>
                 </div>
@@ -91,10 +92,16 @@ export const DisputeModal = ({
                 <Button
                   className="flex-1 bg-amber-600 hover:bg-amber-500 text-white rounded-2xl shadow-[0_0_20px_rgba(245,158,11,0.2)]"
                   onClick={handleDispute}
+                  disabled={!publicKey}
                 >
                   Stake {DISPUTE_BOND_ALEO} ALEO & Dispute
                 </Button>
               </div>
+              {!publicKey && (
+                <p className="text-center text-[11px] text-muted-foreground">
+                  Connect your wallet to post the dispute bond.
+                </p>
+              )}
             </div>
           ) : step === "processing" ? (
             <div className="py-12 text-center space-y-3">
@@ -112,7 +119,7 @@ export const DisputeModal = ({
               <div className="space-y-2">
                 <h3 className="text-lg font-bold text-white">Dispute Broadcasted</h3>
                 <p className="text-sm text-muted-foreground px-4">
-                  The market is now enters the quorum voting phase. Other oracles will now vote on the correct outcome.
+                  You are now the challenger. The market has entered the quorum voting phase, and active oracles can now vote on the correct outcome.
                 </p>
               </div>
               {txId && (

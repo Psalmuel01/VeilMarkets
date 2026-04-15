@@ -767,8 +767,8 @@ export default function MarketDetailPage() {
                   </Button>
                 </div>
               )}
-              {/* {publicKey && (
-                <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-xs space-y-1">
+              {publicKey && (
+                <div className="mt-7 rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-xs space-y-5">
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Your LP Liquidity</span>
                     <span className="text-white font-mono">
@@ -796,13 +796,13 @@ export default function MarketDetailPage() {
                   {lpShares > 0 && (
                     <Button
                       onClick={() => setShowWithdrawModal(true)}
-                      className="w-full mt-2 h-10 rounded-xl bg-success/10 border border-success/30 hover:bg-success/15 text-success"
+                      className="w-full mt-2 h-10 text-xs rounded-xl bg-success/10 border border-success/30 hover:bg-success/15 text-success"
                     >
                       Withdraw Liquidity
                     </Button>
                   )}
                 </div>
-              )} */}
+              )}
             </div>
 
             {/* Resolution Mechanics — only shown when market is no longer Open */}
@@ -1184,6 +1184,7 @@ export default function MarketDetailPage() {
           market_type: market.market_type,
           outcome_count: market.outcome_count,
           outcome_labels: market.outcome_labels,
+          winningOutcome: market.winningOutcome,
         }}
         proposal={proposal}
         outcomeTotals={outcomeTotals}

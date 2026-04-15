@@ -8,6 +8,7 @@ import {
   PoolInfo,
   parsePoolInfo,
   parseResolutionProposal,
+  parseResolutionDispute,
 } from "@/lib/aleo";
 import {
   saveMarketMetadata,
@@ -135,6 +136,21 @@ interface SellQuote {
   slippageBps: number;
 }
 
+interface ResolutionDisputeInfo {
+  challenger: string;
+  stake: number;
+  proposal_outcome: number;
+}
+
+interface OracleVoteStatus {
+  marketId: string;
+  receiptKey: string | null;
+  hasVoted: boolean;
+  outcome: number | null;
+  weightMicro: number;
+  rewardClaimed: boolean;
+}
+
 export interface ResolutionFinalizeRequirements {
   marketId: string;
   proposal: {
@@ -212,6 +228,13 @@ const parseMappingU64 = (value: unknown): number => {
     if (obj.value !== undefined) return parseMappingU64(obj.value);
   }
   return 0;
+};
+
+const parseMappingBool = (value: unknown): boolean => {
+  const unwrapped = unwrapValue(value);
+  if (typeof unwrapped === "boolean") return unwrapped;
+  if (typeof unwrapped === "string") return unwrapped.trim() === "true";
+  return false;
 };
 
 const parseMappingBigInt = (value: unknown): bigint => {
@@ -497,6 +520,13 @@ const deriveOutcomeExposureKey = async (marketIdField: string, outcome: number):
 
 const deriveOutcomeVoteKey = async (marketIdField: string, outcome: number): Promise<string | null> =>
   deriveOutcomeExposureKey(marketIdField, outcome);
+
+const deriveVoteReceiptKey = async (marketIdField: string, voterAddress: string): Promise<string | null> => {
+  const helpers = await getAddressFieldHelpers();
+  if (!helpers) return null;
+  const voterField = helpers.toField(voterAddress);
+  return deriveLpBalanceKey(marketIdField, voterField);
+};
 
 const deriveLpBalanceKey = async (marketIdField: string, lpOwnerField: string): Promise<string | null> => {
   const helpers = await getBhpHelpers();
@@ -2356,6 +2386,31 @@ export const useAleoPrograms = () => {
     }
   };
 
+  const findLatestOracleCredentialInput = async (): Promise<string | null> => {
+    if (!address) return null;
+
+    try {
+      const rawRecords = await requestRecordsWithRetry(requestRecords, ORACLE_PROGRAM_ID, "OracleCredential");
+      const records = rawRecords
+        .filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null)
+        .filter((record) => !record.spent)
+        .filter((record) => {
+          const owner = parseRecordField(record, "owner");
+          return !owner || owner === address;
+        })
+        .sort((a, b) => Number(b.timestamp ?? 0) - Number(a.timestamp ?? 0));
+
+      for (const record of records) {
+        const plaintext = extractRecordPlaintextInput(record, ["owner", "staked_amount", "reputation_score"]);
+        if (plaintext) return plaintext;
+      }
+    } catch (error) {
+      console.error("Failed to load OracleCredential records:", error);
+    }
+
+    return null;
+  };
+
   const proposeResolution = async (marketId: string, outcome: number) => {
     if (!address) return;
     const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
@@ -2373,6 +2428,37 @@ export const useAleoPrograms = () => {
       return result ? result.transactionId : null;
     } catch (error) {
       console.error("Propose resolution failed:", error);
+      return null;
+    }
+  };
+
+  const voteOnResolution = async (marketId: string, outcome: number) => {
+    if (!address) return null;
+    const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+
+    try {
+      const credentialInput = await findLatestOracleCredentialInput();
+      if (!credentialInput) {
+        toast.error("No OracleCredential record found in your wallet yet. Refresh Shield or wait for wallet sync.");
+        return null;
+      }
+
+      const result = await executeAndPoll({
+        program: ORACLE_PROGRAM_ID,
+        function: "vote_on_resolution",
+        inputs: [credentialInput, cleanMarketId, formatU8(outcome)],
+        fee: 500_000,
+        privateFee: false,
+      }, ORACLE_PROGRAM_ID, "vote_on_resolution");
+
+      if (result) {
+        toast.success("Quorum vote submitted.");
+        triggerRefresh();
+      }
+      return result ? result.transactionId : null;
+    } catch (error) {
+      console.error("Vote on resolution failed:", error);
+      toast.error(`Vote failed: ${getErrorMessage(error)}`);
       return null;
     }
   };
@@ -2722,6 +2808,50 @@ export const useAleoPrograms = () => {
     }
   }, []);
 
+  const fetchResolutionDispute = useCallback(async (marketId: string): Promise<ResolutionDisputeInfo | null> => {
+    try {
+      const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+      const raw = await fetchMappingValue(ORACLE_PROGRAM_ID, "disputes", cleanMarketId);
+      if (!raw) return null;
+
+      return parseResolutionDispute(raw as string | object);
+    } catch (error) {
+      console.error("Failed to fetch resolution dispute:", error);
+      return null;
+    }
+  }, []);
+
+  const fetchOracleVoteStatus = useCallback(async (marketId: string): Promise<OracleVoteStatus | null> => {
+    if (!publicKey) return null;
+
+    try {
+      const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
+      const receiptKey = await deriveVoteReceiptKey(cleanMarketId, publicKey);
+      if (!receiptKey) return null;
+
+      const [votedRaw, outcomeRaw, weightRaw, rewardClaimedRaw] = await Promise.all([
+        fetchMappingValue(ORACLE_PROGRAM_ID, "vote_receipts", receiptKey),
+        fetchMappingValue(ORACLE_PROGRAM_ID, "vote_outcomes", receiptKey),
+        fetchMappingValue(ORACLE_PROGRAM_ID, "vote_weights", receiptKey),
+        fetchMappingValue(ORACLE_PROGRAM_ID, "vote_reward_claimed", receiptKey),
+      ]);
+
+      const hasVoted = parseMappingBool(votedRaw);
+
+      return {
+        marketId: cleanMarketId,
+        receiptKey,
+        hasVoted,
+        outcome: hasVoted ? parseMappingU64(outcomeRaw) : null,
+        weightMicro: hasVoted ? parseMappingU64(weightRaw) : 0,
+        rewardClaimed: hasVoted ? parseMappingBool(rewardClaimedRaw) : false,
+      };
+    } catch (error) {
+      console.error("Failed to fetch oracle vote status:", error);
+      return null;
+    }
+  }, [publicKey]);
+
   const fetchResolutionFinalizeRequirements = useCallback(
     async (marketId: string, outcomeCount: number): Promise<ResolutionFinalizeRequirements | null> => {
       try {
@@ -2856,6 +2986,7 @@ export const useAleoPrograms = () => {
     resolveMarket: resolveMarketOnCore,
     proposeResolution,
     disputeResolution,
+    voteOnResolution,
     cancelMarket,
     registerAsOracle,
     unstakeOracleCredits,
@@ -2863,6 +2994,8 @@ export const useAleoPrograms = () => {
     fetchOracleStake,
     fetchOracleLockedStake,
     fetchResolutionProposal,
+    fetchResolutionDispute,
+    fetchOracleVoteStatus,
     fetchResolutionFinalizeRequirements,
     claimWinnings,
     shieldCredits,

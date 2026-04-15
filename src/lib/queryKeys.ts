@@ -24,6 +24,9 @@ export const queryKeys = {
   sellQuote: (marketId: string, outcome: number, sharesToSell: number, slippageBps: number) =>
     ["market", "sell-quote", normalizeMarketIdKey(marketId), outcome, sharesToSell, slippageBps] as const,
   marketProposal: (marketId: string) => ["market", "proposal", normalizeMarketIdKey(marketId)] as const,
+  marketDispute: (marketId: string) => ["market", "dispute", normalizeMarketIdKey(marketId)] as const,
+  marketOracleVoteStatus: (marketId: string, address?: string | null) =>
+    ["market", "oracle-vote-status", normalizeMarketIdKey(marketId), address ?? "guest"] as const,
   marketResolutionRequirements: (marketId: string, outcomeCount: number) =>
     ["market", "resolution-requirements", normalizeMarketIdKey(marketId), outcomeCount] as const,
   userBets: (address?: string | null) => ["user", "bets", address ?? "guest"] as const,
