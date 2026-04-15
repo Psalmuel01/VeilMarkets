@@ -45,9 +45,10 @@ const USAD_ALIASES = new Set<string>([
 export const resolveTokenKind = (tokenId: string): SupportedTokenKind | null => {
   const normalized = normalizeTokenId(tokenId);
   if (!normalized) return null;
-  if (CREDITS_ALIASES.has(normalized) || normalized.includes("token_credits")) return "credits";
   if (USDCX_ALIASES.has(normalized) || normalized.includes("usdcx")) return "usdcx";
   if (USAD_ALIASES.has(normalized) || normalized.includes("usad")) return "usad";
+  if (CREDITS_ALIASES.has(normalized) || normalized.includes("token_credits")) return "credits";
+  if (normalized.startsWith("aleo1")) return "credits";
   return null;
 };
 
