@@ -739,7 +739,7 @@ export default function MarketDetailPage() {
                   <ConnectWalletButton className="w-full justify-center" />
                 </div>
               ) : (
-                <div className="text-center py- space-y-6 relative z-10">
+                <div className="text-center py-6 space-y-6 relative z-10">
                   <div className="w-16 h-16 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto">
                     <Lock className="w-8 h-8 text-muted-foreground/40" />
                   </div>
@@ -751,21 +751,23 @@ export default function MarketDetailPage() {
                     disabled={marketStatus !== "Open"}
                     className="w-full text-sm btn-premium h-14 rounded-2xl group"
                   >
-                    <span>Place Bet</span>
+                    <span>Buy Shares</span>
                     <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
                   </Button>
                 </div>
               )}
 
               {publicKey && marketStatus === "Open" && (
-                <Button
-                  onClick={() => setShowFundModal(true)}
-                  className="w-full mt-4 h-14 text-[13px] rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white"
-                >
-                  Provide Liquidity
-                </Button>
+                <div className="mt-4 grid grid-cols-1 gap-3">
+                  <Button
+                    onClick={() => setShowFundModal(true)}
+                    className="w-full h-14 text-[13px] rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-white"
+                  >
+                    Provide Liquidity
+                  </Button>
+                </div>
               )}
-              {publicKey && (
+              {/* {publicKey && (
                 <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-xs space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Your LP Liquidity</span>
@@ -800,7 +802,7 @@ export default function MarketDetailPage() {
                     </Button>
                   )}
                 </div>
-              )}
+              )} */}
             </div>
 
             {/* Resolution Mechanics — only shown when market is no longer Open */}
@@ -959,9 +961,9 @@ export default function MarketDetailPage() {
               </div>
               <ul className="space-y-3">
                 {[
-                  "Double-blind encryption for all wager amounts",
-                  "Anonymized participant identities via ZK-SNARKs",
-                  "Immutable on-chain verification without data leaks"
+                  "Private wallet records and payout claims stay shielded in Aleo records",
+                  "Stored position and LP ownership use commitment-style keys to reduce linkage",
+                  "Trade execution and aggregate market accounting remain publicly verifiable"
                 ].map((item, idx) => (
                   <li key={idx} className="flex items-start gap-4">
                     <div className="w-1.5 h-1.5 rounded-full bg-success mt-1.5 shadow-[0_0_8px_hsla(160,84%,45%,0.5)]" />

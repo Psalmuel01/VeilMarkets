@@ -190,7 +190,7 @@ const STEPS = [
   {
     icon: Trophy,
     title: "Claim privately",
-    description: "When markets settle, claim your winnings without revealing which side you were on. Winnings arrive directly to your private balance.",
+    description: "When markets settle, claim your winnings back into a private balance while the market outcome remains publicly verifiable.",
     tag: "Step 03",
   },
 ];
@@ -577,7 +577,7 @@ export default function LandingPage() {
           <motion.div className="vm-section-head" initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
             <span className="vm-section-label">How it works</span>
             <h2 className="vm-h2">Three steps to private prediction</h2>
-            <p className="vm-section-sub">No exposure, no compromise. Your participation is entirely your own.</p>
+            <p className="vm-section-sub">Private records and claims by default, with public market accounting where the protocol needs it.</p>
           </motion.div>
 
           <div className="vm-steps">

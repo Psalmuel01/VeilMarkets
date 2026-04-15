@@ -25,7 +25,7 @@ const sections = [
       },
       {
         title: "How do I participate?",
-        description: "Browse markets, choose an outcome, review the quote and slippage guard, then trade through the market's token rail. The app handles private record usage, token proofs where needed, and payout recovery after settlement.",
+        description: "Browse markets, choose an outcome, review the quote and slippage guard, then trade through the market's token rail. The app handles private record usage, token proofs where needed, payout recovery after settlement, and keeps each wallet on one active side per market until it exits that exposure.",
       },
     ],
   },
@@ -97,7 +97,7 @@ const sections = [
       },
       {
         title: "Trade Inputs",
-        description: "Users choose collateral amount and slippage guard. The app estimates shares out on buys and payout out on sells directly from the same pool math enforced on-chain.",
+        description: "Users choose collateral amount and slippage guard. The app estimates shares out on buys and payout out on sells directly from the same pool math enforced on-chain. Liquidity funding also respects the on-chain minimum, which defaults to 10 tokens unless governance changes it.",
       },
     ],
   },
@@ -127,7 +127,7 @@ const sections = [
       },
       {
         title: "2) Buy Shares",
-        description: "Collateral is routed through the market's token adapter, then core updates pool inventory, fee accounting, and the buyer's private position record.",
+        description: "Collateral is routed through the market's token adapter, then core updates pool inventory, fee accounting, and the buyer's private position record. A wallet can only keep active exposure on one outcome per market at a time; additional buys must stay on that same side until it exits.",
       },
       {
         title: "3) Sell Shares / Fund Liquidity",
@@ -205,7 +205,7 @@ export default function DocsPage() {
             <div>
               <h2 className="text-lg font-semibold">Built for Privacy</h2>
               <p className="text-sm text-muted-foreground">
-                Private records and claims are protected, while market execution and resolution remain publicly verifiable
+                Private records and claims are protected, while market execution, pool accounting, and resolution remain publicly verifiable
               </p>
             </div>
           </div>

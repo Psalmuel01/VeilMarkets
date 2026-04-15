@@ -29,6 +29,8 @@ VeilMarkets uses a modular `v14` contract suite to support:
   - Aleo Credits
   - USDCx
   - USAD
+- protocol-enforced minimum liquidity, with `10` tokens as the default fallback
+- single-side trading per wallet per market until that exposure is fully exited
 
 Settlement is fixed-share:
 
@@ -95,7 +97,7 @@ What is private:
 - wallet-owned token records
 - private position records after purchase
 - payout claim artifacts
-- some ownership commitments stored in core
+- hashed ownership commitments stored in core for positions and LP balances
 
 What is public:
 
@@ -106,7 +108,7 @@ What is public:
 - aggregate pool and fee state
 - oracle proposal, dispute, and resolution activity
 
-So the current system protects records and claims better than a fully public market, but it does not yet hide the trade itself.
+So the current system protects records, claims, and stored ownership references better than a fully public market, but it does not yet hide trade execution itself.
 
 ## Getting Started
 

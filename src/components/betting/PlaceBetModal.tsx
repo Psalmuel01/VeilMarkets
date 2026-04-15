@@ -20,6 +20,7 @@ import { resolveTokenDisplayName, resolveTokenTicker } from "@/lib/constants";
 import { getOutcomeLabel, getOutcomeLabels, getOutcomeTone, normalizeOutcomeCount } from "@/lib/outcomes";
 import {
   useBuyQuoteQuery,
+  useMarketUserPositionQuery,
   useMarketPoolQuery,
   usePlaceBetMutation,
   useProtocolConfigQuery,
@@ -69,6 +70,7 @@ export const PlaceBetModal = ({
     SLIPPAGE_BPS,
     open && Boolean(publicKey),
   );
+  const positionQuery = useMarketUserPositionQuery(marketId, null, open && Boolean(publicKey), marketProgramId);
   const poolQuery = useMarketPoolQuery(marketId, open, marketProgramId);
   const balanceQuery = useTokenBalanceQuery(tokenId, open && Boolean(publicKey));
   const balances = balanceQuery.data ?? null;
@@ -81,6 +83,13 @@ export const PlaceBetModal = ({
   const availableRequiredBalance = balances ? balances.private : 0;
   const hasLowBalance = !!balances && availableRequiredBalance < wagerAmount;
   const minTradeMicro = protocolConfigQuery.data?.minTrade ?? 1_000_000;
+  const userPosition = positionQuery.data ?? null;
+  const activeTradeOutcome = userPosition?.activeTradeOutcome ?? null;
+  const hasMixedTradeOutcomes = userPosition?.hasMixedTradeOutcomes ?? false;
+  const existingOutcomeLabel =
+    activeTradeOutcome !== null
+      ? getOutcomeLabel(marketType, normalizedOutcomeCount, activeTradeOutcome, outcomeLabels)
+      : null;
   
   const isTradeTooSmall =
     selectedOutcome !== null &&
@@ -95,9 +104,17 @@ export const PlaceBetModal = ({
 
   const quoteUnavailable =
     selectedOutcome !== null && !quote && !quoteQuery.isFetching;
+  const isOutcomeLocked =
+    selectedOutcome !== null &&
+    activeTradeOutcome !== null &&
+    activeTradeOutcome !== selectedOutcome;
 
   // We only show liquidity warnings as information, but it blocks the 'Review' button
-  const quoteErrorMessage = isInsufficientLiquidity
+  const quoteErrorMessage = hasMixedTradeOutcomes
+    ? "This wallet still has open shares on multiple outcomes in this market. Sell or settle them before buying again."
+    : isOutcomeLocked
+    ? `You already hold ${existingOutcomeLabel} shares in this market. Add to that side only until you fully exit it.`
+    : isInsufficientLiquidity
     ? "Market needs liquidity before trading opens. Please add LP first."
     : isTradeTooSmall
     ? `Trade too small. Minimum trade is ${(minTradeMicro / 1_000_000).toFixed(6)} ${tokenTicker}.`
@@ -217,6 +234,7 @@ export const PlaceBetModal = ({
                       outcome={resolvedOutcomeLabels[0]}
                       selected={selectedOutcome === 0}
                       onSelect={() => setSelectedOutcome(0)}
+                      disabled={hasMixedTradeOutcomes || (activeTradeOutcome !== null && activeTradeOutcome !== 0)}
                       tone={getOutcomeTone(marketType, normalizedOutcomeCount, 0)}
                     />
                     {resolvedOutcomeLabels.slice(1).map((label, index) => {
@@ -227,11 +245,19 @@ export const PlaceBetModal = ({
                           outcome={label}
                           selected={selectedOutcome === outcomeIndex}
                           onSelect={() => setSelectedOutcome(outcomeIndex)}
+                          disabled={hasMixedTradeOutcomes || (activeTradeOutcome !== null && activeTradeOutcome !== outcomeIndex)}
                           tone={getOutcomeTone(marketType, normalizedOutcomeCount, outcomeIndex)}
                         />
                       );
                     })}
                   </div>
+                  {(hasMixedTradeOutcomes || activeTradeOutcome !== null) && (
+                    <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-xs text-amber-200">
+                      {hasMixedTradeOutcomes
+                        ? "This wallet currently has open shares on multiple outcomes in this market. Close or settle them before opening more exposure."
+                        : `This market is locked to your existing ${existingOutcomeLabel} position until you fully sell or settle it.`}
+                    </div>
+                  )}
                 </div>
 
                 {/* Wager Slider */}

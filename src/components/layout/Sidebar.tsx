@@ -199,7 +199,7 @@ export function Sidebar() {
             </div>
           </div>
         </div>
-
+{/* 
         {publicKey && (
           <div className={cn("px-4 pb-2 transition-all duration-300", collapsed ? "lg:hidden" : "block")}>
             <Button
@@ -217,7 +217,7 @@ export function Sidebar() {
               </span>
             </Button>
           </div>
-        )}
+        )} */}
 
         {/* Wallet Connect & Faucet */}
         <div className="p-3 border-t border-border/50 space-y-2">

@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Coins, Loader2, Wallet } from "lucide-react";
 import { useAleoPrograms } from "@/hooks/useAleoPrograms";
 import {
   useFundPoolMutation,
   useMarketPoolQuery,
   useMarketUserPositionQuery,
+  useProtocolConfigQuery,
 } from "@/hooks/useVeilQuery";
 import { resolveTokenTicker } from "@/lib/constants";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
@@ -41,6 +42,7 @@ export const FundPoolModal = ({
   const tokenTicker = resolveTokenTicker(tokenId);
   const { publicKey } = useAleoPrograms();
   const fundPoolMutation = useFundPoolMutation();
+  const protocolConfigQuery = useProtocolConfigQuery();
   const poolQuery = useMarketPoolQuery(marketId, open && Boolean(publicKey), marketProgramId);
   const positionQuery = useMarketUserPositionQuery(marketId, null, open && Boolean(publicKey), marketProgramId);
   const [step, setStep] = useState<Step>("form");
@@ -51,6 +53,16 @@ export const FundPoolModal = ({
   const lpFeeAccrued = (positionQuery.data?.lpFeeAccrued ?? 0) / 1_000_000;
   const lpWithdrawable = (positionQuery.data?.lpWithdrawable ?? 0) / 1_000_000;
   const lpShares = positionQuery.data?.lpShares ?? 0;
+  const minLiquidity = (protocolConfigQuery.data?.minLiquidity ?? 10_000_000) / 1_000_000;
+
+  useEffect(() => {
+    if (!open) return;
+    setAmount((current) => {
+      const parsed = Number.parseFloat(current);
+      if (Number.isFinite(parsed) && parsed >= minLiquidity) return current;
+      return minLiquidity.toFixed(minLiquidity % 1 === 0 ? 0 : 2);
+    });
+  }, [minLiquidity, open]);
 
   const resetState = () => {
     setStep("form");
@@ -127,6 +139,9 @@ export const FundPoolModal = ({
                 <div className="text-[11px] text-muted-foreground">
                   Estimated withdrawable: {lpWithdrawable.toLocaleString(undefined, { maximumFractionDigits: 4 })} {tokenTicker}.
                 </div>
+                <div className="text-[11px] text-muted-foreground">
+                  Minimum liquidity: {minLiquidity.toLocaleString(undefined, { maximumFractionDigits: 2 })} {tokenTicker}.
+                </div>
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] uppercase tracking-widest text-muted-foreground/60 font-bold">
@@ -138,6 +153,9 @@ export const FundPoolModal = ({
                   inputMode="decimal"
                   placeholder="10"
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  The contract currently requires at least {minLiquidity.toLocaleString(undefined, { maximumFractionDigits: 2 })} {tokenTicker} to seed or add liquidity.
+                </p>
               </div>
               <div className="flex gap-3">
                 <Button variant="ghost" className="flex-1" onClick={handleClose}>

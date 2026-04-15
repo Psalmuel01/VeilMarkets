@@ -102,6 +102,8 @@ interface MarketPositionSummary {
   sellableCollateral: number;
   outcomeShares: Record<number, number>;
   outcomeMaxPositionShares: Record<number, number>;
+  activeTradeOutcome: number | null;
+  hasMixedTradeOutcomes: boolean;
   tradePositionCount: number;
   lpShares: number;
   lpCollateral: number;
@@ -754,8 +756,8 @@ const generateFreezeListProof = async (
 
       proofSiblings.push(siblingHash);
 
-      const left = wasm.Field.fromString(isLeft ? currentHash : siblingHash);
-      const right = wasm.Field.fromString(isLeft ? siblingHash : currentHash);
+      const left = isLeft ? currentHash : siblingHash;
+      const right = isLeft ? siblingHash : currentHash;
       currentHash = hasher.hash([left, right]).toString();
       currentIndex = Math.floor(currentIndex / 2);
     }
@@ -1158,7 +1160,7 @@ export const useAleoPrograms = () => {
       feeBps: Math.min(10_000, Math.max(0, parseMappingU64(feeBpsRaw) || 100)),
       lpFeeShareBps: Math.min(10_000, Math.max(0, parseMappingU64(lpFeeShareBpsRaw) || 8_000)),
       minTrade: Math.max(1, parseMappingU64(minTradeRaw) || 1_000_000),
-      minLiquidity: Math.max(1, parseMappingU64(minLiquidityRaw) || 1_000_000),
+      minLiquidity: Math.max(1, parseMappingU64(minLiquidityRaw) || 10_000_000),
       maxMarketCollateral: Math.max(1, parseMappingU64(maxMarketCollateralRaw) || 100_000_000_000),
     };
   }, []);
@@ -1213,7 +1215,7 @@ export const useAleoPrograms = () => {
 
       const sharesOut = Number(sharesOutBI);
       const minSharesOut = Number(minSharesOutBI);
-      const priceMicroBI = (netCollateralBI * 1_000_000n) / sharesOutBI;
+      const priceMicroBI = (sharesOutBI * 1_000_000n) / netCollateralBI;
 
       return {
         marketId: cleanMarketId,
@@ -1588,6 +1590,8 @@ export const useAleoPrograms = () => {
         sellableCollateral: 0,
         outcomeShares: {},
         outcomeMaxPositionShares: {},
+        activeTradeOutcome: null,
+        hasMixedTradeOutcomes: false,
         tradePositionCount: 0,
         lpShares: 0,
         lpCollateral: 0,
@@ -1691,6 +1695,13 @@ export const useAleoPrograms = () => {
           }
         }
 
+        const activeOutcomes = Object.entries(outcomeShares)
+          .filter(([, shares]) => Number.isFinite(shares) && shares > 0)
+          .map(([recordOutcome]) => Number.parseInt(recordOutcome, 10))
+          .filter((recordOutcome) => Number.isFinite(recordOutcome));
+        const hasMixedTradeOutcomes = activeOutcomes.length > 1;
+        const activeTradeOutcome = activeOutcomes.length === 1 ? activeOutcomes[0] : null;
+
         return {
           marketId: cleanMarketId,
           outcome: typeof outcome === "number" ? outcome : null,
@@ -1698,6 +1709,8 @@ export const useAleoPrograms = () => {
           sellableCollateral,
           outcomeShares,
           outcomeMaxPositionShares,
+          activeTradeOutcome,
+          hasMixedTradeOutcomes,
           tradePositionCount,
           lpShares,
           lpCollateral,
@@ -1776,6 +1789,19 @@ export const useAleoPrograms = () => {
       const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
       if (!marketRaw) {
         toast.error("Market not found.");
+        return;
+      }
+
+      const existingPositionSummary = await fetchMarketPositionSummary(cleanMarketId);
+      if (existingPositionSummary.hasMixedTradeOutcomes) {
+        toast.error("You still have open shares on multiple outcomes in this market. Sell or settle them before buying again.");
+        return;
+      }
+      if (
+        existingPositionSummary.activeTradeOutcome !== null &&
+        existingPositionSummary.activeTradeOutcome !== outcome
+      ) {
+        toast.error("You can only add to your existing side in this market. Sell or settle that position before switching outcomes.");
         return;
       }
 
@@ -1957,6 +1983,14 @@ export const useAleoPrograms = () => {
       const marketRaw = await fetchMappingValue(PROGRAM_ID, "markets", cleanMarketId);
       if (!marketRaw) {
         toast.error("Pool funding is only available for deployed markets.");
+        return null;
+      }
+
+      const protocol = await fetchCoreProtocolConfig();
+      if (amountMicro < protocol.minLiquidity) {
+        toast.error(
+          `Liquidity too small. Minimum liquidity is ${(protocol.minLiquidity / 1_000_000).toFixed(2)} ${resolveTokenTicker(tokenId)}.`,
+        );
         return null;
       }
 
@@ -2393,20 +2427,43 @@ export const useAleoPrograms = () => {
         return null;
       }
 
-      // toast.info("Step 2/2: Settling oracle resolution accounting...");
-      // const settlementResult = await executeAndPoll({
-      //   program: ORACLE_PROGRAM_ID,
-      //   function: "settle_resolution",
-      //   inputs: [cleanMarketId],
-      //   fee: 500_000,
-      //   privateFee: false,
-      // }, ORACLE_PROGRAM_ID, "settle_resolution");
+      const [proposalRaw, resolvedOutcomeRaw] = await Promise.all([
+        fetchMappingValue(ORACLE_PROGRAM_ID, "proposals", cleanMarketId),
+        fetchMappingValue(ORACLE_PROGRAM_ID, "resolved_outcomes", cleanMarketId),
+      ]);
+      const proposal = proposalRaw ? parseResolutionProposal(proposalRaw as string | object) : null;
+      const resolvedOutcome = parseMappingU64(resolvedOutcomeRaw) || outcome;
 
-      // if (!settlementResult?.transactionId) {
-      //   toast.warning("Core resolution succeeded, but oracle settlement accounting did not complete yet.");
-      //   triggerRefresh();
-      //   return resolveResult.transactionId;
-      // }
+      let settlementFunction = "settle_undisputed_resolution";
+      if (proposal?.is_disputed) {
+        const voteKey = await deriveOutcomeVoteKey(cleanMarketId, resolvedOutcome);
+        const winningVoteWeight = voteKey
+          ? parseMappingU64(await fetchMappingValue(ORACLE_PROGRAM_ID, "votes", voteKey))
+          : 0;
+
+        if (winningVoteWeight <= 0) {
+          settlementFunction = "settle_disputed_no_votes";
+        } else if (resolvedOutcome === proposal.proposed_outcome) {
+          settlementFunction = "settle_disputed_proposer_won";
+        } else {
+          settlementFunction = "settle_disputed_challenger_won";
+        }
+      }
+
+      toast.info("Step 2/2: Settling oracle resolution accounting...");
+      const settlementResult = await executeAndPoll({
+        program: ORACLE_PROGRAM_ID,
+        function: settlementFunction,
+        inputs: [cleanMarketId],
+        fee: 500_000,
+        privateFee: false,
+      }, ORACLE_PROGRAM_ID, settlementFunction);
+
+      if (!settlementResult?.transactionId) {
+        toast.warning("Core resolution succeeded, but oracle settlement accounting did not complete yet.");
+        triggerRefresh();
+        return resolveResult.transactionId;
+      }
 
       triggerRefresh();
       return settlementResult.transactionId;

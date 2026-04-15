@@ -149,6 +149,7 @@ Recent privacy hardening reduced some avoidable linkage:
 
 - position and LP ownership are tracked with opaque commitments instead of simpler signer-derived linkage
 - direct user flows such as selling, claiming winnings, and LP withdrawal rely less on explicit caller-address checks in finalize paths
+- the active trading side for a wallet is now constrained per market, preventing mixed long exposure across opposing outcomes until the first side is fully exited
 
 But one hard limit remains: under the current Aleo finalize model, trade execution still needs public inputs for the market state update. Full trade privacy would require a different architecture such as commit-reveal or off-chain matching with on-chain settlement proofs.
 

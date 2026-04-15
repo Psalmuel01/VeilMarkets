@@ -304,6 +304,8 @@ Current governance-controlled examples include:
 
 Governance acts through explicit execution functions rather than directly mutating remote state.
 
+The core fallback for `min liquidity` is `10_000_000u64`, which is `10` whole tokens unless governance overrides it on-chain.
+
 ## 14. Privacy Model
 
 VeilMarkets is privacy-aware, not fully private at trade execution time.
@@ -314,6 +316,11 @@ Private:
 - `BetPosition` records after creation
 - `WinningsClaim` records
 - some ownership commitments and nullifier-linked claim artifacts
+
+Trading policy:
+
+- a wallet may only keep active exposure on one outcome per market at a time
+- additional buys must stay on that same side until all open exposure for that market is sold or settled
 
 Public:
 
