@@ -99,7 +99,7 @@ interface CoreProtocolConfig {
 interface MarketPositionSummary {
   marketId: string;
   outcome: number | null;
-  sellableShares: number; // total shares sellable across all same-outcome position records
+  sellableShares: number; // micro-shares sellable across all same-outcome position records
   sellableCollateral: number;
   outcomeShares: Record<number, number>;
   outcomeMaxPositionShares: Record<number, number>;
@@ -462,7 +462,6 @@ let cachedBhpHelpers:
   | null = null;
 
 type BhpHelpers = {
-  hashOutcomeKey: (marketIdField: string, outcome: number) => string | null;
   hashLpKey: (marketIdField: string, lpOwnerField: string) => string | null;
 };
 
@@ -497,10 +496,6 @@ const getBhpHelpers = async (): Promise<BhpHelpers | null> => {
     const wasm = await import("@provablehq/wasm");
     const bhp = new wasm.BHP256();
     cachedBhpHelpers = {
-      hashOutcomeKey: (marketIdField: string, outcome: number) => {
-        const normalizedOutcome = `${Math.max(0, Math.floor(outcome))}field`;
-        return buildBhpFieldKey(wasm, bhp, marketIdField, normalizedOutcome);
-      },
       hashLpKey: (marketIdField: string, lpOwnerField: string) => {
         return buildBhpFieldKey(wasm, bhp, marketIdField, lpOwnerField);
       },
@@ -510,22 +505,6 @@ const getBhpHelpers = async (): Promise<BhpHelpers | null> => {
     console.warn("[BHP256] Unable to initialize hashed key helpers:", error);
     return null;
   }
-};
-
-const deriveOutcomeExposureKey = async (marketIdField: string, outcome: number): Promise<string | null> => {
-  const helpers = await getBhpHelpers();
-  if (!helpers) return null;
-  return helpers.hashOutcomeKey(marketIdField, outcome);
-};
-
-const deriveOutcomeVoteKey = async (marketIdField: string, outcome: number): Promise<string | null> =>
-  deriveOutcomeExposureKey(marketIdField, outcome);
-
-const deriveVoteReceiptKey = async (marketIdField: string, voterAddress: string): Promise<string | null> => {
-  const helpers = await getAddressFieldHelpers();
-  if (!helpers) return null;
-  const voterField = helpers.toField(voterAddress);
-  return deriveLpBalanceKey(marketIdField, voterField);
 };
 
 const deriveLpBalanceKey = async (marketIdField: string, lpOwnerField: string): Promise<string | null> => {
@@ -546,6 +525,7 @@ let cachedAddressFieldHelpers:
 
 type AddressFieldHelpers = {
   toField: (address: string) => string;
+  toLegacyField: (address: string) => string;
 };
 
 const getAddressFieldHelpers = async (): Promise<AddressFieldHelpers | null> => {
@@ -554,6 +534,8 @@ const getAddressFieldHelpers = async (): Promise<AddressFieldHelpers | null> => 
     const wasm = await import("@provablehq/wasm");
     cachedAddressFieldHelpers = {
       toField: (address: string) =>
+        wasm.Address.from_string(address).toField().toString(),
+      toLegacyField: (address: string) =>
         wasm.Address.from_string(address).toGroup().toXCoordinate().toString(),
     };
     return cachedAddressFieldHelpers;
@@ -561,6 +543,18 @@ const getAddressFieldHelpers = async (): Promise<AddressFieldHelpers | null> => 
     console.warn("[AddressField] Unable to initialize address field helper:", error);
     return null;
   }
+};
+
+const getAddressFieldCandidates = async (address: string): Promise<string[]> => {
+  const helpers = await getAddressFieldHelpers();
+  if (!helpers) return [];
+  return Array.from(
+    new Set(
+      [helpers.toField(address), helpers.toLegacyField(address)]
+        .map((candidate) => formatField(candidate))
+        .filter(Boolean),
+    ),
+  );
 };
 
 const formatMerkleProof = (value: unknown): string | null => {
@@ -1680,28 +1674,46 @@ export const useAleoPrograms = () => {
         }
 
         const marketField = `${cleanMarketId}field`;
-        const helpers = await getAddressFieldHelpers();
-        if (helpers) {
-          const ownerField = formatField(helpers.toField(address));
-          const lpOwnerCommitment = await deriveLpOwnerCommitment(marketField, ownerField);
-          const lpBalanceKey = lpOwnerCommitment
-            ? await deriveLpBalanceKey(marketField, lpOwnerCommitment)
-            : null;
-          if (lpBalanceKey) {
-            const [
-              lpSharesRaw,
-              poolRaw,
-              feePoolRaw,
-              lpReturnPoolRaw,
-              marketRaw,
-            ] = await Promise.all([
-              fetchMappingValue(PROGRAM_ID, "lp_balances", lpBalanceKey),
-              fetchMappingValue(PROGRAM_ID, "pools", marketField),
-              fetchMappingValue(PROGRAM_ID, "market_fee_pool", marketField),
-              fetchMappingValue(PROGRAM_ID, "market_lp_return_pool", marketField),
-              fetchMappingValue(PROGRAM_ID, "markets", marketField),
-            ]);
-            const mappedLpShares = parseMappingU64(lpSharesRaw);
+        const ownerFieldCandidates = await getAddressFieldCandidates(address);
+        if (ownerFieldCandidates.length > 0) {
+          const lpBalanceKeys = new Set<string>();
+
+          for (const ownerField of ownerFieldCandidates) {
+            const ownerCommitment = await deriveLpOwnerCommitment(marketField, ownerField);
+            if (ownerCommitment) {
+              const balanceKey = await deriveLpBalanceKey(marketField, ownerCommitment);
+              if (balanceKey) lpBalanceKeys.add(balanceKey);
+            }
+
+            const reverseOwnerCommitment = await deriveLpBalanceKey(ownerField, marketField);
+            if (reverseOwnerCommitment) {
+              const reverseBalanceKey = await deriveLpBalanceKey(marketField, reverseOwnerCommitment);
+              if (reverseBalanceKey) lpBalanceKeys.add(reverseBalanceKey);
+            }
+          }
+
+          const [
+            poolRaw,
+            feePoolRaw,
+            lpReturnPoolRaw,
+            marketRaw,
+          ] = await Promise.all([
+            fetchMappingValue(PROGRAM_ID, "pools", marketField),
+            fetchMappingValue(PROGRAM_ID, "market_fee_pool", marketField),
+            fetchMappingValue(PROGRAM_ID, "market_lp_return_pool", marketField),
+            fetchMappingValue(PROGRAM_ID, "markets", marketField),
+          ]);
+
+          let mappedLpShares = 0;
+          for (const balanceKey of lpBalanceKeys) {
+            const candidateRaw = await fetchMappingValue(PROGRAM_ID, "lp_balances", balanceKey);
+            const candidateShares = parseMappingU64(candidateRaw);
+            if (candidateShares > mappedLpShares) {
+              mappedLpShares = candidateShares;
+            }
+          }
+
+          if (lpBalanceKeys.size > 0) {
             if (mappedLpShares > 0) {
               lpShares = mappedLpShares;
               lpPositionCount = Math.max(lpPositionCount, 1);
@@ -1709,14 +1721,15 @@ export const useAleoPrograms = () => {
             const poolInfo = poolRaw ? parsePoolInfo(poolRaw as string | object) : null;
             const marketInfo = marketRaw ? parseMarketInfo(marketRaw as string | object, marketField) : null;
             if (poolInfo && poolInfo.lp_supply > 0 && lpShares > 0) {
-              lpCollateral = Math.floor((lpShares * poolInfo.lp_collateral) / poolInfo.lp_supply);
-              lpFeeAccrued = Math.floor((lpShares * parseMappingU64(feePoolRaw)) / poolInfo.lp_supply);
+              const feePool = parseMappingU64(feePoolRaw);
+              const lpReturnPool = parseMappingU64(lpReturnPoolRaw);
+              lpFeeAccrued = Math.floor((lpShares * feePool) / poolInfo.lp_supply);
               if (marketInfo?.is_resolved) {
-                const lpReturnShare = Math.floor(
-                  (lpShares * parseMappingU64(lpReturnPoolRaw)) / poolInfo.lp_supply,
-                );
+                const lpReturnShare = Math.floor((lpShares * lpReturnPool) / poolInfo.lp_supply);
+                lpCollateral = lpReturnShare;
                 lpWithdrawable = lpReturnShare + lpFeeAccrued;
               } else {
+                lpCollateral = Math.floor((lpShares * poolInfo.total_collateral) / poolInfo.lp_supply);
                 lpWithdrawable = 0;
               }
             } else if (lpShares > 0) {
@@ -2386,30 +2399,40 @@ export const useAleoPrograms = () => {
     }
   };
 
-  const findLatestOracleCredentialInput = async (): Promise<string | null> => {
-    if (!address) return null;
+ const findLatestOracleCredentialInput = async (): Promise<string | null> => {
+  if (!address) return null;
 
-    try {
-      const rawRecords = await requestRecordsWithRetry(requestRecords, ORACLE_PROGRAM_ID, "OracleCredential");
-      const records = rawRecords
-        .filter((entry): entry is WalletRecord => typeof entry === "object" && entry !== null)
-        .filter((record) => !record.spent)
-        .filter((record) => {
-          const owner = parseRecordField(record, "owner");
-          return !owner || owner === address;
-        })
-        .sort((a, b) => Number(b.timestamp ?? 0) - Number(a.timestamp ?? 0));
-
-      for (const record of records) {
-        const plaintext = extractRecordPlaintextInput(record, ["owner", "staked_amount", "reputation_score"]);
-        if (plaintext) return plaintext;
-      }
-    } catch (error) {
-      console.error("Failed to load OracleCredential records:", error);
+  try {
+    // Private records can't be fetched via requestRecords — use Shield directly
+    const shield = (window as any).shield;
+    if (!shield?.requestRecords) {
+      console.warn("Shield wallet not available for private record fetch");
+      return null;
     }
 
-    return null;
-  };
+    const rawRecords: any[] = await shield.requestRecords(ORACLE_PROGRAM_ID, true);
+
+    const credential = rawRecords
+      .filter((r) => {
+        const text = r.recordPlaintext || r.plaintext || JSON.stringify(r);
+        return (
+          String(text).includes("staked_amount") &&
+          String(text).includes("reputation_score")
+        );
+      })
+      .filter((r) => !r.spent)
+      .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0))[0];
+
+    if (!credential) return null;
+
+    return credential.recordPlaintext || credential.plaintext || null;
+
+  } catch (error) {
+    console.error("Failed to load OracleCredential records:", error);
+  }
+
+  return null;
+};
 
   const proposeResolution = async (marketId: string, outcome: number) => {
     if (!address) return;
@@ -2513,19 +2536,20 @@ export const useAleoPrograms = () => {
         return null;
       }
 
-      const [proposalRaw, resolvedOutcomeRaw] = await Promise.all([
+      const [proposalRaw, resolvedOutcomeRaw, leadingOutcomeRaw, leadingWeightRaw] = await Promise.all([
         fetchMappingValue(ORACLE_PROGRAM_ID, "proposals", cleanMarketId),
         fetchMappingValue(ORACLE_PROGRAM_ID, "resolved_outcomes", cleanMarketId),
+        fetchMappingValue(ORACLE_PROGRAM_ID, "leading_vote_outcomes", cleanMarketId),
+        fetchMappingValue(ORACLE_PROGRAM_ID, "leading_vote_weights", cleanMarketId),
       ]);
       const proposal = proposalRaw ? parseResolutionProposal(proposalRaw as string | object) : null;
       const resolvedOutcome = parseMappingU64(resolvedOutcomeRaw) || outcome;
 
       let settlementFunction = "settle_undisputed_resolution";
       if (proposal?.is_disputed) {
-        const voteKey = await deriveOutcomeVoteKey(cleanMarketId, resolvedOutcome);
-        const winningVoteWeight = voteKey
-          ? parseMappingU64(await fetchMappingValue(ORACLE_PROGRAM_ID, "votes", voteKey))
-          : 0;
+        const leadingOutcome = parseMappingU64(leadingOutcomeRaw);
+        const winningVoteWeight =
+          leadingOutcome === resolvedOutcome ? parseMappingU64(leadingWeightRaw) : 0;
 
         if (winningVoteWeight <= 0) {
           settlementFunction = "settle_disputed_no_votes";
@@ -2625,7 +2649,7 @@ export const useAleoPrograms = () => {
         return null;
       }
       if (lockedStake > 0) {
-        toast.error("Your oracle stake is locked by an active proposal. Unstake is available after finalization.");
+        toast.error("Unstake is blocked while any oracle stake is locked. Finalize the active proposal first, then unstake.");
         return null;
       }
 
@@ -2826,21 +2850,42 @@ export const useAleoPrograms = () => {
 
     try {
       const cleanMarketId = marketId.includes("field") ? marketId : `${marketId}field`;
-      const receiptKey = await deriveVoteReceiptKey(cleanMarketId, publicKey);
-      if (!receiptKey) return null;
+      const voterFieldCandidates = await getAddressFieldCandidates(publicKey);
+      const receiptKeyCandidates = (
+        await Promise.all(voterFieldCandidates.map((candidate) => deriveLpBalanceKey(cleanMarketId, candidate)))
+      ).filter((candidate): candidate is string => Boolean(candidate));
+      if (receiptKeyCandidates.length === 0) return null;
 
-      const [votedRaw, outcomeRaw, weightRaw, rewardClaimedRaw] = await Promise.all([
-        fetchMappingValue(ORACLE_PROGRAM_ID, "vote_receipts", receiptKey),
-        fetchMappingValue(ORACLE_PROGRAM_ID, "vote_outcomes", receiptKey),
-        fetchMappingValue(ORACLE_PROGRAM_ID, "vote_weights", receiptKey),
-        fetchMappingValue(ORACLE_PROGRAM_ID, "vote_reward_claimed", receiptKey),
-      ]);
+      let matchedReceiptKey = receiptKeyCandidates[0];
+      let votedRaw: unknown = null;
+      let outcomeRaw: unknown = null;
+      let weightRaw: unknown = null;
+      let rewardClaimedRaw: unknown = null;
+
+      for (const receiptKey of receiptKeyCandidates) {
+        const [candidateVotedRaw, candidateOutcomeRaw, candidateWeightRaw, candidateRewardClaimedRaw] = await Promise.all([
+          fetchMappingValue(ORACLE_PROGRAM_ID, "vote_receipts", receiptKey),
+          fetchMappingValue(ORACLE_PROGRAM_ID, "vote_outcomes", receiptKey),
+          fetchMappingValue(ORACLE_PROGRAM_ID, "vote_weights", receiptKey),
+          fetchMappingValue(ORACLE_PROGRAM_ID, "vote_reward_claimed", receiptKey),
+        ]);
+        const candidateHasVoted = parseMappingBool(candidateVotedRaw);
+        const candidateWeight = parseMappingU64(candidateWeightRaw);
+        if (candidateHasVoted || candidateWeight > 0) {
+          matchedReceiptKey = receiptKey;
+          votedRaw = candidateVotedRaw;
+          outcomeRaw = candidateOutcomeRaw;
+          weightRaw = candidateWeightRaw;
+          rewardClaimedRaw = candidateRewardClaimedRaw;
+          break;
+        }
+      }
 
       const hasVoted = parseMappingBool(votedRaw);
 
       return {
         marketId: cleanMarketId,
-        receiptKey,
+        receiptKey: matchedReceiptKey,
         hasVoted,
         outcome: hasVoted ? parseMappingU64(outcomeRaw) : null,
         weightMicro: hasVoted ? parseMappingU64(weightRaw) : 0,
@@ -2864,6 +2909,8 @@ export const useAleoPrograms = () => {
           disputeWindowRaw,
           voterCountRaw,
           totalWeightRaw,
+          leadingOutcomeRaw,
+          leadingWeightRaw,
         ] = await Promise.all([
           fetchMappingValue(ORACLE_PROGRAM_ID, "proposals", cleanMarketId),
           fetchMappingValue(ORACLE_PROGRAM_ID, "oracle_u8", "0u8"),
@@ -2871,6 +2918,8 @@ export const useAleoPrograms = () => {
           fetchMappingValue(ORACLE_PROGRAM_ID, "oracle_u64", "1u8"),
           fetchMappingValue(ORACLE_PROGRAM_ID, "disputed_voter_counts", cleanMarketId),
           fetchMappingValue(ORACLE_PROGRAM_ID, "vote_weight_totals", cleanMarketId),
+          fetchMappingValue(ORACLE_PROGRAM_ID, "leading_vote_outcomes", cleanMarketId),
+          fetchMappingValue(ORACLE_PROGRAM_ID, "leading_vote_weights", cleanMarketId),
         ]);
 
         const proposal = proposalRaw ? parseResolutionProposal(proposalRaw as string | object) : null;
@@ -2903,24 +2952,20 @@ export const useAleoPrograms = () => {
         } else {
           const normalizedCount = Math.max(2, Math.min(8, outcomeCount || 2));
           timeoutAt = proposal.challenge_deadline + disputeTimeoutSeconds;
-          const weights = await Promise.all(
-            Array.from({ length: normalizedCount }, async (_, index) => {
-              const voteKey = await deriveOutcomeVoteKey(cleanMarketId, index);
-              if (!voteKey) return 0;
-              const raw = await fetchMappingValue(ORACLE_PROGRAM_ID, "votes", voteKey);
-              return parseMappingU64(raw);
-            }),
-          );
+          const storedLeadingOutcome = parseMappingU64(leadingOutcomeRaw);
+          const storedLeadingWeight = parseMappingU64(leadingWeightRaw);
 
-          for (let i = 0; i < weights.length; i += 1) {
-            if (weights[i] > leadingOutcomeVoteWeightMicro) {
-              leadingOutcomeVoteWeightMicro = weights[i];
-              leadingOutcome = i;
-            }
+          if (
+            storedLeadingWeight > 0
+            && storedLeadingOutcome >= 0
+            && storedLeadingOutcome < normalizedCount
+          ) {
+            leadingOutcome = storedLeadingOutcome;
+            leadingOutcomeVoteWeightMicro = storedLeadingWeight;
           }
 
           recommendedOutcome = leadingOutcome;
-          selectedOutcomeVoteWeightMicro = leadingOutcome !== null ? weights[leadingOutcome] : 0;
+          selectedOutcomeVoteWeightMicro = leadingOutcomeVoteWeightMicro;
           const quorumReady =
             voterCount >= minVoters
             && totalVoteWeightMicro >= quorumWeightMicro

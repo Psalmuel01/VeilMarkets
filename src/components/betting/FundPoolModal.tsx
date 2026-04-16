@@ -53,6 +53,7 @@ export const FundPoolModal = ({
   const lpFeeAccrued = (positionQuery.data?.lpFeeAccrued ?? 0) / 1_000_000;
   const lpWithdrawable = (positionQuery.data?.lpWithdrawable ?? 0) / 1_000_000;
   const lpShares = positionQuery.data?.lpShares ?? 0;
+  const lpSharesDisplay = lpShares / 1_000_000;
   const minLiquidity = (protocolConfigQuery.data?.minLiquidity ?? 10_000_000) / 1_000_000;
 
   useEffect(() => {
@@ -117,7 +118,12 @@ export const FundPoolModal = ({
             </div>
           ) : step === "form" ? (
             <div className="space-y-5">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 space-y-2">
+              {/* <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 space-y-2">
+                {lpShares <= 0 && (
+                  <div className="text-[11px] text-muted-foreground">
+                    No LP balance detected for this wallet on this market yet. Newly funded liquidity can take a moment to appear after wallet sync.
+                  </div>
+                )}
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Current Pool</span>
                   <span className="font-semibold text-white">
@@ -125,24 +131,30 @@ export const FundPoolModal = ({
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Your LP Position</span>
+                  <span className="text-muted-foreground">
+                    {poolQuery.data?.locked ? "Settled LP Claim" : "Current Pool Claim"}
+                  </span>
                   <span className="font-semibold text-white">
                     {lpCollateral.toLocaleString(undefined, { maximumFractionDigits: 4 })} {tokenTicker}
                   </span>
                 </div>
                 <div className="text-[11px] text-muted-foreground">
-                  LP shares tracked: {(lpShares / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 4 })}.
+                  LP shares tracked: {lpSharesDisplay.toLocaleString(undefined, { maximumFractionDigits: 4 })}.
                 </div>
                 <div className="text-[11px] text-muted-foreground">
                   Accrued LP fees: {lpFeeAccrued.toLocaleString(undefined, { maximumFractionDigits: 4 })} {tokenTicker}.
                 </div>
                 <div className="text-[11px] text-muted-foreground">
-                  Estimated withdrawable: {lpWithdrawable.toLocaleString(undefined, { maximumFractionDigits: 4 })} {tokenTicker}.
+                  {lpShares > 0
+                    ? poolQuery.data?.locked
+                      ? `Withdrawable now: ${lpWithdrawable.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${tokenTicker}.`
+                      : `Estimated withdrawable after resolution: ${lpWithdrawable.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${tokenTicker}.`
+                    : "Your liquidity position will appear here once the on-chain LP balance syncs."}
                 </div>
                 <div className="text-[11px] text-muted-foreground">
                   Minimum liquidity: {minLiquidity.toLocaleString(undefined, { maximumFractionDigits: 2 })} {tokenTicker}.
                 </div>
-              </div>
+              </div> */}
               <div className="space-y-2">
                 <label className="text-[10px] uppercase tracking-widest text-muted-foreground/60 font-bold">
                   Amount ({tokenTicker})

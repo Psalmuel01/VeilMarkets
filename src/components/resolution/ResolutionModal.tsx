@@ -337,7 +337,7 @@ export function ResolutionModal({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-2xl bg-card">
+        <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden bg-card sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Gavel className="w-5 h-5 text-primary" />
@@ -346,7 +346,7 @@ export function ResolutionModal({
             <DialogDescription>{market.title}</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6 py-4">
+          <div className="flex-1 overflow-y-auto py-4 pr-1">
             <AnimatePresence mode="wait">
               {step === "action" && (
                 <motion.div
@@ -397,7 +397,7 @@ export function ResolutionModal({
                         </div>
                       </div>
 
-                      <div className="grid gap-3 sm:grid-cols-2">
+                      {/* <div className="grid gap-3 sm:grid-cols-2">
                         <div className="rounded-xl border border-border/40 bg-background/40 p-3">
                           <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Proposer</p>
                           <p className="mt-1 font-mono text-sm text-foreground">{shortAddress(proposal.proposer)}</p>
@@ -416,7 +416,7 @@ export function ResolutionModal({
                               : "Anyone can become the challenger by posting the dispute bond during the challenge window."}
                           </p>
                         </div>
-                      </div>
+                      </div> */}
 
                       {settlementSummary && (
                         <div className={`rounded-xl border p-4 ${statusToneClass(settlementSummary.tone)}`}>
@@ -732,7 +732,7 @@ export function ResolutionModal({
                         </div>
                       )}
 
-                      {isWindowActive && (
+                      {/* {isWindowActive && (
                         <div className="space-y-3">
                           <Button
                             variant="outline"
@@ -747,7 +747,7 @@ export function ResolutionModal({
                             Disputing makes you the challenger. Oracle registration is only required if you also want to vote in quorum.
                           </p>
                         </div>
-                      )}
+                      )} */}
 
                       {showVoteAction && (
                         <div className="space-y-3">

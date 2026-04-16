@@ -90,6 +90,8 @@ export const PlaceBetModal = ({
     activeTradeOutcome !== null
       ? getOutcomeLabel(marketType, normalizedOutcomeCount, activeTradeOutcome, outcomeLabels)
       : null;
+  // const estimatedSharesDisplay = quote ? quote.sharesOut / 1_000_000 : 0;
+  // const minSharesDisplay = quote ? quote.minSharesOut / 1_000_000 : 0;
   
   const isTradeTooSmall =
     selectedOutcome !== null &&
@@ -377,10 +379,10 @@ export const PlaceBetModal = ({
                     <div className="flex flex-col gap-1">
                       <span className="text-[10px] font-bold uppercase tracking-widest text-success/70">Estimated Shares / Min Receive</span>
                       <div className="text-2xl font-bold text-success font-mono">
-                        {quote.sharesOut.toLocaleString()} <span className="text-xs">shares</span>
+                        {quote.sharesOut.toLocaleString(undefined, { maximumFractionDigits: 6 })} <span className="text-xs">shares</span>
                       </div>
                       <div className="text-xs text-success/80 font-medium">
-                        Min receive: {quote.minSharesOut.toLocaleString()} shares • Fee: {(quote.feeMicro / 1_000_000).toFixed(4)} {tokenTicker}
+                        Min receive: {quote.minSharesOut.toLocaleString(undefined, { maximumFractionDigits: 6 })} shares • Fee: {(quote.feeMicro / 1_000_000).toFixed(4)} {tokenTicker}
                       </div>
                     </div>
                     <TrendingUp className="w-10 h-10 text-success opacity-20" />

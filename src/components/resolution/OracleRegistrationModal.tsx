@@ -48,7 +48,8 @@ export function OracleRegistrationModal({
 
   const minStake = 20;
   const minStakeMicro = minStake * 1_000_000;
-  const availableToUnstakeMicro = Math.max(0, oracleStakeMicro - lockedStakeMicro);
+  const unlockedStakeMicro = Math.max(0, oracleStakeMicro - lockedStakeMicro);
+  const availableToUnstakeMicro = lockedStakeMicro > 0 ? 0 : oracleStakeMicro;
   const parsedStakeAmount = Number.parseFloat(stakeAmount);
   const parsedUnstakeAmount = Number.parseFloat(unstakeAmount);
 
@@ -176,8 +177,13 @@ export function OracleRegistrationModal({
                           Locked stake: <strong>{(lockedStakeMicro / 1_000_000).toLocaleString()} Credits</strong>
                         </p>
                         <p className="text-muted-foreground">
-                          Available to unstake: <strong>{(availableToUnstakeMicro / 1_000_000).toLocaleString()} Credits</strong>
+                          Contract-available to unstake: <strong>{(availableToUnstakeMicro / 1_000_000).toLocaleString()} Credits</strong>
                         </p>
+                        {lockedStakeMicro > 0 && (
+                          <p className="text-amber-500">
+                            Open stake not locked by accounting: <strong>{(unlockedStakeMicro / 1_000_000).toLocaleString()} Credits</strong>
+                          </p>
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground">
                         Vote rewards are credited back into your active oracle stake after you claim them on disputed resolved markets.
@@ -232,7 +238,7 @@ export function OracleRegistrationModal({
                           </Button>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          You can unstake any unlocked amount. Locked proposal stake stays reserved until finalization.
+                          The current contract only allows unstaking when your locked stake is exactly zero. If any proposal bond is still locked, unstake stays blocked until finalization.
                         </p>
                         <Button
                           className="w-full bg-destructive hover:bg-destructive/90 text-white"
@@ -240,6 +246,7 @@ export function OracleRegistrationModal({
                           disabled={
                             loading
                             || availableToUnstakeMicro <= 0
+                            || lockedStakeMicro > 0
                             || Number.isNaN(parsedUnstakeAmount)
                             || parsedUnstakeAmount <= 0
                             || Math.floor(parsedUnstakeAmount * 1_000_000) > availableToUnstakeMicro

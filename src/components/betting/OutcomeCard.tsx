@@ -57,7 +57,7 @@ export function OutcomeCard({
 
       {/* Label */}
       <span className={cn(
-        "text-xl font-bold",
+        "text-lg font-bold",
         selected && isYes && "text-success",
         selected && isNo && "text-destructive",
         selected && !isYes && !isNo && "text-primary",

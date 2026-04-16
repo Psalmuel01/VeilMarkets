@@ -39,7 +39,7 @@ export const WithdrawLiquidityModal = ({
   const { publicKey } = useAleoPrograms();
   const withdrawMutation = useWithdrawLiquidityMutation();
   const tokenTicker = resolveTokenTicker(tokenId);
-  const maxTokenAmount = lpShares / 1_000_000;
+  const maxLpSharesDisplay = lpShares / 1_000_000;
 
   const [step, setStep] = useState<Step>("form");
   const [amount, setAmount] = useState("");
@@ -47,8 +47,8 @@ export const WithdrawLiquidityModal = ({
 
   useEffect(() => {
     if (!open) return;
-    setAmount(maxTokenAmount > 0 ? maxTokenAmount.toFixed(4) : "");
-  }, [maxTokenAmount, open]);
+    setAmount(maxLpSharesDisplay > 0 ? maxLpSharesDisplay.toFixed(4) : "");
+  }, [maxLpSharesDisplay, open]);
 
   const withdrawShares = useMemo(() => {
     const parsed = Number.parseFloat(amount);
@@ -82,7 +82,7 @@ export const WithdrawLiquidityModal = ({
         lpShares: withdrawShares,
         minPayoutMicro,
       });
-      setTxId(result.transactionId);
+      setTxId(result);
       setStep("success");
     } catch {
       setStep("failed");
@@ -115,7 +115,7 @@ export const WithdrawLiquidityModal = ({
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Max removable</span>
                   <span className="font-semibold text-white">
-                    {maxTokenAmount.toLocaleString(undefined, { maximumFractionDigits: 4 })} {tokenTicker}
+                    {maxLpSharesDisplay.toLocaleString(undefined, { maximumFractionDigits: 4 })} LP shares
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
@@ -132,7 +132,7 @@ export const WithdrawLiquidityModal = ({
 
               <div className="space-y-2">
                 <label className="text-[10px] uppercase tracking-widest text-muted-foreground/60 font-bold">
-                  Liquidity to remove ({tokenTicker})
+                  LP shares to burn
                 </label>
                 <div className="flex gap-2">
                   <Input
@@ -144,11 +144,14 @@ export const WithdrawLiquidityModal = ({
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setAmount(maxTokenAmount.toFixed(4))}
-                    disabled={maxTokenAmount <= 0}
+                    onClick={() => setAmount(maxLpSharesDisplay.toFixed(4))}
+                    disabled={maxLpSharesDisplay <= 0}
                   >
                     Max
                   </Button>
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  LP shares are denominated 1:1 with deposited token micro-units. Burning shares returns your proportional claim on LP return pool plus accrued LP fees.
                 </div>
                 {invalidAmount && (
                   <div className="text-xs text-warning">Enter an amount between 0 and your available LP shares.</div>

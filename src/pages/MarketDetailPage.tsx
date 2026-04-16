@@ -209,8 +209,8 @@ export default function MarketDetailPage() {
     outcomeTotalsData ?? Array.from({ length: normalizedOutcomeCount }, () => 0);
   const activeOutcomeTotals = outcomeTotals.slice(0, normalizedOutcomeCount);
   const totalPoolMicro = activeOutcomeTotals.reduce((acc, value) => acc + value, 0);
-  const openInterest = totalPoolMicro / 1_000_000;
-  const poolLiquidity = (pool?.total_collateral ?? 0) / 1_000_000;
+  const sharesOutstanding = totalPoolMicro / 1_000_000;
+  const activeCollateral = (pool?.total_collateral ?? 0) / 1_000_000;
   const cumulativeVolume = (pool?.cumulative_volume ?? 0) / 1_000_000;
   const outcomePercents = activeOutcomeTotals.map((amount) =>
     totalPoolMicro > 0 ? Math.round((amount / totalPoolMicro) * 100) : Math.round(100 / normalizedOutcomeCount),
@@ -316,8 +316,6 @@ export default function MarketDetailPage() {
     (pool?.lp_collateral ?? 0) === 0 &&
     !hasBets
   );
-
-  const proposalStatus = proposal?.is_disputed ? "Disputed" : (nowTs >= (proposal?.challenge_deadline ?? Infinity) ? "ChallengePassed" : "Proposed");
 
   return (
     <MainLayout>
@@ -439,24 +437,24 @@ export default function MarketDetailPage() {
           })}
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-12">
           {[
+            // {
+            //   label: "Outstanding Shares",
+            //   value: `${sharesOutstanding.toLocaleString(undefined, { maximumFractionDigits: 4 })}`,
+            //   unit: marketTokenTicker,
+            //   icon: Activity,
+            //   color: "text-primary",
+            // },
             {
-              label: "Open Interest",
-              value: `${openInterest.toLocaleString(undefined, { maximumFractionDigits: 4 })}`,
-              unit: marketTokenTicker,
-              icon: Activity,
-              color: "text-primary",
-            },
-            {
-              label: "TVL",
-              value: `${poolLiquidity.toLocaleString(undefined, { maximumFractionDigits: 4 })}`,
+              label: "Pool Collateral",
+              value: `${activeCollateral.toLocaleString(undefined, { maximumFractionDigits: 4 })}`,
               unit: marketTokenTicker,
               icon: Lock,
               color: "text-accent",
             },
             {
-              label: "Volume",
+              label: "Trading Volume",
               value: `${cumulativeVolume.toLocaleString(undefined, { maximumFractionDigits: 4 })}`,
               unit: marketTokenTicker,
               icon: TrendingUp,
@@ -485,6 +483,10 @@ export default function MarketDetailPage() {
           ))}
         </div>
 
+        {/* <div className="mb-10 rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-xs text-muted-foreground">
+          <span className="font-semibold text-white">Metric note:</span> Outstanding Shares is the total trader-held outcome shares across outcomes, Pool Collateral is the active market collateral currently sitting in the pool, and Trading Volume is cumulative turnover from buys plus sells.
+        </div> */}
+
         <div className="grid lg:grid-cols-3 gap-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -502,7 +504,7 @@ export default function MarketDetailPage() {
                   Resolved Outcome
                 </h2>
                 <div className={cn(
-                  "text-5xl font-bold font-mono tracking-tighter",
+                  "text-3xl font-bold font-mono tracking-tighter",
                   resolvedOutcomeLabel === "CANCELLED"
                     ? "text-white/40"
                     : resolvedOutcomeTone === "yes"
@@ -675,7 +677,9 @@ export default function MarketDetailPage() {
                     <div className="flex justify-between items-center">
                       <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40 font-mono">Total Sellable Shares</span>
                       <span className="font-mono text-white">
-                        {sellableOutcomeEntries.reduce((sum, entry) => sum + entry.shares, 0).toLocaleString()}
+                        {sellableOutcomeEntries.reduce((sum, entry) => sum + entry.shares, 0).toLocaleString(undefined, {
+                          maximumFractionDigits: 4,
+                        })}
                       </span>
                     </div>
                   </div>
@@ -703,13 +707,13 @@ export default function MarketDetailPage() {
                       <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/40">
                         Sell By Outcome
                       </p>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div>
                         {sellableOutcomeEntries.slice(0, 4).map((entry) => (
                           <Button
                             key={`sell-${entry.outcome}`}
                             type="button"
                             variant="outline"
-                            className="h-10 rounded-xl text-xs"
+                            className="w-full h-10 rounded-xl border border-white/10 hover:bg-white/10 text-white text-sm"
                             onClick={() => {
                               setSellOutcome(entry.outcome);
                               setShowSellModal(true);
@@ -720,7 +724,7 @@ export default function MarketDetailPage() {
                               normalizedOutcomeCount,
                               entry.outcome,
                               market.outcome_labels,
-                            )} ({entry.shares.toLocaleString()})
+                            )} ({entry.shares.toLocaleString(undefined, { maximumFractionDigits: 4 })})
                           </Button>
                         ))}
                       </div>
@@ -767,10 +771,17 @@ export default function MarketDetailPage() {
                   </Button>
                 </div>
               )}
-              {publicKey && (
+              {/* {publicKey && (
                 <div className="mt-7 rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-xs space-y-5">
+                  {lpShares <= 0 && (
+                    <div className="text-[11px] text-muted-foreground">
+                      No LP position detected for this wallet on this market yet. If you funded liquidity recently, give the wallet a moment to sync the updated on-chain balance.
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Your LP Liquidity</span>
+                    <span className="text-muted-foreground">
+                      {market.is_resolved ? "Settled LP Claim" : "Current Pool Claim"}
+                    </span>
                     <span className="text-white font-mono">
                       {lpCollateral.toLocaleString(undefined, { maximumFractionDigits: 4 })} {marketTokenTicker}
                     </span>
@@ -788,12 +799,19 @@ export default function MarketDetailPage() {
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Est. Withdrawable</span>
+                    <span className="text-muted-foreground">
+                      {market.is_resolved ? "Withdrawable Now" : "Withdrawable After Resolution"}
+                    </span>
                     <span className="text-white font-mono">
                       {lpWithdrawable.toLocaleString(undefined, { maximumFractionDigits: 4 })} {marketTokenTicker}
                     </span>
                   </div>
-                  {lpShares > 0 && (
+                  {!market.is_resolved && lpShares > 0 && (
+                    <div className="text-[11px] text-muted-foreground">
+                      Liquidity becomes withdrawable after the market resolves. LP fees continue to accrue while trading is open.
+                    </div>
+                  )}
+                  {market.is_resolved && lpShares > 0 && (
                     <Button
                       onClick={() => setShowWithdrawModal(true)}
                       className="w-full mt-2 h-10 text-xs rounded-xl bg-success/10 border border-success/30 hover:bg-success/15 text-success"
@@ -802,7 +820,7 @@ export default function MarketDetailPage() {
                     </Button>
                   )}
                 </div>
-              )}
+              )} */}
             </div>
 
             {/* Resolution Mechanics — only shown when market is no longer Open */}
@@ -867,15 +885,21 @@ export default function MarketDetailPage() {
                     </Button>
                   )}
 
-                  {/* 2. Manage Resolution — only the proposer */}
-                  {proposal && !isSettled && publicKey === proposal.proposer && (
+                  {/* 2. Resolution Panel — available to anyone who needs to view, vote, or claim */}
+                  {proposal && (
                     <Button
                       variant="ghost"
                       className="w-full h-12 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 text-white font-bold"
                       onClick={() => setShowResolutionModal(true)}
                     >
                       <Scale className="w-4 h-4 mr-2" />
-                      Manage Resolution
+                      {isSettled
+                        ? "View Resolution"
+                        : proposal.is_disputed
+                          ? "Open Resolution Panel"
+                          : publicKey === proposal.proposer
+                            ? "Manage Resolution"
+                            : "View Resolution"}
                     </Button>
                   )}
 
@@ -892,7 +916,7 @@ export default function MarketDetailPage() {
                   )}
 
                   {/* 4. Resolve Market — available to all once challenge has passed */}
-                  {proposalStatus === "ChallengePassed" && !isSettled && (
+                  {proposal && !isSettled && (
                     <Button
                       onClick={() => {
                         if (proposal && finalizationOutcome !== null) {
@@ -901,10 +925,10 @@ export default function MarketDetailPage() {
                         }
                       }}
                       className="w-full btn-premium bg-gradient-to-r from-success/80 to-success hover:from-success hover:to-success/90 h-14 rounded-2xl"
-                      disabled={!proposal || !isFinalizable}
+                      disabled={!publicKey || !proposal || !isFinalizable}
                     >
                       <CheckCircle2 className="w-5 h-5 mr-2" />
-                      Resolve Market
+                      {publicKey ? "Resolve Market" : "Connect Wallet To Resolve"}
                     </Button>
                   )}
 
@@ -1054,7 +1078,7 @@ export default function MarketDetailPage() {
           {finalizeStep === "confirm" && (
             <div className="p-4 space-y-3">
               <p className="text-sm text-muted-foreground">
-                You are about to finalize this market with the proposed outcome.
+                Any connected wallet can trigger finalization once the oracle requirements are satisfied. This will finalize the market with the currently valid outcome.
               </p>
               {proposal && (
                 <div className="p-3 rounded-lg bg-muted/20 border border-border/50 text-sm flex justify-between">
@@ -1107,7 +1131,7 @@ export default function MarketDetailPage() {
                   Quorum timeout reached. This resolve call will use the original proposal as the fallback outcome.
                 </p>
               )}
-              <Button onClick={handleFinalize} className="w-full btn-glow-success" disabled={!isFinalizable}>
+              <Button onClick={handleFinalize} className="w-full btn-glow-success" disabled={!publicKey || !isFinalizable}>
                 Confirm Resolve
               </Button>
             </div>

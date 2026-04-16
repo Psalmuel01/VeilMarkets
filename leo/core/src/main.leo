@@ -1068,6 +1068,7 @@ final fn finalize_withdraw_liquidity(
     let principal_payout: u64 = mul_div_u64(lp_shares, lp_return_pool, pool.lp_supply);
     let fee_payout: u64 = mul_div_u64(lp_shares, fee_pool, pool.lp_supply);
     let total_payout: u64 = principal_payout + fee_payout;
+    let burned_lp_collateral: u64 = mul_div_u64(lp_shares, pool.lp_collateral, pool.lp_supply);
 
     assert(total_payout > 0u64);
     assert(total_payout >= min_payout);
@@ -1091,7 +1092,7 @@ final fn finalize_withdraw_liquidity(
         lp_count: next_lp_count,
         locked: pool.locked,
         total_collateral: pool.total_collateral - total_payout,
-        lp_collateral: pool.lp_collateral,
+        lp_collateral: pool.lp_collateral - burned_lp_collateral,
         lp_supply: pool.lp_supply - lp_shares,
         cumulative_volume: pool.cumulative_volume,
     };

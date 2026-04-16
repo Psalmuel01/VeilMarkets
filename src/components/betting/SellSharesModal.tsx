@@ -55,7 +55,7 @@ export const SellSharesModal = ({
     [marketType, normalizedOutcomeCount, outcome, outcomeLabels],
   );
   const [step, setStep] = useState<Step>("form");
-  const [sharesToSell, setSharesToSell] = useState("1");
+  const [sharesToSell, setSharesToSell] = useState("1.000000");
   const [txId, setTxId] = useState<string | null>(null);
   const { publicKey } = useAleoPrograms();
   const positionQuery = useMarketUserPositionQuery(
@@ -65,7 +65,8 @@ export const SellSharesModal = ({
   );
   const sellMutation = useSellSharesMutation();
   const availableShares = positionQuery.data?.sellableShares ?? 0;
-  const sellAmount = Math.max(0, Math.floor(Number(sharesToSell) || 0));
+  // const availableSharesDisplay = availableShares / 1_000_000;
+  const sellAmount = Math.max(0, Math.floor((Number.parseFloat(sharesToSell) || 0) * 1_000_000));
   const sellAmountInvalid = sellAmount <= 0 || sellAmount > availableShares;
   const quoteQuery = useSellQuoteQuery(
     marketId,
@@ -86,16 +87,16 @@ export const SellSharesModal = ({
       return;
     }
     setSharesToSell((current) => {
-      const parsed = Math.floor(Number(current) || 0);
-      if (parsed <= 0) return "1";
-      if (parsed > availableShares) return String(availableShares);
-      return String(parsed);
+      const parsed = Math.floor((Number.parseFloat(current) || 0) * 1_000_000);
+      if (parsed <= 0) return Math.min(availableShares, 1).toFixed(6);
+      if (parsed > availableShares) return availableShares.toFixed(6);
+      return current;
     });
   }, [availableShares, open]);
 
   const resetState = () => {
     setStep("form");
-    setSharesToSell("1");
+    setSharesToSell("1.000000");
     setTxId(null);
   };
 
@@ -161,21 +162,21 @@ export const SellSharesModal = ({
                 <div className="flex gap-2">
                   <Input
                     value={sharesToSell}
-                    onChange={(event) => setSharesToSell(event.target.value.replace(/[^\d]/g, ""))}
-                    inputMode="numeric"
-                    placeholder="1"
+                    onChange={(event) => setSharesToSell(event.target.value.replace(/[^\d.]/g, ""))}
+                    inputMode="decimal"
+                    placeholder="1.000000"
                   />
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setSharesToSell(String(availableShares))}
+                    onClick={() => setSharesToSell(availableShares.toFixed(6))}
                     disabled={availableShares <= 0}
                   >
                     Max
                   </Button>
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Max sell for this outcome: {availableShares.toLocaleString()}
+                  Max sell for this outcome: {availableShares.toLocaleString(undefined, { maximumFractionDigits: 6 })} shares
                 </div>
                 {sellAmount > availableShares && (
                   <div className="text-xs text-warning">
